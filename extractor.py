@@ -122,15 +122,15 @@ def replace_return_values_smali(method_body):
         new_method_body = new_method_body.replace(
             match.group(),
             f"""
-        invoke-static {{p2}}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
-        move-result-object v1
-        check-cast v1, Ljava/lang/Integer;
-        const v7, 0x936
-        if-eq v1, v7, :cond_{arr[counter]}
-        const {register_name}, 1
-        :cond_{arr[counter]}
-        {match.group().strip()}
-        """,
+            invoke-static {{p2}}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
+            move-result-object v1
+            check-cast v1, Ljava/lang/Integer;
+            const v7, 0x936
+            if-eq p2, v7, :cond_{arr[counter]}
+            const {register_name}, 1
+            :cond_{arr[counter]}
+            {match.group().strip()}
+            """,
         )
         counter += 1
     return new_method_body
