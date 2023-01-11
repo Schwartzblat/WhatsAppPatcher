@@ -119,11 +119,14 @@ def replace_return_values_smali(method_body):
     counter = 0
     for match in RETURN_RE_SMALI.finditer(method_body):
         register_name = match.group().strip().split(" ")[1]
+        temp_register = 'v2'
+        if register_name == 'v2':
+            temp_register = 'v0'
         new_method_body = new_method_body.replace(
             match.group(),
             f"""
-            const v2, 0x936
-            if-eq p2, v2, :cond_{arr[counter]}
+            const {temp_register},                                 
+            if-eq p2, {temp_register}, :cond_{arr[counter]}
             const {register_name}, 1
             :cond_{arr[counter]}
             {match.group().strip()}
