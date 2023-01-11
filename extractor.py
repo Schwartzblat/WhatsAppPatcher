@@ -122,8 +122,8 @@ def replace_return_values_smali(method_body):
         new_method_body = new_method_body.replace(
             match.group(),
             f"""
-            const v7, 0x936
-            if-eq p2, v7, :cond_{arr[counter]}
+            const v2, 0x936
+            if-eq p2, v2, :cond_{arr[counter]}
             const {register_name}, 1
             :cond_{arr[counter]}
             {match.group().strip()}
