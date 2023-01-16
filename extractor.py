@@ -15,8 +15,8 @@ class Extractor:
         self.output_path = output_path
 
     def extract_apk(self):
-        if os.path.exists(output_path):
-            shutil.rmtree(output_path)
+        if os.path.exists(self.temp_path):
+            shutil.rmtree(self.temp_path)
         apktool_base_path = pathlib.Path(__file__).parent / "bin" / "apktool"
         apk_tool = apktool_base_path / "apktool_2.7.0.jar"
         subprocess.check_call(
@@ -27,7 +27,7 @@ class Extractor:
                 "d",
                 "--output",
                 str(self.temp_path),
-                str(self.temp_path),
+                str(self.apk_path),
             ],
             timeout=20 * 60,
         )
@@ -56,4 +56,5 @@ class Extractor:
             self.output_path,
         ]
         subprocess.check_call(command, timeout=20 * 60)
+        os.remove(self.output_path)
         os.rename(f'{self.output_path.removesuffix(".apk")}-aligned-debugSigned.apk', self.output_path)

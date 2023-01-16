@@ -1,5 +1,8 @@
 from termcolor import cprint
 import os
+import re
+import glob
+
 class Patcher:
     BOOLEAN_TEST_METHOD_NAME_REGEX_SMALI = re.compile(
         r"\.method public final (\w+)\(LX\/0uH;I\)Z"
@@ -49,9 +52,9 @@ class Patcher:
 
     def bypass_signature_verifier(self):
         cprint("[+] Bypassing signature verifier....", "green")
-        class_path, class_body = get_sign_verification_class(self.extracted_path)
+        class_path, class_body = self.get_sign_verification_class()
         cprint("[+] Signature verifier class has been found.", "green")
-        new_class_body = get_new_sign_verification_class(class_body)
+        new_class_body = self.get_new_sign_verification_class(class_body)
         with open(class_path, "w") as f:
             f.write(new_class_body)
         cprint("[+] Signature verifier class has been modified.", "green")
@@ -66,7 +69,7 @@ class Patcher:
                     return filename, data
 
     def get_new_sign_verification_class(self, class_data: str) -> str:
-        sign_verification_method_body = list(SIGN_VERIFICATION_RE.finditer(class_data))[0]
+        sign_verification_method_body = list(self.SIGN_VERIFICATION_RE.finditer(class_data))[0]
         return class_data.replace(
             sign_verification_method_body.group(1),
             self.SIGN_VERIFICATION_REPLACE
@@ -93,7 +96,7 @@ class Patcher:
     def get_boolean_test_method_smali(self, path):
         with open(path, "r") as f:
             class_data = f.read()
-        boolean_method = BOOLEAN_TEST_METHOD_NAME_REGEX_SMALI.findall(class_data)
+        boolean_method = self.BOOLEAN_TEST_METHOD_NAME_REGEX_SMALI.findall(class_data)
         assert (
             len(boolean_method) == 1
         ), f"Didn't find a single boolean method at: {class_data}"
@@ -121,13 +124,13 @@ class Patcher:
         return method_body
 
     def get_function_body_smali(self, class_data):
-        return BOOLEAN_TEST_METHOD_BODY_REGEX_SMALI.findall(class_data)[0]
+        return self.BOOLEAN_TEST_METHOD_BODY_REGEX_SMALI.findall(class_data)[0]
 
     def replace_return_values_smali(self, method_body):
         new_method_body = method_body
         arr = [6, 7]
         counter = 0
-        for match in RETURN_RE_SMALI.finditer(method_body):
+        for match in self.RETURN_RE_SMALI.finditer(method_body):
             register_name = match.group().strip().split(" ")[1]
             temp_register = "v2"
             if register_name == "v2":
