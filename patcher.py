@@ -8,7 +8,7 @@ from typing import Callable
 class Patcher:
 
     BOOLEAN_TEST_METHOD_BODY_REGEX_SMALI = re.compile(
-        "\.method public final (?:\w+)\(LX\/0uH;I\)Z.*?end method", re.DOTALL
+        "\.method public final \w+\(LX\/\w+;I\)Z.*?end method", re.DOTALL
     )
     RETURN_RE_SMALI = re.compile("[ ]*return v[0-9]")
     SIGN_VERIFICATION_RE = re.compile(
@@ -47,7 +47,9 @@ class Patcher:
         self.patch_ab_tests()
 
     def patch_ab_tests(self):
+        cprint("[+] Patching AB tests class to enable all hidden features...", "green")
         self.patch_class(self.is_abtests_class, self.get_new_ab_test_class)
+        cprint("[+] AB tests class has been modified.", "green")
 
     def get_new_ab_test_class(self, class_data) -> str:
         function_body = self.BOOLEAN_TEST_METHOD_BODY_REGEX_SMALI.findall(class_data)[0]
