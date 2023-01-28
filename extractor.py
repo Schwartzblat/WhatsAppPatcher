@@ -1,11 +1,8 @@
 import pathlib
-import platform
 import shutil
 import subprocess
 import os
-import glob
-import re
-import termcolor
+from termcolor import cprint
 import zipfile
 import shutil
 
@@ -21,11 +18,13 @@ class Extractor:
             shutil.rmtree(self.temp_path)
         apktool_base_path = pathlib.Path(__file__).parent / "bin" / "apktool"
         apk_tool = apktool_base_path / "apktool_2.7.0.jar"
+        cprint("[+] Running apktool to decompile the apk.", "green")
         subprocess.check_call(
             [
                 "java",
                 "-jar",
                 str(apk_tool),
+                "-q",
                 "d",
                 "--output",
                 str(self.temp_path),
@@ -33,6 +32,7 @@ class Extractor:
             ],
             timeout=20 * 60,
         )
+        cprint("[+] Apktool decompiled the apk.", "green")
 
     def extract_dex(self):
         with zipfile.ZipFile(self.apk_path) as z:
@@ -47,13 +47,16 @@ class Extractor:
             "java",
             "-jar",
             apk_tool,
+            "-q",
             "build",
             "--use-aapt2",
             self.temp_path,
             "--output",
             self.output_path,
         ]
+        cprint("[+] Compiling the smali with apktool.", "green")
         subprocess.check_call(command, timeout=20 * 60)
+        cprint("[+] Smali has been compiled.", "green")
 
     def sign_apk(self):
         command = [
@@ -63,6 +66,8 @@ class Extractor:
             "--apks",
             self.output_path,
         ]
+        cprint("[+] Signing the apk with uber apk signer.", "green")
         subprocess.check_call(command, timeout=20 * 60)
+        cprint("[+] Finished successfully.", "green")
         os.remove(self.output_path)
         os.rename(f'{self.output_path.removesuffix(".apk")}-aligned-debugSigned.apk', self.output_path)
