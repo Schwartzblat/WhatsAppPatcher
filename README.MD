@@ -2,6 +2,12 @@
 
 WhatsApp patcher is a program that patches WhatsApp apk.
 
+## Features
+|          Feature          | Availability |
+|:-------------------------:|:------------:|
+| Signature Verifier Bypass |      ✔       |
+|    Enable all AB tests    |      ✔       |
+
 ## Requirements
 1. Python3
 2. Java installed
