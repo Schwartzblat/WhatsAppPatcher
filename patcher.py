@@ -148,6 +148,8 @@ class Patcher:
                 f"""
     const {temp_register}, 0x936                               
     if-eq p2, {temp_register}, :cond_{arr[counter]}
+    const {temp_register}, 0x33F
+    if-eq p2, {temp_register}, :cond_{arr[counter]}
     const {register_name}, 1
     :cond_{arr[counter]}
     {match.group().strip()}
