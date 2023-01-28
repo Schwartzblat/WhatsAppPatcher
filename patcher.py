@@ -16,10 +16,9 @@ class Patcher:
         r"\.method public static \w+\(Landroid\/content\/Context;\)\[Landroid\/content\/pm\/Signature;\s*\.locals \w+\s*(.*?)\s*.end method",
         re.DOTALL,
     )
-    SIGN_VERIFICATION_REPLACE = """.line 774171
+    SIGN_VERIFICATION_REPLACE = """
     const-string/jumbo v0, "{{ORIGINAL_SIGNATURE}}"
 
-    .line 774172
     new-instance v4, Landroid/content/pm/Signature;
 
     invoke-direct {v4, v0}, Landroid/content/pm/Signature;-><init>(Ljava/lang/String;)V
@@ -30,7 +29,6 @@ class Patcher:
 
     const/4 v1, 0x1
 
-    .line 774175
     new-array v0, v0, [Landroid/content/pm/Signature;
 
     aput-object v4, v0, v2
