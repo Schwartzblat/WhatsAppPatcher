@@ -2,6 +2,8 @@ from termcolor import cprint
 import os
 import re
 import glob
+from hashlib import md5
+
 
 class Patcher:
     BOOLEAN_TEST_METHOD_NAME_REGEX_SMALI = re.compile(
@@ -12,18 +14,35 @@ class Patcher:
     )
     RETURN_RE_SMALI = re.compile("[ ]*return v[0-9]")
     SIGN_VERIFICATION_RE = re.compile(
-        "\.method public bridge synthetic \w+\(\[Ljava\/lang\/Object;\)Ljava\/lang\/Object;\s*(.*?)\.end method",
+        r'\.method public static \w+\(Landroid\/content\/Context;\)\[Landroid\/content\/pm\/Signature;\s*\.locals \w+\s*(.*?)\s*.end method',
         re.DOTALL,
     )
-    SIGN_VERIFICATION_REPLACE = """.registers 3
+    SIGN_VERIFICATION_REPLACE = """.line 774171
+    const-string/jumbo v0, "{{ORIGINAL_SIGNATURE}}"
 
-    const/4 v0, 0x0
+    .line 774172
+    new-instance v4, Landroid/content/pm/Signature;
 
-    return-object v0
+    invoke-direct {v4, v0}, Landroid/content/pm/Signature;-><init>(Ljava/lang/String;)V
+    
+    const/4 v0, 0x1
+
+    const/4 v2, 0x0
+
+    const/4 v1, 0x1
+
+    .line 774175
+    new-array v0, v0, [Landroid/content/pm/Signature;
+
+    aput-object v4, v0, v2
+
+    return-object v0 
     """
 
-    def __init__(self, extracted_path):
+    DEX_HASH_FUNCTION_RE = re.compile('\.method public static \w+\(Landroid\/content\/Context;\)\[B\s*(.*?)\.end method', re.DOTALL)
+    def __init__(self, extracted_path, apk_path):
         self.extracted_path = extracted_path
+        self.apk_path = apk_path
 
     def patch(self):
         self.patch_ab_tests()
@@ -52,12 +71,72 @@ class Patcher:
 
     def bypass_signature_verifier(self):
         cprint("[+] Bypassing signature verifier....", "green")
+        original_signature = self.get_original_signature()
         class_path, class_body = self.get_sign_verification_class()
         cprint("[+] Signature verifier class has been found.", "green")
-        new_class_body = self.get_new_sign_verification_class(class_body)
+        new_class_body = self.get_new_sign_verification_class(class_body, original_signature)
         with open(class_path, "w") as f:
             f.write(new_class_body)
         cprint("[+] Signature verifier class has been modified.", "green")
+        dex_hash = self.get_dex_md5()
+        class_path, class_body = self.get_dex_hash_class()
+        new_class_body = self.get_new_dex_hash_class_data(class_body, dex_hash)
+        print(new_class_body)
+        with open(class_path, "w") as f:
+            f.write(new_class_body)
+
+    def get_original_signature(self) -> str:
+        with open(self.extracted_path+'/original/META-INF/WHATSAPP.DSA', 'rb') as f:
+            bytes_signature = f.read()
+        signature = ''
+        for byte in bytes_signature:
+            signature_byte = hex(byte).split('x')[-1]
+            if len(signature_byte) == 1:
+                signature_byte = '0'+signature_byte
+            signature += signature_byte
+        return signature[112:-432]
+
+    def get_dex_md5(self) -> bytes:
+        with open('classes.dex', 'rb') as f:
+            return md5(f.read()).digest()
+
+    def get_new_dex_hash_class_data(self, class_data: str, dex_hash: bytes) -> str:
+        dex_hash_function = list(self.DEX_HASH_FUNCTION_RE.finditer(class_data))[0]
+        array_size = len(dex_hash)
+        new_dex_hash_function = f""".registers 7
+    
+    const v2, {hex(array_size)}
+    
+    new-array v0, v2, [B
+    """
+        i = 0
+        for byte in dex_hash:
+            new_dex_hash_function += f"""
+    const v5, {hex(byte)}
+    
+    const v1, {hex(i)}
+    
+    aput-byte v5, v0, v1
+            """
+            i += 1
+        new_dex_hash_function += """
+    
+    return-object v0
+    """
+        return class_data.replace(
+            dex_hash_function.group(1),
+            new_dex_hash_function
+        )
+
+
+    def get_dex_hash_class(self):
+        for filename in glob.iglob(
+            os.path.join(self.extracted_path, "**", "*.smali"), recursive=True
+        ):
+            with open(filename, "r", encoding="utf8") as f:
+                data = f.read()
+                if "app/md5/bytes/error" in data:
+                    return filename, data
 
     def get_sign_verification_class(self):
         for filename in glob.iglob(
@@ -65,14 +144,14 @@ class Patcher:
         ):
             with open(filename, "r", encoding="utf8") as f:
                 data = f.read()
-                if "requestCodeForStandaloneVerification" in data:
+                if "PackageManagerUtils/setActivityRegisteredState/error:" in data:
                     return filename, data
 
-    def get_new_sign_verification_class(self, class_data: str) -> str:
+    def get_new_sign_verification_class(self, class_data: str, original_signature: str) -> str:
         sign_verification_method_body = list(self.SIGN_VERIFICATION_RE.finditer(class_data))[0]
         return class_data.replace(
             sign_verification_method_body.group(1),
-            self.SIGN_VERIFICATION_REPLACE
+            self.SIGN_VERIFICATION_REPLACE.replace('{{ORIGINAL_SIGNATURE}}', original_signature)
         )
 
     def get_abtests_class_name(self):

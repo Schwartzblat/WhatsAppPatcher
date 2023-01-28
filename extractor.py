@@ -6,6 +6,8 @@ import os
 import glob
 import re
 import termcolor
+import zipfile
+import shutil
 
 
 class Extractor:
@@ -32,7 +34,13 @@ class Extractor:
             timeout=20 * 60,
         )
 
+    def extract_dex(self):
+        with zipfile.ZipFile(self.apk_path) as z:
+            z.extract('classes.dex')
+
     def compile_smali(self):
+        if os.path.exists(self.output_path):
+            os.remove(self.output_path)
         apktool_base_path = pathlib.Path(__file__).parent / "bin" / "apktool"
         apk_tool = apktool_base_path / "apktool_2.7.0.jar"
         command = [
