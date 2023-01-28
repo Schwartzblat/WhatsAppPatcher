@@ -36,7 +36,7 @@ class Extractor:
 
     def extract_dex(self):
         with zipfile.ZipFile(self.apk_path) as z:
-            z.extract('classes.dex')
+            z.extract("classes.dex")
 
     def compile_smali(self):
         if os.path.exists(self.output_path):
@@ -70,4 +70,7 @@ class Extractor:
         subprocess.check_call(command, timeout=20 * 60)
         cprint("[+] Finished successfully.", "green")
         os.remove(self.output_path)
-        os.rename(f'{self.output_path.removesuffix(".apk")}-aligned-debugSigned.apk', self.output_path)
+        os.rename(
+            f'{self.output_path.removesuffix(".apk")}-aligned-debugSigned.apk',
+            self.output_path,
+        )

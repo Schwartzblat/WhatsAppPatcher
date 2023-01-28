@@ -5,6 +5,7 @@ import glob
 from hashlib import md5
 from typing import Callable
 
+
 class Patcher:
 
     BOOLEAN_TEST_METHOD_BODY_REGEX_SMALI = re.compile(
@@ -12,7 +13,7 @@ class Patcher:
     )
     RETURN_RE_SMALI = re.compile("[ ]*return v[0-9]")
     SIGN_VERIFICATION_RE = re.compile(
-        r'\.method public static \w+\(Landroid\/content\/Context;\)\[Landroid\/content\/pm\/Signature;\s*\.locals \w+\s*(.*?)\s*.end method',
+        r"\.method public static \w+\(Landroid\/content\/Context;\)\[Landroid\/content\/pm\/Signature;\s*\.locals \w+\s*(.*?)\s*.end method",
         re.DOTALL,
     )
     SIGN_VERIFICATION_REPLACE = """.line 774171
@@ -37,7 +38,11 @@ class Patcher:
     return-object v0 
     """
 
-    DEX_HASH_FUNCTION_RE = re.compile('\.method public static \w+\(Landroid\/content\/Context;\)\[B\s*(.*?)\.end method', re.DOTALL)
+    DEX_HASH_FUNCTION_RE = re.compile(
+        "\.method public static \w+\(Landroid\/content\/Context;\)\[B\s*(.*?)\.end method",
+        re.DOTALL,
+    )
+
     def __init__(self, extracted_path, apk_path):
         self.extracted_path = extracted_path
         self.apk_path = apk_path
@@ -59,7 +64,9 @@ class Patcher:
     def bypass_signature_verifier(self):
         cprint("[+] Bypassing signature verifier...", "green")
         cprint("[+] Bypassing package manager signature...", "green")
-        self.patch_class(self.get_sign_verification_class, self.get_new_sign_verification_class)
+        self.patch_class(
+            self.get_sign_verification_class, self.get_new_sign_verification_class
+        )
         cprint("[+] Package manager signature has been modified", "green")
         cprint("[+] Bypassing dex file md5 hash", "green")
         self.patch_class(self.get_dex_hash_class, self.get_new_dex_hash_class_data)
@@ -67,18 +74,18 @@ class Patcher:
         cprint("[+] Signature verifier class has been bypasses.", "green")
 
     def get_original_signature(self) -> str:
-        with open(self.extracted_path+'/original/META-INF/WHATSAPP.DSA', 'rb') as f:
+        with open(self.extracted_path + "/original/META-INF/WHATSAPP.DSA", "rb") as f:
             bytes_signature = f.read()
-        signature = ''
+        signature = ""
         for byte in bytes_signature:
-            signature_byte = hex(byte).split('x')[-1]
+            signature_byte = hex(byte).split("x")[-1]
             if len(signature_byte) == 1:
-                signature_byte = '0'+signature_byte
+                signature_byte = "0" + signature_byte
             signature += signature_byte
         return signature[112:-432]
 
     def get_dex_md5(self) -> bytes:
-        with open('classes.dex', 'rb') as f:
+        with open("classes.dex", "rb") as f:
             return md5(f.read()).digest()
 
     def get_new_dex_hash_class_data(self, class_data: str) -> str:
@@ -105,11 +112,7 @@ class Patcher:
     
     return-object v0
     """
-        return class_data.replace(
-            dex_hash_function.group(1),
-            new_dex_hash_function
-        )
-
+        return class_data.replace(dex_hash_function.group(1), new_dex_hash_function)
 
     def get_dex_hash_class(self, data: str) -> bool:
         if "app/md5/bytes/error" in data:
@@ -123,10 +126,14 @@ class Patcher:
 
     def get_new_sign_verification_class(self, class_data: str) -> str:
         original_signature = self.get_original_signature()
-        sign_verification_method_body = list(self.SIGN_VERIFICATION_RE.finditer(class_data))[0]
+        sign_verification_method_body = list(
+            self.SIGN_VERIFICATION_RE.finditer(class_data)
+        )[0]
         return class_data.replace(
             sign_verification_method_body.group(1),
-            self.SIGN_VERIFICATION_REPLACE.replace('{{ORIGINAL_SIGNATURE}}', original_signature)
+            self.SIGN_VERIFICATION_REPLACE.replace(
+                "{{ORIGINAL_SIGNATURE}}", original_signature
+            ),
         )
 
     def is_abtests_class(self, data: str):
@@ -158,12 +165,14 @@ class Patcher:
             counter += 1
         return new_method_body
 
-    def patch_class(self, class_filter: Callable[[str], bool], class_modifier: Callable[[str], str]) -> bool:
+    def patch_class(
+        self, class_filter: Callable[[str], bool], class_modifier: Callable[[str], str]
+    ) -> bool:
         class_path, class_data = self.find_class(class_filter)
         if class_path is None:
             return False
         new_class_data = class_modifier(class_data)
-        with open(class_path, 'w') as f:
+        with open(class_path, "w") as f:
             f.write(new_class_data)
         return True
 
@@ -174,5 +183,5 @@ class Patcher:
             with open(filename, "r", encoding="utf8") as f:
                 data = f.read()
                 if class_filter(data):
-                   return filename, data
+                    return filename, data
         return None, None

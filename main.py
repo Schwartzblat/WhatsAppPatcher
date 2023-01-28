@@ -7,8 +7,8 @@ from patcher import Patcher
 
 def main():
     parser = argparse.ArgumentParser(description="Bump Version")
-    parser.add_argument("-path", '-p', dest="path", type=str, required=True)
-    parser.add_argument("-output", '-o', dest="output", type=str, required=True)
+    parser.add_argument("-path", "-p", dest="path", type=str, required=True)
+    parser.add_argument("-output", "-o", dest="output", type=str, required=True)
     parser.add_argument(
         "--temp-path", dest="temp_path", type=str, default="./extracted"
     )
@@ -30,6 +30,7 @@ def main():
     cprint("[+] Smali has been compiled.", "green")
     extractor.sign_apk()
     cprint("[+] Apk has been signed.", "green")
+
 
 if __name__ == "__main__":
     main()
