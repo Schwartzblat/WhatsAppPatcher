@@ -165,9 +165,7 @@ class Patcher:
             counter += 1
         return new_method_body
 
-    def patch_class(
-        self, class_filter: Callable[[str], bool], class_modifier: Callable[[str], str]
-    ) -> bool:
+    def patch_class(self, class_filter: Callable, class_modifier: Callable) -> bool:
         class_path, class_data = self.find_class(class_filter)
         if class_path is None:
             return False
@@ -176,7 +174,7 @@ class Patcher:
             f.write(new_class_data)
         return True
 
-    def find_class(self, class_filter: Callable[[str], bool]) -> tuple[str, str]:
+    def find_class(self, class_filter: Callable):
         for filename in glob.iglob(
             os.path.join(self.extracted_path, "**", "*.smali"), recursive=True
         ):
