@@ -4,7 +4,6 @@ import subprocess
 import os
 from termcolor import cprint
 import zipfile
-import shutil
 
 
 class Extractor:
@@ -16,7 +15,7 @@ class Extractor:
     def extract_apk(self):
         if os.path.exists(self.temp_path):
             shutil.rmtree(self.temp_path)
-        apktool_base_path = pathlib.Path(__file__).parent / "bin" / "apktool"
+        apktool_base_path = pathlib.Path(__file__).parent / "bin"
         apk_tool = apktool_base_path / "apktool_2.7.0.jar"
         cprint("[+] Running apktool to decompile the apk.", "green")
         subprocess.check_call(
@@ -41,7 +40,7 @@ class Extractor:
     def compile_smali(self):
         if os.path.exists(self.output_path):
             os.remove(self.output_path)
-        apktool_base_path = pathlib.Path(__file__).parent / "bin" / "apktool"
+        apktool_base_path = pathlib.Path(__file__).parent / "bin"
         apk_tool = apktool_base_path / "apktool_2.7.0.jar"
         command = [
             "java",
@@ -59,10 +58,11 @@ class Extractor:
         cprint("[+] Smali has been compiled.", "green")
 
     def sign_apk(self):
+        uber_signer = pathlib.Path(__file__).parent / "bin" / "uber-apk-signer-1.2.1.jar"
         command = [
             "java",
             "-jar",
-            "uber-apk-signer-1.2.1.jar",
+            str(uber_signer),
             "--apks",
             self.output_path,
         ]
