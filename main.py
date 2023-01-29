@@ -23,13 +23,10 @@ def main():
         exit(-1)
     extractor = Extractor(args.path, args.output)
     extractor.extract_apk()
-    extractor.extract_dex()
-    patcher = Patcher(extractor.temp_path, args.path)
+    patcher = Patcher(extractor.temp_path)
     patcher.patch()
     extractor.compile_smali()
-    cprint("[+] Smali has been compiled.", "green")
     extractor.sign_apk()
-    cprint("[+] Apk has been signed.", "green")
 
 
 if __name__ == "__main__":

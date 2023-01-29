@@ -32,12 +32,15 @@ class Extractor:
             timeout=20 * 60,
         )
         cprint("[+] Apktool decompiled the apk.", "green")
+        self.extract_dex()
 
     def extract_dex(self):
         with zipfile.ZipFile(self.apk_path) as z:
-            z.extract("classes.dex")
+            z.extract("classes.dex", self.temp_path)
 
     def compile_smali(self):
+        if os.path.exists(self.temp_path+'\\classes.dex'):
+            os.remove(self.temp_path+'\\classes.dex')
         if os.path.exists(self.output_path):
             os.remove(self.output_path)
         apktool_base_path = pathlib.Path(__file__).parent / "bin"
