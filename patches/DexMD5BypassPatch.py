@@ -2,19 +2,21 @@ from patches.Patch import Patch
 import re
 from hashlib import md5
 
-class DexMD5BypassPatch(Patch):
 
+class DexMD5BypassPatch(Patch):
     def __init__(self, extracted_path):
         super().__init__(extracted_path)
-        self.print_message = '[+] Bypassing dex file md5 hash'
+        self.print_message = "[+] Bypassing dex file md5 hash"
 
     DEX_HASH_FUNCTION_RE = re.compile(
         "\.method public static \w+\(Landroid\/content\/Context;\)\[B\s*(.*?)\.end method",
         re.DOTALL,
     )
+
     def get_dex_md5(self) -> bytes:
-        with open(self.extracted_path+"/classes.dex", "rb") as f:
+        with open(self.extracted_path + "/classes.dex", "rb") as f:
             return md5(f.read()).digest()
+
     def class_filter(self, class_data: str) -> bool:
         if "app/md5/bytes/error" in class_data:
             return True
@@ -45,4 +47,3 @@ class DexMD5BypassPatch(Patch):
             return-object v0
             """
         return class_data.replace(dex_hash_function.group(1), new_dex_hash_function)
-

@@ -1,6 +1,7 @@
 from patches.Patch import Patch
 import re
 
+
 class SignatureVerifierPatch(Patch):
     SIGN_VERIFICATION_RE = re.compile(
         r"\.method public static \w+\(Landroid\/content\/Context;\)\[Landroid\/content\/pm\/Signature;\s*\.locals \w+\s*(.*?)\s*.end method",
@@ -25,9 +26,10 @@ class SignatureVerifierPatch(Patch):
 
         return-object v0 
         """
+
     def __init__(self, extracted_path):
         super().__init__(extracted_path)
-        self.print_message = '[+] Bypassing package manager signature...'
+        self.print_message = "[+] Bypassing package manager signature..."
 
     def class_filter(self, class_data: str) -> bool:
         if "PackageManagerUtils/setActivityRegisteredState/error:" in class_data:

@@ -1,14 +1,18 @@
 from patches.Patch import Patch
 import re
 
+
 class ABTestsPatch(Patch):
     BOOLEAN_TEST_METHOD_BODY_REGEX_SMALI = re.compile(
         "\.method public final \w+\(LX\/\w+;I\)Z.*?end method", re.DOTALL
     )
     RETURN_RE_SMALI = re.compile("[ ]*return v[0-9]")
+
     def __init__(self, extracted_path):
         super().__init__(extracted_path)
-        self.print_message = '[+] Patching AB tests class to enable all hidden features...'
+        self.print_message = (
+            "[+] Patching AB tests class to enable all hidden features..."
+        )
 
     def replace_return_values_smali(self, method_body):
         new_method_body = method_body
@@ -33,6 +37,7 @@ class ABTestsPatch(Patch):
             )
             counter += 1
         return new_method_body
+
     def class_filter(self, class_data: str) -> bool:
         if ', "Unknown BooleanField: "' in class_data:
             return True

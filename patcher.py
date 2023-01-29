@@ -9,7 +9,8 @@ from typing import Callable
 import importlib
 
 
-exclude_imports = ['__init__.py', 'Patch.py', 'patcher.py']
+exclude_imports = ["__init__.py", "Patch.py", "patcher.py"]
+
 
 class Patcher:
 
@@ -25,16 +26,19 @@ class Patcher:
         for path in glob.iglob(os.path.join(current_dir, "*.*")):
             if os.path.basename(path) in exclude_imports:
                 continue
-            module_name = "patches."+path.split('\\')[-1].split('.')[0]
+            module_name = "patches." + path.split("\\")[-1].split(".")[0]
             module = importlib.import_module(module_name, module_name)
-            inner_class = getattr(module, dir(module)[0]) if dir(module)[0] != 'Patch' else getattr(module, dir(module)[1])
+            inner_class = (
+                getattr(module, dir(module)[0])
+                if dir(module)[0] != "Patch"
+                else getattr(module, dir(module)[1])
+            )
             self.patches.append(inner_class(self.extracted_path))
 
     def patch(self):
         for patch in self.patches:
-            cprint(patch.print_message, 'green')
+            cprint(patch.print_message, "green")
             self.patch_class(patch.class_filter, patch.class_modifier)
-
 
     def patch_class(self, class_filter: Callable, class_modifier: Callable) -> bool:
         class_path, class_data = self.find_class(class_filter)
