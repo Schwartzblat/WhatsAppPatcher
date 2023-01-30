@@ -8,16 +8,10 @@ from hashlib import md5
 from typing import Callable
 import importlib
 
-
-exclude_imports = ["__init__.py", "Patch.py", "patcher.py"]
+exclude_imports = ["__init__.py", "Patch.py"]
 
 
 class Patcher:
-
-    BOOLEAN_TEST_METHOD_BODY_REGEX_SMALI = re.compile(
-        "\.method public final \w+\(LX\/\w+;I\)Z.*?end method", re.DOTALL
-    )
-    RETURN_RE_SMALI = re.compile("[ ]*return v[0-9]")
 
     def __init__(self, extracted_path):
         self.extracted_path = extracted_path
@@ -51,7 +45,7 @@ class Patcher:
 
     def find_class(self, class_filter: Callable):
         for filename in glob.iglob(
-            os.path.join(self.extracted_path, "**", "*.smali"), recursive=True
+                os.path.join(self.extracted_path, "**", "*.smali"), recursive=True
         ):
             with open(filename, "r", encoding="utf8") as f:
                 data = f.read()
