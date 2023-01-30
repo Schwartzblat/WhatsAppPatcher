@@ -48,7 +48,7 @@ class Extractor:
         command = [
             "java",
             "-jar",
-            apk_tool,
+            str(apk_tool),
             "-q",
             "build",
             "--use-aapt2",
