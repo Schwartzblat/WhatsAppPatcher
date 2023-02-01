@@ -12,7 +12,6 @@ exclude_imports = ["__init__.py", "Patch.py"]
 
 
 class Patcher:
-
     def __init__(self, extracted_path):
         self.extracted_path = extracted_path
         self.patches = []
@@ -45,7 +44,7 @@ class Patcher:
 
     def find_class(self, class_filter: Callable):
         for filename in glob.iglob(
-                os.path.join(self.extracted_path, "**", "*.smali"), recursive=True
+            os.path.join(self.extracted_path, "**", "*.smali"), recursive=True
         ):
             with open(filename, "r", encoding="utf8") as f:
                 data = f.read()

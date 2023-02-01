@@ -4,8 +4,10 @@ from hashlib import md5
 
 
 class DexMD5BypassPatch(Patch):
-
-    DEX_HASH_BODY = re.compile(':try[^\n]+\s+[^\n]+getPackageCodePath\(\).*?invoke-virtual \{(?P<mac>\w+),\s*(?P<reg>\w+)\},\s*Ljavax\/crypto\/Mac;->update\(\[B\)V', re.DOTALL)
+    DEX_HASH_BODY = re.compile(
+        ":try[^\n]+\s+[^\n]+getPackageCodePath\(\).*?invoke-virtual \{(?P<mac>\w+),\s*(?P<reg>\w+)\},\s*Ljavax\/crypto\/Mac;->update\(\[B\)V",
+        re.DOTALL,
+    )
 
     def __init__(self, extracted_path):
         super().__init__(extracted_path)
@@ -23,8 +25,8 @@ class DexMD5BypassPatch(Patch):
     def class_modifier(self, class_data: str) -> str:
         dex_hash = self.get_dex_md5()
         dex_hash_body = list(self.DEX_HASH_BODY.finditer(class_data))[0]
-        array_register = dex_hash_body.groupdict().get('reg')
-        mac_register = dex_hash_body.groupdict().get('mac')
+        array_register = dex_hash_body.groupdict().get("reg")
+        mac_register = dex_hash_body.groupdict().get("mac")
         array_size = len(dex_hash)
         dex_hash_new_body = f"""
     const v2, {hex(array_size)}
