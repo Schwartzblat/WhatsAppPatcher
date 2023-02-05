@@ -29,25 +29,29 @@ class Patcher:
             self.patches.append(inner_class(self.extracted_path))
 
     def patch(self):
-        for patch in self.patches:
-            cprint(patch.print_message, "green")
-            self.patch_class(patch.class_filter, patch.class_modifier)
+        self.find_classes()
+        self.patch_classes()
 
-    def patch_class(self, class_filter: Callable, class_modifier: Callable) -> bool:
-        class_path, class_data = self.find_class(class_filter)
-        if class_path is None:
-            return False
-        new_class_data = class_modifier(class_data)
-        with open(class_path, "w") as f:
-            f.write(new_class_data)
-        return True
-
-    def find_class(self, class_filter: Callable):
+    def find_classes(self):
+        patches_to_find = self.patches.copy()
         for filename in glob.iglob(
-            os.path.join(self.extracted_path, "**", "*.smali"), recursive=True
+                os.path.join(self.extracted_path, "**", "*.smali"), recursive=True
         ):
             with open(filename, "r", encoding="utf8") as f:
                 data = f.read()
-                if class_filter(data):
-                    return filename, data
-        return None, None
+                for patch in patches_to_find:
+                    if patch.class_filter(data):
+                        patch.class_data = data
+                        patch.class_path = filename
+                        patches_to_find.remove(patch)
+        for patch in self.patches:
+            if patch.class_data is None:
+                cprint(f"[-] Didn't found {patch} class.", 'red')
+
+    def patch_classes(self):
+        for patch in self.patches:
+            if patch.class_data is None:
+                continue
+            cprint(patch.print_message, 'green')
+            with open(patch.class_path, 'w') as f:
+                f.write(patch.class_modifier(patch.class_data))

@@ -3,9 +3,10 @@ import os
 from termcolor import cprint
 from extractor import Extractor
 from patcher import Patcher
-
+from timeit import default_timer
 
 def main():
+    start = default_timer()
     parser = argparse.ArgumentParser(description="Bump Version")
     parser.add_argument("-path", "-p", dest="path", type=str, required=True)
     parser.add_argument("-output", "-o", dest="output", type=str, required=True)
@@ -27,7 +28,8 @@ def main():
     patcher.patch()
     extractor.compile_smali()
     extractor.sign_apk()
-
+    print(f'It took {default_timer()-start} seconds to complete the run.')
+    # It took 225.4562991 seconds to complete the run.
 
 if __name__ == "__main__":
     main()
