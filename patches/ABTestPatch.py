@@ -7,6 +7,11 @@ class ABTestsPatch(Patch):
         "\.method public final \w+\(LX\/\w+;I\)Z.*?end method", re.DOTALL
     )
     RETURN_RE_SMALI = re.compile("[ ]*return v[0-9]")
+    BAD_TESTS = [
+        '0x936',
+        '0x33F',
+        '0x93',
+    ]
 
     def __init__(self, extracted_path):
         super().__init__(extracted_path)
@@ -23,17 +28,20 @@ class ABTestsPatch(Patch):
             temp_register = "v2"
             if register_name == "v2":
                 temp_register = "v0"
-            new_method_body = new_method_body.replace(
-                match.group(),
-                f"""
-    const {temp_register}, 0x936                               
-    if-eq p2, {temp_register}, :cond_{arr[counter]}
-    const {temp_register}, 0x33F
-    if-eq p2, {temp_register}, :cond_{arr[counter]}
+            replacement = ''
+            for test in self.BAD_TESTS:
+                replacement += f"""
+    const {temp_register}, {test}                               
+    if-eq p2, {temp_register}, :cond_{arr[counter]} """
+
+            replacement += f"""
     const {register_name}, 1
     :cond_{arr[counter]}
     {match.group().strip()}
-                    """,
+    """
+            new_method_body = new_method_body.replace(
+                match.group(),
+                replacement
             )
             counter += 1
         return new_method_body
