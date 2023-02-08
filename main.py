@@ -5,6 +5,7 @@ from extractor import Extractor
 from patcher import Patcher
 from timeit import default_timer
 
+
 def main():
     start = default_timer()
     parser = argparse.ArgumentParser(description="Bump Version")
@@ -28,8 +29,9 @@ def main():
     patcher.patch()
     extractor.compile_smali()
     extractor.sign_apk()
-    print(f'It took {default_timer()-start} seconds to complete the run.')
+    print(f"It took {default_timer()-start} seconds to complete the run.")
     # It took 225.4562991 seconds to complete the run.
+
 
 if __name__ == "__main__":
     main()

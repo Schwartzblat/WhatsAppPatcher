@@ -8,9 +8,9 @@ class ABTestsPatch(Patch):
     )
     RETURN_RE_SMALI = re.compile("[ ]*return v[0-9]")
     BAD_TESTS = [
-        '0x936',
-        '0x33F',
-        '0x93',
+        "0x936",
+        "0x33F",
+        "0x93",
     ]
 
     def __init__(self, extracted_path):
@@ -28,7 +28,7 @@ class ABTestsPatch(Patch):
             temp_register = "v2"
             if register_name == "v2":
                 temp_register = "v0"
-            replacement = ''
+            replacement = ""
             for test in self.BAD_TESTS:
                 replacement += f"""
     const {temp_register}, {test}                               
@@ -39,10 +39,7 @@ class ABTestsPatch(Patch):
     :cond_{arr[counter]}
     {match.group().strip()}
     """
-            new_method_body = new_method_body.replace(
-                match.group(),
-                replacement
-            )
+            new_method_body = new_method_body.replace(match.group(), replacement)
             counter += 1
         return new_method_body
 

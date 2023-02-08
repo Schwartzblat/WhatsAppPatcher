@@ -35,7 +35,7 @@ class Patcher:
     def find_classes(self):
         patches_to_find = self.patches.copy()
         for filename in glob.iglob(
-                os.path.join(self.extracted_path, "**", "*.smali"), recursive=True
+            os.path.join(self.extracted_path, "**", "*.smali"), recursive=True
         ):
             with open(filename, "r", encoding="utf8") as f:
                 data = f.read()
@@ -46,12 +46,12 @@ class Patcher:
                         patches_to_find.remove(patch)
         for patch in self.patches:
             if patch.class_data is None:
-                cprint(f"[-] Didn't found {patch} class.", 'red')
+                cprint(f"[-] Didn't found {patch} class.", "red")
 
     def patch_classes(self):
         for patch in self.patches:
             if patch.class_data is None:
                 continue
-            cprint(patch.print_message, 'green')
-            with open(patch.class_path, 'w') as f:
+            cprint(patch.print_message, "green")
+            with open(patch.class_path, "w") as f:
                 f.write(patch.class_modifier(patch.class_data))
