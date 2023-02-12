@@ -59,6 +59,7 @@ class Extractor:
         cprint("[+] Compiling the smali with apktool.", "green")
         subprocess.check_call(command, timeout=20 * 60)
         cprint("[+] Smali has been compiled.", "green")
+        os.remove(self.temp_path)
 
     def sign_apk(self):
         uber_signer = (
