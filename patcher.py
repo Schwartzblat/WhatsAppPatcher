@@ -37,6 +37,8 @@ class Patcher:
         for filename in glob.iglob(
             os.path.join(self.extracted_path, "**", "*.smali"), recursive=True
         ):
+            if len(patches_to_find) == 0:
+                break
             with open(filename, "r", encoding="utf8") as f:
                 data = f.read()
                 for patch in patches_to_find:
