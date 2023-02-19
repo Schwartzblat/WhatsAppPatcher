@@ -1,4 +1,4 @@
-name: Python application
+name: Tests
 
 on:
   push:
@@ -31,4 +31,4 @@ jobs:
         pip install -r requirements.txt -U
     - name: Test with pytest
       run: |
-        pytest -v  /tests
+        pytest -v
