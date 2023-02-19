@@ -1,5 +1,6 @@
 from whatsapp_patcher.extractor import Extractor
 from whatsapp_patcher.patcher import Patcher
+from whatsapp_patcher.utils.downloader import download_latest_whatsapp
 import pytest
 import requests
 import re
@@ -18,28 +19,6 @@ headers = {
 def apk_path(tmp_path_factory) -> str:
     tmp = tmp_path_factory.mktemp("tmp")
     apk_path = str(tmp / "WhatsApp.apk")
-
-    def get_latest_version_download_link() -> str:
-        versions_html = requests.get(
-            "https://www.apkmirror.com/apk/whatsapp-inc/whatsapp/", headers=headers
-        ).text
-        latest_version = latest_version_re.findall(versions_html)[0]
-        url = f"https://www.apkmirror.com/apk/whatsapp-inc/whatsapp/whatsapp-{latest_version}-release/whatsapp-messenger-{latest_version}-android-apk-download/"
-        download_page = requests.get(url, headers=headers).text
-        return download_link_re.findall(download_page)[0]
-
-    def download_latest_whatsapp(path):
-        download_link = get_latest_version_download_link()
-        click_here_page = requests.get(
-            f"https://www.apkmirror.com{download_link}", headers=headers
-        ).text
-        click_here_link = click_here_re.findall(click_here_page)[0]
-        res = requests.get(
-            f"https://www.apkmirror.com{click_here_link}", headers=headers
-        )
-        with open(path, "wb") as f:
-            f.write(res.content)
-
     download_latest_whatsapp(apk_path)
     return apk_path
 
@@ -47,7 +26,7 @@ def apk_path(tmp_path_factory) -> str:
 @pytest.fixture(scope="session")
 def output_path(tmp_path_factory) -> str:
     tmp_path = tmp_path_factory.mktemp("output")
-    return str(tmp_path / "output.apk")
+    return str(tmp_path / "PatchedWhatsApp.apk")
 
 
 @pytest.fixture(scope="session")
