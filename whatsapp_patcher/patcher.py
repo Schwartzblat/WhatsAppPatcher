@@ -19,9 +19,7 @@ class Patcher:
         for path in glob.iglob(os.path.join(current_dir, "*.*")):
             if os.path.basename(path) in exclude_imports:
                 continue
-            module_name = (
-                "whatsapp_patcher.patches." + pathlib.Path(path).stem
-            )
+            module_name = "whatsapp_patcher.patches." + pathlib.Path(path).stem
             module = importlib.import_module(module_name, module_name)
             inner_class = (
                 getattr(module, dir(module)[0])
