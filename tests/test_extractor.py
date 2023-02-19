@@ -8,7 +8,7 @@ latest_version_re = re.compile(
     '<a class="downloadLink" href=".*?([0-9]+-[0-9]+-[0-9]+-[0-9]+).*?">'
 )
 download_link_re = re.compile('href="(/apk/whatsapp-inc/.*?download/download/.*?)"')
-click_here_re = re.compile('href="(.*APKMirror/download.php\?id=.*?)"')
+click_here_re = re.compile('href="(.*APKMirror/download.php.id=.*?)"')
 headers = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36",
 }
