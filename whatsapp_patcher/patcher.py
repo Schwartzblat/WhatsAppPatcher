@@ -20,7 +20,7 @@ class Patcher:
             if os.path.basename(path) in exclude_imports:
                 continue
             module_name = (
-                "whatsapp_patcher.patches." + path.split("\\")[-1].split(".")[0]
+                "whatsapp_patcher.patches." + pathlib.Path(path).stem
             )
             module = importlib.import_module(module_name, module_name)
             inner_class = (

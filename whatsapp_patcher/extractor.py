@@ -39,8 +39,8 @@ class Extractor:
             z.extract("classes.dex", self.temp_path)
 
     def compile_smali(self):
-        if os.path.exists(self.temp_path + "\\classes.dex"):
-            os.remove(self.temp_path + "\\classes.dex")
+        if os.path.exists(self.temp_path + "/classes.dex"):
+            os.remove(self.temp_path + "/classes.dex")
         if os.path.exists(self.output_path):
             os.remove(self.output_path)
         apktool_base_path = pathlib.Path(__file__).parent.parent / "bin"
