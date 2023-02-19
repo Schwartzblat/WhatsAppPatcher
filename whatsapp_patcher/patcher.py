@@ -15,11 +15,13 @@ class Patcher:
     def __init__(self, extracted_path):
         self.extracted_path = extracted_path
         self.patches = []
-        current_dir = pathlib.Path(os.path.split(__file__)[0]) / "patches"
+        current_dir = pathlib.Path(__file__).parent / "patches"
         for path in glob.iglob(os.path.join(current_dir, "*.*")):
             if os.path.basename(path) in exclude_imports:
                 continue
-            module_name = "patches." + path.split("\\")[-1].split(".")[0]
+            module_name = (
+                "whatsapp_patcher.patches." + path.split("\\")[-1].split(".")[0]
+            )
             module = importlib.import_module(module_name, module_name)
             inner_class = (
                 getattr(module, dir(module)[0])

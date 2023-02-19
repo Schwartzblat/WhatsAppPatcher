@@ -1,4 +1,4 @@
-from patches.Patch import Patch
+from whatsapp_patcher.patches.Patch import Patch
 import re
 
 
