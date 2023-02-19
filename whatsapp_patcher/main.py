@@ -1,7 +1,7 @@
 import argparse
 import os
 from termcolor import cprint
-from extractor import Extractor
+from whatsapp_patcher.extractor import Extractor
 from patcher import Patcher
 from timeit import default_timer
 
