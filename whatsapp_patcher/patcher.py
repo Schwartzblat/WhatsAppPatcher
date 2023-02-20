@@ -12,14 +12,17 @@ exclude_imports = ["__init__.py", "Patch.py"]
 
 
 class Patcher:
-    def __init__(self, extracted_path, should_enable_ab_tests: bool=False):
+    def __init__(self, extracted_path, should_enable_ab_tests: bool = False):
         self.extracted_path = extracted_path
         self.patches = []
         current_dir = pathlib.Path(__file__).parent / "patches"
         for path in glob.iglob(os.path.join(current_dir, "*.*")):
             if os.path.basename(path) in exclude_imports:
                 continue
-            if not should_enable_ab_tests and os.path.basename(path) == 'ABTestPatch.py':
+            if (
+                not should_enable_ab_tests
+                and os.path.basename(path) == "ABTestPatch.py"
+            ):
                 continue
             module_name = "whatsapp_patcher.patches." + pathlib.Path(path).stem
             module = importlib.import_module(module_name, module_name)

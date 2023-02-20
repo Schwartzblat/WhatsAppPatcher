@@ -17,7 +17,7 @@ def main():
     parser.add_argument(
         "--temp-path", dest="temp_path", type=str, default="./extracted"
     )
-    parser.add_argument('--ab-tests', action='store_true')
+    parser.add_argument("--ab-tests", action="store_true")
     args = parser.parse_args()
     path = args.path
     if path == "latest":
