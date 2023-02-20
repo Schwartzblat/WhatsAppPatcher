@@ -37,7 +37,7 @@ def extractor(apk_path: str, output_path: str, tmp_path_factory):
 
 @pytest.fixture()
 def patcher(extractor: Extractor) -> Patcher:
-    return Patcher(extractor.temp_path)
+    return Patcher(extractor.temp_path, should_enable_ab_tests=True)
 
 
 def test_extract_apk(extractor: Extractor):
