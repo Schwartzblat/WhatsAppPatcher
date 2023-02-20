@@ -17,6 +17,7 @@ def main():
     parser.add_argument(
         "--temp-path", dest="temp_path", type=str, default="./extracted"
     )
+    parser.add_argument('--ab-tests', action='store_true')
     args = parser.parse_args()
     path = args.path
     if path == "latest":
@@ -32,7 +33,7 @@ def main():
         exit(-1)
     extractor = Extractor(path, args.output)
     extractor.extract_apk()
-    patcher = Patcher(extractor.temp_path)
+    patcher = Patcher(extractor.temp_path, args.ab_tests)
     patcher.patch()
     extractor.compile_smali()
     extractor.sign_apk()
