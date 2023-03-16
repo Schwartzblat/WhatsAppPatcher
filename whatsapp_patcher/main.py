@@ -38,7 +38,6 @@ def main():
     extractor.compile_smali()
     extractor.sign_apk()
     print(f"It took {default_timer()-start} seconds to complete the run.")
-    # It took 225.4562991 seconds to complete the run.
 
 
 if __name__ == "__main__":
