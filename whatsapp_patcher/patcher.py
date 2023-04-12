@@ -46,11 +46,12 @@ class Patcher:
                 break
             with open(filename, "r", encoding="utf8") as f:
                 data = f.read()
-                for patch in patches_to_find:
-                    if patch.class_filter(data):
-                        patch.class_data = data
-                        patch.class_path = filename
-                        patches_to_find.remove(patch)
+            for patch in patches_to_find:
+                if not patch.class_filter(data):
+                    continue
+                patch.class_data = data
+                patch.class_path = filename
+                patches_to_find.remove(patch)
         for patch in self.patches:
             if patch.class_data is None:
                 cprint(f"[-] Didn't found {patch} class.", "red")
