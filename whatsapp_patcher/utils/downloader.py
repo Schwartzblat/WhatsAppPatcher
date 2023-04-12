@@ -1,5 +1,7 @@
 import requests
 import re
+from termcolor import cprint
+
 
 latest_version_re = re.compile(
     '<a class="downloadLink" href=".*?([0-9]+-[0-9]+-[0-9]+-[0-9]+).*?">'
@@ -27,6 +29,7 @@ def get_latest_version_download_link() -> str:
 
 
 def download_latest_whatsapp(path: str):
+    cprint('[+] Downloading latest WhatsApp version from apkmirror', 'green')
     download_link = get_latest_version_download_link()
     res = requests.get(f"{apk_mirror_url}{download_link}", headers=headers)
     with open(path, "wb") as f:

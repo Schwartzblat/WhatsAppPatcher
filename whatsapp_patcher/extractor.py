@@ -25,6 +25,7 @@ class Extractor:
                 str(apk_tool),
                 "-q",
                 "d",
+                '-r',
                 "--output",
                 str(self.temp_path),
                 str(self.apk_path),
