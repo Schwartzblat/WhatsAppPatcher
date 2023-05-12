@@ -3,7 +3,7 @@ import os
 from termcolor import cprint
 from whatsapp_patcher.extractor import Extractor
 from whatsapp_patcher.utils.downloader import download_latest_whatsapp
-from patcher import Patcher
+from whatsapp_patcher.patcher import Patcher
 from timeit import default_timer
 
 
