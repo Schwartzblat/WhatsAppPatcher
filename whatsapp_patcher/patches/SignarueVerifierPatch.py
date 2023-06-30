@@ -59,4 +59,4 @@ class SignatureVerifierPatch(Patch):
             if len(signature_byte) == 1:
                 signature_byte = "0" + signature_byte
             signature += signature_byte
-        return signature[self.SIGNATURE_START:self.SIGNATURE_END]
+        return signature[self.SIGNATURE_START : self.SIGNATURE_END]
