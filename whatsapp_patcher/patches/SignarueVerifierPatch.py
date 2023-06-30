@@ -1,6 +1,9 @@
 from whatsapp_patcher.patches.Patch import Patch
 import re
 
+SIGNATURE_START = 120
+SIGNATURE_END = -444
+
 
 class SignatureVerifierPatch(Patch):
     SIGN_VERIFICATION_RE = re.compile(
@@ -57,4 +60,4 @@ class SignatureVerifierPatch(Patch):
             if len(signature_byte) == 1:
                 signature_byte = "0" + signature_byte
             signature += signature_byte
-        return signature[112:-432]
+        return signature[SIGNATURE_START:SIGNATURE_END]

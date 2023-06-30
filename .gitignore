@@ -1,6 +1,9 @@
 /extracted/
-/WhatsApp.apk
-/PatchedWhatsApp.apk
 /.github/
 /.pytest_cache/
 /venv/
+**/__pycache__/
+**.apk
+/.idea
+**.cache
+**.js
