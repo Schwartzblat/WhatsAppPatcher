@@ -30,7 +30,7 @@ def get_latest_version_download_link() -> str:
 
 def download_latest_whatsapp(path: str):
     cprint("[+] Downloading latest WhatsApp version from apkmirror", "green")
-    download_link = get_latest_version_download_link().replace('&amp;', '&')
+    download_link = get_latest_version_download_link().replace("&amp;", "&")
     res = requests.get(f"{apk_mirror_url}{download_link}", headers=headers)
     with open(path, "wb") as f:
         f.write(res.content)
