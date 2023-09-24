@@ -17,7 +17,7 @@ class RevokedMessagePatch(Patch):
 
     def class_filter(self, class_data: str) -> bool:
         if '"; shouldForceReadSelfReceipt="' in class_data:
-            return True
+            return False
         return False
 
     def class_modifier(self, class_data) -> str:

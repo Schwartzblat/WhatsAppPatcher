@@ -4,7 +4,7 @@ import re
 
 class SignatureVerifierPatch(Patch):
     SIGNATURE_START = 120
-    SIGNATURE_END = -444
+    SIGNATURE_END = -446
     SIGN_VERIFICATION_RE = re.compile(
         r"\.method public static \w+\(Landroid\/content\/Context;\)\[Landroid\/content\/pm\/Signature;\s*\.locals \w+\s*(.*?)\s*.end method",
         re.DOTALL,
