@@ -21,7 +21,6 @@ class ABTestsPatch(Patch):
 
     def replace_return_values_smali(self, method_body):
         new_method_body = method_body
-        arr = [6, 7]
         counter = 0
         for match in self.RETURN_RE_SMALI.finditer(method_body):
             register_name = match.group().strip().split(" ")[1]
@@ -32,11 +31,11 @@ class ABTestsPatch(Patch):
             for test in self.BAD_TESTS:
                 replacement += f"""
     const {temp_register}, {test}                               
-    if-eq p2, {temp_register}, :cond_{arr[counter]} """
+    if-eq p2, {temp_register}, :cond_{counter} """
 
             replacement += f"""
     const {register_name}, 1
-    :cond_{arr[counter]}
+    :cond_{counter}
     {match.group().strip()}
     """
             new_method_body = new_method_body.replace(match.group(), replacement)
