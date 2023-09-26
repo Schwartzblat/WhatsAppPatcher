@@ -2,7 +2,7 @@ from whatsapp_patcher.patches.Patch import Patch
 import re
 
 
-class RevokedMessagePatch(Patch):
+class SendReceiptPatch(Patch):
     RECEIPT_METHOD_RE = re.compile(
         "\.method public constructor <init>\(.*?Z\)V\s*\.\w+ \w+\s*(.*?)\.end method",
         re.DOTALL,
