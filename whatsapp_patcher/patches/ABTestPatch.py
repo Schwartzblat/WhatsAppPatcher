@@ -32,7 +32,6 @@ class ABTestsPatch(Patch):
                 replacement += f"""
     const {temp_register}, {test}                               
     if-eq p2, {temp_register}, :cond_{counter} """
-
             replacement += f"""
     const {register_name}, 1
     :cond_{counter}
