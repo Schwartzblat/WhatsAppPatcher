@@ -70,9 +70,6 @@ jobs:
         with:
           name: PatchedWhatsApp.apk
           path: ./
-      - name: test if download worked
-        run: |
-          ls -altr ./PatchedWhatsApp.apk
       - name: Upload release asset
         uses: actions/upload-release-asset@v1
         env:
