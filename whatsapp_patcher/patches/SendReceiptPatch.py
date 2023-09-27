@@ -17,12 +17,13 @@ class SendReceiptPatch(Patch):
 
     def class_filter(self, class_data: str) -> bool:
         if '"; shouldForceReadSelfReceipt="' in class_data:
-            return False
+            return True
         return False
 
     def class_modifier(self, class_data) -> str:
-        send_receipt_constructor_body = self.RECEIPT_METHOD_RE.findall(class_data)[0]
+        return class_data
+        """send_receipt_constructor_body = self.RECEIPT_METHOD_RE.findall(class_data)[0]
         return class_data.replace(
             send_receipt_constructor_body,
             self.RECEIPT_METHOD_REPLACE + send_receipt_constructor_body,
-        )
+        )"""
