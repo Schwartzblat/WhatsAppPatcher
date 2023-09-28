@@ -1,9 +1,8 @@
 name: release
 
 on:
-  push:
-    branches: [ "master" ]
-    tags: [ "*" ]
+  release:
+    types: [ created ]
 
 jobs:
   create_release:
@@ -24,25 +23,18 @@ jobs:
       - name: Preparing the patched apk
         run: |
           python main.py
-      - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1
+      - name: Get release
+        id: get_release
+        uses: jossef/action-latest-release-info@v1.2.1
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ github.ref }}
-          release_name: ${{ github.ref }}
-          body: |
-            New release!
-          draft: false
-          prerelease: false
+          GITHUB_TOKEN: ${{ github.token }}
       - name: Upload Release Asset
         id: upload-release-asset
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          upload_url: ${{ steps.get_release.outputs.upload_url }}
           asset_path: ./PatchedWhatsApp.apk
           asset_name: PatchedWhatsApp.apk
           asset_content_type: application/vnd.android.package-archive
