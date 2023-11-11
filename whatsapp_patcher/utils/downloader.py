@@ -15,6 +15,9 @@ apk_mirror_url = "https://www.apkmirror.com"
 
 
 def get_latest_version_download_link() -> str:
+    """
+    Returns the download link for the latest version of WhatsApp Messenger from the APK Mirror website.
+    """
     versions_html = requests.get(
         f"{apk_mirror_url}/apk/whatsapp-inc/whatsapp/", headers=headers
     ).text
@@ -29,6 +32,15 @@ def get_latest_version_download_link() -> str:
 
 
 def download_latest_whatsapp(path: str):
+    """
+    Downloads the latest version of WhatsApp from apkmirror and saves it to the specified path.
+
+    Args:
+        path (str): The path where the downloaded APK file should be saved.
+
+    Returns:
+        None
+    """
     cprint("[+] Downloading latest WhatsApp version from apkmirror", "green")
     download_link = get_latest_version_download_link().replace("&amp;", "&")
     res = requests.get(f"{apk_mirror_url}{download_link}", headers=headers)
