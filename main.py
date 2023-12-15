@@ -31,7 +31,7 @@ def main():
             "[+] Input path and output path supposed to be a path to apk.", color="red"
         )
         exit(-1)
-    extractor = Extractor(path, args.output)
+    extractor = Extractor(path, args.output, args.temp_path)
     extractor.extract_apk()
     patcher = Patcher(extractor.temp_path, args.ab_tests)
     patcher.patch()
