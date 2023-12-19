@@ -19,7 +19,7 @@ class ABTestsPatch(Patch):
         )
 
     def replace_return_values_smali(self):
-        new_method_body = "\n.registers 3"
+        new_method_body = "\n.registers 5\nconst v0, 0"
         for test in self.BAD_TESTS:
             new_method_body += f"""
     const v1, {test}                               
