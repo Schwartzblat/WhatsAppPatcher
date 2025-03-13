@@ -16,7 +16,7 @@ class Extractor:
         if os.path.exists(self.temp_path):
             shutil.rmtree(self.temp_path)
         apktool_base_path = pathlib.Path(__file__).parent.parent / "bin"
-        apk_tool = apktool_base_path / "apktool_2.7.0.jar"
+        apk_tool = apktool_base_path / "apktool_2.11.0.jar"
         cprint("[+] Running apktool to decompile the apk.", "green")
         subprocess.check_call(
             [
@@ -45,7 +45,7 @@ class Extractor:
         if os.path.exists(self.output_path):
             os.remove(self.output_path)
         apktool_base_path = pathlib.Path(__file__).parent.parent / "bin"
-        apk_tool = apktool_base_path / "apktool_2.7.0.jar"
+        apk_tool = apktool_base_path / "apktool_2.11.0.jar"
         command = [
             "java",
             "-jar",
