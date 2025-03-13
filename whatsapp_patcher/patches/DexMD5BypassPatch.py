@@ -5,7 +5,7 @@ from hashlib import md5
 
 class DexMD5BypassPatch(Patch):
     DEX_HASH_BODY = re.compile(
-        ":try[^\n]+\s+[^\n]+getPackageCodePath\(\).*?invoke-virtual \{(?P<mac>\w+),\s*(?P<reg>\w+)\},\s*Ljavax\/crypto\/Mac;->update\(\[B\)V",
+        r":try[^\n]+\s+[^\n]+getPackageCodePath\(\).*?invoke-virtual \{(?P<mac>\w+),\s*(?P<reg>\w+)\},\s*Ljavax\/crypto\/Mac;->update\(\[B\)V",
         re.DOTALL,
     )
 

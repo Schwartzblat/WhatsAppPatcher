@@ -6,7 +6,7 @@ class SignatureVerifierPatch(Patch):
     SIGNATURE_START = 120
     SIGNATURE_END = -444
     SIGN_VERIFICATION_RE = re.compile(
-        r"\.method public static \w+\(Landroid\/content\/Context;\)\[Landroid\/content\/pm\/Signature;\s*\.locals \w+\s*(.*?)\s*.end method",
+        r"\.method public static \w+\(Landroid\/content\/Context;Ljava/lang/String;\)\[Landroid\/content\/pm\/Signature;\s*\.\w+ \w+\s*(.*?)\s*.end method",
         re.DOTALL,
     )
     SIGN_VERIFICATION_REPLACE = """
@@ -51,7 +51,7 @@ class SignatureVerifierPatch(Patch):
         )
 
     def get_original_signature(self) -> str:
-        with open(self.extracted_path + "/original/META-INF/WHATSAPP.DSA", "rb") as f:
+        with open(self.extracted_path + "/original/META-INF/IMPORTED.DSA", "rb") as f:
             bytes_signature = f.read()
         signature = ""
         for byte in bytes_signature:
