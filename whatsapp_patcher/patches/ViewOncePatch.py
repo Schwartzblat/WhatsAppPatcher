@@ -4,10 +4,10 @@ import re
 
 class ViewOncePatch(Patch):
     VIEW_ONCE_METHOD_RE = re.compile(
-        "\w+\(Landroid\/view\/Menu;Landroid\/view\/MenuInflater;\)V(.*?)\.end method",
+        r"\w+\(Landroid\/view\/Menu;Landroid\/view\/MenuInflater;\)V(.*?)\.end method",
         re.DOTALL,
     )
-    VIEW_ONCE_MODE_REG_RE = re.compile("const(?:\/\w+)? (v[0-9])+, 0x3")
+    VIEW_ONCE_MODE_REG_RE = re.compile(r"const(?:\/\w+)? (v[0-9])+, 0x3")
 
     def __init__(self, extracted_path):
         super().__init__(extracted_path)

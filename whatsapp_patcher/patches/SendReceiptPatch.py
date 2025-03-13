@@ -4,7 +4,7 @@ import re
 
 class SendReceiptPatch(Patch):
     RECEIPT_METHOD_RE = re.compile(
-        "\.method public constructor <init>\(.*?Z\)V\s*\.\w+ \w+\s*(.*?)\.end method",
+        r"\.method public constructor <init>\(.*?Z\)V\s*\.\w+ \w+\s*(.*?)\.end method",
         re.DOTALL,
     )
     RECEIPT_METHOD_REPLACE = """

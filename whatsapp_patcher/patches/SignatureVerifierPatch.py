@@ -1,12 +1,12 @@
 from whatsapp_patcher.patches.Patch import Patch
 import re
+from cryptography.hazmat.primitives.serialization import pkcs7
+from cryptography.hazmat.primitives import serialization
 
 
 class SignatureVerifierPatch(Patch):
-    SIGNATURE_START = 120
-    SIGNATURE_END = -444
     SIGN_VERIFICATION_RE = re.compile(
-        r"\.method public static \w+\(Landroid\/content\/Context;\)\[Landroid\/content\/pm\/Signature;\s*\.locals \w+\s*(.*?)\s*.end method",
+        r"\.method public static \w+\(Landroid\/content\/Context;Ljava/lang/String;\)\[Landroid\/content\/pm\/Signature;\s*\.\w+ \w+\s*(.*?)\s*.end method",
         re.DOTALL,
     )
     SIGN_VERIFICATION_REPLACE = """
@@ -51,12 +51,14 @@ class SignatureVerifierPatch(Patch):
         )
 
     def get_original_signature(self) -> str:
-        with open(self.extracted_path + "/original/META-INF/WHATSAPP.DSA", "rb") as f:
-            bytes_signature = f.read()
+        with open(self.extracted_path + "/unknown/META-INF/IMPORTED.DSA", "rb") as f:
+            public_key = f.read()
+        der_cert = pkcs7.load_der_pkcs7_certificates(public_key)[0]
+        bytes_signature = der_cert.public_bytes(serialization.Encoding.DER)
         signature = ""
         for byte in bytes_signature:
             signature_byte = hex(byte).split("x")[-1]
             if len(signature_byte) == 1:
                 signature_byte = "0" + signature_byte
             signature += signature_byte
-        return signature[self.SIGNATURE_START : self.SIGNATURE_END]
+        return signature

@@ -5,7 +5,7 @@ from hashlib import md5
 
 class DexMD5BypassPatch(Patch):
     DEX_HASH_BODY = re.compile(
-        ":try[^\n]+\s+[^\n]+getPackageCodePath\(\).*?invoke-virtual \{(?P<mac>\w+),\s*(?P<reg>\w+)\},\s*Ljavax\/crypto\/Mac;->update\(\[B\)V",
+        r":try[^\n]+\s+[^\n]+getPackageCodePath\(\).*?invoke-virtual \{(?P<mac>\w+),\s*(?P<reg>\w+)\},\s*Ljavax\/crypto\/Mac;->update\(\[B\)V",
         re.DOTALL,
     )
 
@@ -29,21 +29,21 @@ class DexMD5BypassPatch(Patch):
         mac_register = dex_hash_body.groupdict().get("mac")
         array_size = len(dex_hash)
         dex_hash_new_body = f"""
-    const v2, {hex(array_size)}
+    const {array_register}, {hex(array_size)}
 
-    new-array {array_register}, v2, [B
-            """
-        i = 0
+    new-array {array_register}, {array_register}, [B
+    
+    fill-array-data {array_register}, :my_array_data
+    
+    goto :after_array_data
+    
+    :my_array_data
+    .array-data 1"""
         for byte in dex_hash:
-            dex_hash_new_body += f"""
-    const v2, {hex(byte)}
-
-    const v1, {hex(i)}
-
-    aput-byte v2, {array_register}, v1
-                    """
-            i += 1
+            dex_hash_new_body += f"\n\t{hex(byte)}"
         dex_hash_new_body += f"""
+    .end array-data
+    :after_array_data
     invoke-virtual {{{mac_register}, {array_register}}}, Ljavax/crypto/Mac;->update([B)V
         """
         return class_data.replace(dex_hash_body.group(0), dex_hash_new_body)

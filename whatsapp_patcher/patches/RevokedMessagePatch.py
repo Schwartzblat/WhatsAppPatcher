@@ -4,7 +4,8 @@ import re
 
 class RevokedMessagePatch(Patch):
     REVOKE_MESSAGE_RE = re.compile(
-        "\.method (?:\w+ )*\w+\(LX\/\w+;Z\)Z\s*\.\w+ \w+\s*(.*?)\.end method", re.DOTALL
+        r"\.method (?:\w+ )*\w+\(LX\/\w+;Z\)Z\s*\.\w+ \w+\s*(.*?)\.end method",
+        re.DOTALL,
     )
     REVOKE_MESSAGE_REPLACE = """
     if-eqz p2, :cond_self_delete

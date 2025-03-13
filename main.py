@@ -21,7 +21,8 @@ def main():
     args = parser.parse_args()
     path = args.path
     if path == "latest":
-        download_latest_whatsapp("WhatsApp.apk")
+        if not os.path.exists("WhatsApp.apk"):
+            download_latest_whatsapp("WhatsApp.apk")
         path = "WhatsApp.apk"
     if not os.path.exists(path) or not os.access(path, os.R_OK):
         cprint("[+] File doesn't exists or required reading permissions", color="red")
