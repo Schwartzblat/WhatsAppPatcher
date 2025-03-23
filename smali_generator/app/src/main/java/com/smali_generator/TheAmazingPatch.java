@@ -27,7 +27,7 @@ public class TheAmazingPatch {
         try {
             Field view_once_field = obj.getClass().getDeclaredField("viewOnce_");
             view_once_field.setAccessible(true);
-            boolean is_view_once = (boolean)view_once_field.get(obj);
+            boolean is_view_once = (boolean) view_once_field.get(obj);
             if (is_view_once) {
                 Log.e("PATCH", "viewOnce_ is true");
                 view_once_field.set(obj, false);
@@ -48,10 +48,10 @@ public class TheAmazingPatch {
         }
         Log.e("PATCH", "Patch loaded, {{SOME_CONST_KEY}}");
         try {
-            Class<?> main_activity = Class.forName("X.Dq4");
+            Class<?> main_activity = Class.forName("{{DECRYPT_PROTOBUF_CLASS_NAME}}");
             Method decrypt_protobuf_hook_method = TheAmazingPatch.class.getDeclaredMethod("decrypt_protobuf_hook", Object.class, Object.class, Object.class, byte[].class, int.class, int.class, int.class);
             Method decrypt_protobuf_hook_method_backup = TheAmazingPatch.class.getDeclaredMethod("decrypt_protobuf_hook_backup", Object.class, Object.class, Object.class, byte[].class, int.class, int.class, int.class);
-            HookMain.findAndBackupAndHook(main_activity, "A0f", "(LX/D4O;Ljava/lang/Object;[BIII)I", decrypt_protobuf_hook_method, decrypt_protobuf_hook_method_backup);
+            HookMain.findAndBackupAndHook(main_activity, "{{DECRYPT_PROTOBUF_METHOD_NAME}}", "{{DECRYPT_PROTOBUF_METHOD_SIG}}", decrypt_protobuf_hook_method, decrypt_protobuf_hook_method_backup);
         } catch (Exception e) {
             Log.e("PATCH", "Error: " + e.getMessage());
         }
