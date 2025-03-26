@@ -24,7 +24,6 @@ public class PackageManagerHook implements Hook {
 
     static PackageInfo get_package_info_hook(PackageManager obj, String package_name, int flags) {
         PackageInfo package_info = PackageManagerHook.get_package_info_hook_backup(obj, package_name, flags);
-        Log.i("PATCH", "PackageManagerHook: Getting package info for: " + package_name);
         if (package_name.equals("com.whatsapp") && package_info != null) {
             if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) {
                 package_info.signatures = new Signature[]{new Signature("{{PACKAGE_SIGNATURE}}")};

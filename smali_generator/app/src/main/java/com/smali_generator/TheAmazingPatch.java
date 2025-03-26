@@ -2,6 +2,7 @@ package com.smali_generator;
 
 import android.util.Log;
 
+import com.smali_generator.patches.ActivityHook;
 import com.smali_generator.patches.DecryptProtobuf;
 import com.smali_generator.patches.PackageManagerHook;
 import com.smali_generator.patches.ZipFileHook;
@@ -15,6 +16,7 @@ public class TheAmazingPatch {
             new DecryptProtobuf(),
             new PackageManagerHook(),
             new ZipFileHook(),
+            new ActivityHook(),
     };
 
     static AtomicBoolean is_loaded = new AtomicBoolean(false);
