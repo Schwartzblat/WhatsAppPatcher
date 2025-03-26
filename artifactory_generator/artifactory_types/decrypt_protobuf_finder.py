@@ -1,7 +1,4 @@
 import re
-
-from jedi.inference.value.iterable import FakeDict
-
 from artifactory_generator.SimpleArtifactoryFinder import SimpleArtifactoryFinder, CLASS_NAME_RE
 
 
@@ -16,11 +13,11 @@ class DecryptProtobufFinder(SimpleArtifactoryFinder):
     def class_filter(self, class_data: str) -> bool:
         return '"Mutating immutable message: "' in class_data
 
-    def extract_artifacts(self, artifacts: dict, class_data: str) -> dict:
+    def extract_artifacts(self, artifacts: dict, class_data: str) -> None:
         matches = list(self.DECRYPT_PROTOBUF_RE.finditer(class_data))
         if len(matches) != 1:
-            return {}
-        artifacts['DECRYPT_PROTOBUF_CLASS_NAME'] = CLASS_NAME_RE.match(class_data).groupdict().get('name')
+            return
+        artifacts['DECRYPT_PROTOBUF_CLASS_NAME'] = CLASS_NAME_RE.match(class_data).groupdict().get('name').replace('/', '.')
         artifacts['DECRYPT_PROTOBUF_METHOD_NAME'] = matches[0].groupdict().get('method_name')
         artifacts['DECRYPT_PROTOBUF_METHOD_SIG'] = matches[0].groupdict().get('sig')
         self.is_found = True

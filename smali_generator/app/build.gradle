@@ -4,12 +4,13 @@ plugins {
 
 android {
     namespace 'com.smali_generator'
-    compileSdk 35
+    compileSdk 28
 
     defaultConfig {
         applicationId "com.smali_generator"
-        minSdk 34
-        targetSdk 35
+        minSdk 28
+        //noinspection ExpiredTargetSdkVersion
+        targetSdk 28
         versionCode 1
         versionName "1.0"
     }
@@ -19,10 +20,10 @@ android {
             minifyEnabled false
         }
     }
-    compileOptions {
-        sourceCompatibility JavaVersion.VERSION_11
-        targetCompatibility JavaVersion.VERSION_11
-    }
+//    compileOptions {
+//        sourceCompatibility JavaVersion.VERSION_11
+//        targetCompatibility JavaVersion.VERSION_11
+//    }
 }
 
 dependencies {

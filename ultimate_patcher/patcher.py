@@ -33,7 +33,7 @@ def patch_artifacts(args, smali_generator_temp_path: pathlib.Path) -> None:
 
 
 def prepare_smali(args) -> None:
-    smali_generator_temp_path = pathlib.Path(args.temp_path / config.SMALI_GENERATOR_PATH)
+    smali_generator_temp_path = args.temp_path / config.SMALI_GENERATOR_PATH
     print('[+] Copying the smali generator...')
     shutil.copytree(config.SMALI_GENERATOR_PATH, smali_generator_temp_path)
     print('[+] Patching the artifacts...')
@@ -41,7 +41,8 @@ def prepare_smali(args) -> None:
     print('[+] Assembling the java...')
     subprocess.check_call(['./gradlew', 'assembleRelease'], cwd=smali_generator_temp_path)
     print('[+] Extracting the smali...')
-    extract_apk(smali_generator_temp_path / config.SMALI_GENERATOR_OUTPUT_PATH, config.SMALI_GENERATOR_SMALI_PATH)
+    extract_apk(smali_generator_temp_path / config.SMALI_GENERATOR_OUTPUT_PATH,
+                smali_generator_temp_path / config.SMALI_GENERATOR_SMALI_PATH)
 
 
 def get_activities_with_entry_points(apk_path: str) -> list:
@@ -71,7 +72,7 @@ def patch_or_add_function(smali_file_path: pathlib.Path, function_name: str) -> 
 
 
 def add_static_call_to_on_load(args, class_name: str, function_name: str) -> None:
-    smali_file_path = find_smali_file_by_class_name(pathlib.Path(args.temp_path) / config.EXTRACTED_TEMP_DIR,
+    smali_file_path = find_smali_file_by_class_name(args.temp_path / config.EXTRACTED_TEMP_DIR,
                                                     class_name)
     if smali_file_path is None:
         print(f'[-] Failed to find smali file for {class_name}')
@@ -93,13 +94,14 @@ def patch_apk(args) -> None:
     print('[+] Preparing the smali...')
     prepare_smali(args)
     print('[+] Applying the custom smali...')
-    shutil.copytree(config.SMALI_GENERATOR_SMALI_PATH / 'smali',
-                    pathlib.Path(args.temp_path) / config.EXTRACTED_TEMP_DIR / 'smali',
+    shutil.copytree(args.temp_path / config.SMALI_GENERATOR_PATH / config.SMALI_GENERATOR_SMALI_PATH / 'smali',
+                    args.temp_path / config.EXTRACTED_TEMP_DIR / 'smali',
                     dirs_exist_ok=True)
     print('[+] Injecting the custom so...')
-    os.makedirs(pathlib.Path(args.temp_path) / config.EXTRACTED_TEMP_DIR / 'lib' / args.arch, exist_ok=True)
-    shutil.copytree(config.SMALI_GENERATOR_SMALI_PATH / 'lib' / args.arch,
-                    pathlib.Path(args.temp_path) / config.EXTRACTED_TEMP_DIR / 'lib' / args.arch,
-                    dirs_exist_ok=True)
+    os.makedirs(args.temp_path / config.EXTRACTED_TEMP_DIR / 'lib' / args.arch, exist_ok=True)
+    shutil.copytree(
+        args.temp_path / config.SMALI_GENERATOR_PATH / config.SMALI_GENERATOR_SMALI_PATH / 'lib' / args.arch,
+        args.temp_path / config.EXTRACTED_TEMP_DIR / 'lib' / args.arch,
+        dirs_exist_ok=True)
     print('[+] Adding calls to the custom smali...')
     patch_entries(args)

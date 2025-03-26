@@ -1,0 +1,66 @@
+package com.smali_generator.patches;
+
+import android.annotation.SuppressLint;
+import android.content.pm.PackageInfo;
+import android.content.pm.PackageManager;
+import android.content.pm.Signature;
+import android.content.pm.SigningInfo;
+import android.os.Build;
+import android.util.Log;
+
+import com.smali_generator.Hook;
+
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+
+import lab.galaxy.yahfa.HookMain;
+
+
+public class PackageManagerHook implements Hook {
+
+    static PackageInfo get_package_info_hook_backup(PackageManager obj, String package_name, int flags) {
+        return null;
+    }
+
+    static PackageInfo get_package_info_hook(PackageManager obj, String package_name, int flags) {
+        PackageInfo package_info = PackageManagerHook.get_package_info_hook_backup(obj, package_name, flags);
+        Log.i("PATCH", "PackageManagerHook: Getting package info for: " + package_name);
+        if (package_name.equals("com.whatsapp") && package_info != null) {
+            if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) {
+                package_info.signatures = new Signature[]{new Signature("{{PACKAGE_SIGNATURE}}")};
+                package_info.signingInfo = null;
+            }
+            if (Build.VERSION.SDK_INT > Build.VERSION_CODES.P) {
+                try {
+                    Class<?> SigningInfoClass = Class.forName("android.content.pm.SigningInfo");
+                    @SuppressLint("SoonBlockedPrivateApi") Field mSigningDetails = SigningInfoClass.getDeclaredField("mSigningDetails");
+                    mSigningDetails.setAccessible(true);
+                    Object signing_details = mSigningDetails.get(package_info.signingInfo);
+                    Field signatures = signing_details.getClass().getDeclaredField("signatures");
+                    signatures.setAccessible(true);
+                    signatures.set(signing_details, new Signature[]{new Signature("{{PACKAGE_SIGNATURE}}")});
+                } catch (Exception e) {
+                    Log.e("PATCH", "PackageManagerHook: Error: " + e.getMessage());
+                }
+            }
+        }
+        return package_info;
+    }
+
+    public void load() {
+        Log.i("PATCH", "PackageManagerHook: Patch loaded");
+        try {
+            @SuppressLint("PrivateApi") Class<?> decrypt_protobuf_class = Class.forName("android.app.ApplicationPackageManager");
+            Method get_package_info_hook_method = PackageManagerHook.class.getDeclaredMethod("get_package_info_hook", PackageManager.class, String.class, int.class);
+            Method get_package_info_hook_method_backup = PackageManagerHook.class.getDeclaredMethod("get_package_info_hook_backup", PackageManager.class, String.class, int.class);
+            Method original_get_package_info = decrypt_protobuf_class.getDeclaredMethod("getPackageInfo", String.class, int.class);
+            HookMain.backupAndHook(original_get_package_info, get_package_info_hook_method, get_package_info_hook_method_backup);
+        } catch (Exception e) {
+            Log.e("PATCH", "PackageManagerHook: Error:" + e.getMessage());
+        }
+    }
+
+    public void unload() {
+        Log.i("PATCH", "PackageManagerHook: Patch unloaded");
+    }
+}

@@ -14,5 +14,5 @@ class SimpleArtifactoryFinder:
         pass
 
     @abstractmethod
-    def extract_artifacts(self, artifacts: dict, class_data: str) -> dict:
+    def extract_artifacts(self, artifacts: dict, class_data: str) -> None:
         pass
