@@ -2,15 +2,14 @@ import requests
 import re
 from termcolor import cprint
 
-
 latest_version_re = re.compile(
     '<a class="downloadLink" href=".*?([0-9]+-[0-9]+-[0-9]+-[0-9]+).*?">'
 )
 download_link_re = re.compile('href="(/apk/whatsapp-inc/.*?download/download/.*?)"')
 click_here_re = re.compile('href="(.*APKMirror/download.php.id=.*?)"')
+
 headers = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36",
-}
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36"}  # noqa: E501
 apk_mirror_url = "https://www.apkmirror.com"
 
 
@@ -19,7 +18,7 @@ def get_latest_version_download_link() -> str:
         f"{apk_mirror_url}/apk/whatsapp-inc/whatsapp/", headers=headers
     ).text
     latest_version = latest_version_re.findall(versions_html)[0]
-    url = f"{apk_mirror_url}/apk/whatsapp-inc/whatsapp/whatsapp-{latest_version}-release/whatsapp-messenger-{latest_version}-android-apk-download/"
+    url = f"{apk_mirror_url}/apk/whatsapp-inc/whatsapp/whatsapp-{latest_version}-release/whatsapp-messenger-{latest_version}-android-apk-download/"  # noqa: E501
     download_page = requests.get(url, headers=headers).text
     download_link = download_link_re.findall(download_page)[0]
     click_here_page = requests.get(

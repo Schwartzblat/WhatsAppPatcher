@@ -1,0 +1,4 @@
+[flake8]
+max-line-length = 128
+ignore = W503
+exclude = .venv, __pycache__, .git, .tox, .eggs, *.egg, .vscode, .github, .pytest

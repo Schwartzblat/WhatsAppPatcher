@@ -1,5 +1,3 @@
-import re
-
 from cryptography.hazmat.primitives import serialization
 
 from ultimate_patcher import config

@@ -3,6 +3,7 @@ import re
 
 CLASS_NAME_RE = re.compile(r'\.class public.*L(?P<name>[\w/]+)')
 
+
 class SimpleArtifactoryFinder:
     def __init__(self, args):
         self.args = args
