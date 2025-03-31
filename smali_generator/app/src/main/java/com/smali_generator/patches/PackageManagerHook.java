@@ -29,7 +29,7 @@ public class PackageManagerHook implements Hook {
                 package_info.signatures = new Signature[]{new Signature("{{PACKAGE_SIGNATURE}}")};
                 package_info.signingInfo = null;
             }
-            if (Build.VERSION.SDK_INT > Build.VERSION_CODES.P) {
+            if (Build.VERSION.SDK_INT > Build.VERSION_CODES.P || true) {
                 try {
                     Class<?> SigningInfoClass = Class.forName("android.content.pm.SigningInfo");
                     @SuppressLint("SoonBlockedPrivateApi") Field mSigningDetails = SigningInfoClass.getDeclaredField("mSigningDetails");

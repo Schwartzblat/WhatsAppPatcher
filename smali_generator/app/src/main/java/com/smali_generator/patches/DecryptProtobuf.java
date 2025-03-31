@@ -81,6 +81,8 @@ public class DecryptProtobuf implements Hook {
                 }
                 switch ((int) type_object) {
                     case 0:
+                        // #TODO: I should get the BaseMessage object from the protocol message
+                        // and use it to replace the protocol message with a different type of message.±
                         handle_delete_message(obj, protocol_message);
                         Field conversation_field = obj.getClass().getDeclaredField("conversation_");
                         conversation_field.set(obj, "Noderrrrr");
