@@ -2,8 +2,6 @@ package com.smali_generator.patches;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
-import java.util.Arrays;
-import java.util.Random;
 
 import android.util.Log;
 
@@ -32,36 +30,9 @@ public class DecryptProtobuf implements Hook {
         }
     }
 
-
-    static Object create_message(Object base_message, Object key) {
-        Object result = null;
-        try {
-            Field extended_message_field = base_message.getClass().getDeclaredField("extendedTextMessage_");
-            Class<?> ExtendedMessageField = extended_message_field.getType();
-            result = ExtendedMessageField.newInstance();
-            Field text_field = result.getClass().getDeclaredField("text_");
-            text_field.set(result, "Noder Neder");
-        } catch (Exception e) {
-            Log.e("PATCH", "DecryptProtobuf: Error: " + e.getMessage());
-        }
-        return result;
-    }
-
     static void handle_delete_message(Object base_message, Object protocol_message) {
         try {
-            Field key_field = protocol_message.getClass().getDeclaredField("key_");
-            Object key_object = key_field.get(protocol_message);
-            if (key_object == null) {
-                return;
-            }
-            Object new_message = create_message(base_message, key_object);
-            Log.i("PATCH", "DecryptProtobuf: new_message: " + new_message);
-            Field protocol_message_field = base_message.getClass().getDeclaredField("protocolMessage_");
-            protocol_message_field.set(base_message, null);
-//            Field extended_message_field = base_message.getClass().getDeclaredField("extendedTextMessage_");
-//            extended_message_field.set(base_message, new_message);
-            Field conversation_field = base_message.getClass().getDeclaredField("conversation_");
-            conversation_field.set(base_message, "Noderrrrr");
+            base_message.getClass().getDeclaredField("protocolMessage_").set(base_message, null);
         } catch (NoSuchFieldException e) {
             Log.e("PATCH", "DecryptProtobuf: field error: " + e.getMessage());
         } catch (Exception e) {
@@ -81,49 +52,7 @@ public class DecryptProtobuf implements Hook {
                 }
                 switch ((int) type_object) {
                     case 0:
-                        // #TODO: I should get the BaseMessage object from the protocol message
-                        // and use it to replace the protocol message with a different type of message.±
                         handle_delete_message(obj, protocol_message);
-                        Field conversation_field = obj.getClass().getDeclaredField("conversation_");
-                        conversation_field.set(obj, "Noderrrrr");
-                        Field bit_field0_field = obj.getClass().getDeclaredField("bitField0_");
-                        bit_field0_field.set(obj, 67108865);
-                        Field message_context_field = obj.getClass().getDeclaredField("messageContextInfo_");
-                        Object message_context = message_context_field.getType().newInstance();
-                        Object message_secret = message_context.getClass().getDeclaredField("messageSecret_").get(message_context);
-                        assert message_secret != null;
-
-                        byte[] bytes = new byte[0x20];
-                        new Random().nextBytes(bytes);
-                        Log.i("PATCH", "DecryptProtobuf: message_secret_: " + Arrays.toString(bytes));
-                        Field bytes_field = message_secret.getClass().getDeclaredField("bytes");
-                        bytes_field.setAccessible(true);
-                        bytes_field.set(message_secret, bytes);
-                        message_context.getClass().getDeclaredField("messageSecret_").set(message_context, message_secret);
-
-                        Object bot_message_secret = message_context.getClass().getDeclaredField("botMessageSecret_").get(message_context);
-                        assert bot_message_secret != null;
-                        bytes = new byte[0x20];
-                        new Random().nextBytes(bytes);
-                        Log.i("PATCH", "DecryptProtobuf: botMessageSecret_: " + Arrays.toString(bytes));
-                        bytes_field = bot_message_secret.getClass().getDeclaredField("bytes");
-                        bytes_field.setAccessible(true);
-                        bytes_field.set(bot_message_secret, bytes);
-                        message_context.getClass().getDeclaredField("botMessageSecret_").set(message_context, bot_message_secret);
-
-                        Object padding_bytes = message_context.getClass().getDeclaredField("paddingBytes_").get(message_context);
-                        assert padding_bytes != null;
-                        bytes = new byte[0x20];
-                        new Random().nextBytes(bytes);
-                        Log.i("PATCH", "DecryptProtobuf: paddingBytes_: " + Arrays.toString(bytes));
-                        bytes_field = padding_bytes.getClass().getDeclaredField("bytes");
-                        bytes_field.setAccessible(true);
-                        bytes_field.set(padding_bytes, bytes);
-                        message_context.getClass().getDeclaredField("paddingBytes_").set(message_context, padding_bytes);
-
-                        message_context.getClass().getDeclaredField("bitField0_").set(message_context, 4);
-                        message_context_field.set(obj, message_context);
-                        Log.i("PATCH", "DecryptProtobuf: conversation_: " + conversation_field.get(obj));
                         break;
                 }
             }

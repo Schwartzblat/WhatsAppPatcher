@@ -29,19 +29,19 @@ public class PackageManagerHook implements Hook {
                 package_info.signatures = new Signature[]{new Signature("{{PACKAGE_SIGNATURE}}")};
                 package_info.signingInfo = null;
             }
-            if (Build.VERSION.SDK_INT > Build.VERSION_CODES.P || true) {
-                try {
-                    Class<?> SigningInfoClass = Class.forName("android.content.pm.SigningInfo");
-                    @SuppressLint("SoonBlockedPrivateApi") Field mSigningDetails = SigningInfoClass.getDeclaredField("mSigningDetails");
-                    mSigningDetails.setAccessible(true);
-                    Object signing_details = mSigningDetails.get(package_info.signingInfo);
-                    Field signatures = signing_details.getClass().getDeclaredField("signatures");
-                    signatures.setAccessible(true);
-                    signatures.set(signing_details, new Signature[]{new Signature("{{PACKAGE_SIGNATURE}}")});
-                } catch (Exception e) {
-                    Log.e("PATCH", "PackageManagerHook: Error: " + e.getMessage());
-                }
+            try {
+                Class<?> SigningInfoClass = Class.forName("android.content.pm.SigningInfo");
+                @SuppressLint("SoonBlockedPrivateApi") Field mSigningDetails = SigningInfoClass.getDeclaredField("mSigningDetails");
+                mSigningDetails.setAccessible(true);
+                Object signing_details = mSigningDetails.get(package_info.signingInfo);
+                Field signatures = signing_details.getClass().getDeclaredField("signatures");
+                signatures.setAccessible(true);
+                signatures.set(signing_details, new Signature[]{new Signature("{{PACKAGE_SIGNATURE}}")});
+            } catch (NoSuchFieldException ignored) {
+            } catch (Exception e) {
+                Log.e("PATCH", "PackageManagerHook: Error: " + e.getMessage());
             }
+
         }
         return package_info;
     }
