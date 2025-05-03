@@ -48,6 +48,10 @@ def sign_apk(apk_path: str, output_path: str = 'signed-output.apk') -> None:
             "java",
             "-jar",
             config.UBER_APK_SIGNER_PATH,
+            "--ks",
+            config.KEYSTORE_PATH,
+            "--ksAlias",
+            config.KEY_ALIAS,
             "--apks",
             apk_path
         ],
@@ -55,7 +59,7 @@ def sign_apk(apk_path: str, output_path: str = 'signed-output.apk') -> None:
     )
     os.remove(apk_path)
     os.rename(
-        f'{apk_path.removesuffix(".apk")}-aligned-debugSigned.apk',
+        f'{apk_path.removesuffix(".apk")}-aligned-signed.apk',
         output_path,
     )
 
