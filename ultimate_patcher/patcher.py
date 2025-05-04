@@ -62,7 +62,7 @@ def get_activities_with_entry_points(apk_path: str) -> list:
 def patch_or_add_function(smali_file_path: pathlib.Path, function_name: str) -> None:
     with open(smali_file_path, 'r') as file:
         smali_file = file.read()
-    matches = re.findall(fr'\.method public [^\n]*{function_name}[^\n]*\n[^\n]+', smali_file)
+    matches = re.findall(fr'\.method \w+ [^\n]*{function_name}[^\n]*\n[^\n]+', smali_file)
     if len(matches) == 0:
         pass
     for match in matches:

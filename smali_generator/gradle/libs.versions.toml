@@ -1,9 +1,5 @@
 [versions]
 agp = "8.8.0"
-yahfa = "0.10.0"
-
-[libraries]
-yahfa = { module = "io.github.pagalaxylab:yahfa", version.ref = "yahfa" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

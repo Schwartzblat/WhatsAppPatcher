@@ -20,3 +20,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "smali_generator"
 include ':app'
+include ':library'

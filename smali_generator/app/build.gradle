@@ -27,7 +27,7 @@ android {
 }
 
 dependencies {
-    implementation libs.yahfa
+    implementation project(':library')
 }
 
 tasks.whenTaskAdded { task ->

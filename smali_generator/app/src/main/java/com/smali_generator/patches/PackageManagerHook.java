@@ -25,10 +25,8 @@ public class PackageManagerHook implements Hook {
     static PackageInfo get_package_info_hook(PackageManager obj, String package_name, int flags) {
         PackageInfo package_info = PackageManagerHook.get_package_info_hook_backup(obj, package_name, flags);
         if (package_name.equals("com.whatsapp") && package_info != null) {
-            if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) {
-                package_info.signatures = new Signature[]{new Signature("{{PACKAGE_SIGNATURE}}")};
-                package_info.signingInfo = null;
-            }
+            package_info.signatures = new Signature[]{new Signature("{{PACKAGE_SIGNATURE}}")};
+            package_info.signingInfo = null;
             try {
                 Class<?> SigningInfoClass = Class.forName("android.content.pm.SigningInfo");
                 @SuppressLint("SoonBlockedPrivateApi") Field mSigningDetails = SigningInfoClass.getDeclaredField("mSigningDetails");
