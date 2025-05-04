@@ -1,5 +1,6 @@
 package com.smali_generator.patches;
 
+import android.annotation.SuppressLint;
 import android.app.Activity;
 
 import android.os.Build;
@@ -42,12 +43,11 @@ public class ActivityHook implements Hook {
                 Method register_screen_capture_method = ActivityHook.class.getDeclaredMethod("register_screen_capture_hook", Activity.class, Executor.class, Activity.ScreenCaptureCallback.class);
                 Method original_register_screen_capture = Activity.class.getDeclaredMethod("registerScreenCaptureCallback", Executor.class, Activity.ScreenCaptureCallback.class);
                 HookMain.hook(original_register_screen_capture, register_screen_capture_method);
-            } else {
-                Method original_set_flags = Window.class.getMethod("setFlags", int.class, int.class);
-                Method set_flags_hook_method = ActivityHook.class.getDeclaredMethod("set_flags_hook", Window.class, int.class, int.class);
-                Method set_flags_hook_method_backup = ActivityHook.class.getDeclaredMethod("set_flags_hook_backup", Window.class, int.class, int.class);
-                HookMain.backupAndHook(original_set_flags, set_flags_hook_method, set_flags_hook_method_backup);
             }
+            Method original_set_flags = Window.class.getMethod("setFlags", int.class, int.class);
+            Method set_flags_hook_method = ActivityHook.class.getDeclaredMethod("set_flags_hook", Window.class, int.class, int.class);
+            Method set_flags_hook_method_backup = ActivityHook.class.getDeclaredMethod("set_flags_hook_backup", Window.class, int.class, int.class);
+            HookMain.backupAndHook(original_set_flags, set_flags_hook_method, set_flags_hook_method_backup);
         } catch (Exception e) {
             Log.e("PATCH", "ActivityHook: Error:" + e.getMessage());
         }
