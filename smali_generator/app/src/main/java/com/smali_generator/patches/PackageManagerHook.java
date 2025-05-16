@@ -7,11 +7,13 @@ import android.content.pm.Signature;
 import android.content.pm.SigningInfo;
 import android.os.Build;
 import android.util.Log;
+import com.smali_generator.utils.Utils;
 
 import com.smali_generator.Hook;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.util.Objects;
 
 import lab.galaxy.yahfa.HookMain;
 
@@ -24,7 +26,16 @@ public class PackageManagerHook implements Hook {
 
     static PackageInfo get_package_info_hook(PackageManager obj, String package_name, int flags) {
         PackageInfo package_info = PackageManagerHook.get_package_info_hook_backup(obj, package_name, flags);
-        if (package_name.equals("com.whatsapp") && package_info != null) {
+        Log.e("PATCH", "PackageManagerHook: package_info: " + package_info + ", package_name: " + package_name + ", flags: " + flags);
+        if (package_info == null) {
+            try {
+                package_info = PackageManagerHook.get_package_info_hook_backup(Objects.requireNonNull(Utils.getApplication()).getApplicationContext().getPackageManager(), package_name, flags);
+            } catch (Exception e) {
+                Log.e("PATCH", "PackageManagerHook: Error: " + e.getMessage());
+            }
+        }
+        if (package_name.equals("com.whatsapp") && (flags & 0x8000000) != 0 && package_info != null) {
+            Log.i("PATCH", "PackageManagerHook: Replacing package info...");
             package_info.signatures = new Signature[]{new Signature("{{PACKAGE_SIGNATURE}}")};
             package_info.signingInfo = null;
             try {

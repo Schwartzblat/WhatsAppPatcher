@@ -32,7 +32,12 @@ public class DecryptProtobuf implements Hook {
 
     static void handle_delete_message(Object base_message, Object protocol_message) {
         try {
-            base_message.getClass().getDeclaredField("protocolMessage_").set(base_message, null);
+            Field key_field = protocol_message.getClass().getDeclaredField("key_");
+            Object new_key = key_field.get(protocol_message);
+            assert new_key != null;
+            new_key.getClass().getDeclaredField("id_").set(new_key, "1234");
+            key_field.set(protocol_message, new_key);
+            base_message.getClass().getDeclaredField("protocolMessage_").set(base_message, protocol_message);
         } catch (NoSuchFieldException e) {
             Log.e("PATCH", "DecryptProtobuf: field error: " + e.getMessage());
         } catch (Exception e) {
