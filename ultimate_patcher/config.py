@@ -8,8 +8,6 @@ EXTRACTED_TEMP_DIR = pathlib.Path('extracted')
 SMALI_GENERATOR_PATH = Path('./smali_generator')
 SMALI_GENERATOR_OUTPUT_PATH = './smali_generator.apk'
 SMALI_GENERATOR_SMALI_PATH = SMALI_GENERATOR_PATH / 'extracted'
-KEYSTORE_PATH = './keystore.jks'
-KEY_ALIAS = 'key0'
 
 
 class ManifestKeys(enum.StrEnum):

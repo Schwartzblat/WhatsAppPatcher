@@ -43,20 +43,17 @@ def compile_apk(input_path: str = './extracted', output_path: str = 'output.apk'
 
 
 def sign_apk(apk_path: str, output_path: str = 'signed-output.apk') -> None:
-    subprocess.check_call(
-        [
-            "java",
-            "-jar",
-            config.UBER_APK_SIGNER_PATH,
-            "--ks",
-            config.KEYSTORE_PATH,
-            "--ksAlias",
-            config.KEY_ALIAS,
-            "--apks",
-            apk_path
-        ],
-        timeout=20 * 60,
-    )
+    args = ["java", "-jar", config.UBER_APK_SIGNER_PATH]
+    if os.environ.get('KEYSTORE_PATH') is not None:
+        args.extend(["--ks", os.environ['KEYSTORE_PATH']])
+    if os.environ.get('KEY_ALIAS') is not None:
+        args.extend(["--ksAlias", os.environ['KEY_ALIAS']])
+    if os.environ.get('KEYSTORE_PASSWORD') is not None:
+        args.extend(["--ksPass", os.environ['KEYSTORE_PASSWORD']])
+    if os.environ.get('KEY_PASSWORD') is not None:
+        args.extend(["--ksKeyPass", os.environ['KEY_PASSWORD']])
+    args.extend(['--apks', apk_path])
+    subprocess.check_call(args, timeout=20 * 60)
     os.remove(apk_path)
     os.rename(
         f'{apk_path.removesuffix(".apk")}-aligned-signed.apk',
