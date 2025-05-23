@@ -19,7 +19,7 @@ def get_latest_version_download_link() -> Optional[str]:
         f"{apk_mirror_url}/apk/whatsapp-inc/whatsapp/", headers=headers
     ).text
     versions = WHATSAPP_VERSIONS_RE.findall(versions_html)
-    for version in versions[:10]:
+    for version in versions:
         url = f"{apk_mirror_url}/apk/whatsapp-inc/whatsapp/whatsapp-{version}-release/whatsapp-messenger-{version}-android-apk-download/"  # noqa: E501
         download_page = requests.get(url, headers=headers).text
         if IS_BUNDLE_STRING in download_page:
@@ -34,10 +34,10 @@ def get_latest_version_download_link() -> Optional[str]:
 
 
 def download_latest_whatsapp(path: str):
-    print("[+] Downloading latest WhatsApp version from apkmirror", "green")
+    print("[+] Downloading latest WhatsApp version from apkmirror")
     download_link = get_latest_version_download_link().replace("&amp;", "&")
     if not download_link:
-        print("[-] Failed to get a valid download link", "red")
+        print("[-] Failed to get a valid download link")
         return None
     res = requests.get(f"{apk_mirror_url}{download_link}", headers=headers)
     with open(path, "wb") as f:
