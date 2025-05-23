@@ -8,13 +8,11 @@ import android.content.pm.SigningInfo;
 import android.os.Build;
 import android.util.Log;
 import com.smali_generator.utils.Utils;
-
 import com.smali_generator.Hook;
-
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.util.Collections;
 import java.util.Objects;
-
 import lab.galaxy.yahfa.HookMain;
 
 
@@ -30,6 +28,7 @@ public class PackageManagerHook implements Hook {
         if (package_info == null) {
             try {
                 package_info = PackageManagerHook.get_package_info_hook_backup(Objects.requireNonNull(Utils.getApplication()).getApplicationContext().getPackageManager(), package_name, flags);
+                Log.i("PATCH", "PackageManagerHook: new package_info: " + package_info);
             } catch (Exception e) {
                 Log.e("PATCH", "PackageManagerHook: Error: " + e.getMessage());
             }
@@ -37,20 +36,23 @@ public class PackageManagerHook implements Hook {
         if (package_name.equals("com.whatsapp") && (flags & 0x8000000) != 0 && package_info != null) {
             Log.i("PATCH", "PackageManagerHook: Replacing package info...");
             package_info.signatures = new Signature[]{new Signature("{{PACKAGE_SIGNATURE}}")};
-            package_info.signingInfo = null;
             try {
-                Class<?> SigningInfoClass = Class.forName("android.content.pm.SigningInfo");
-                @SuppressLint("SoonBlockedPrivateApi") Field mSigningDetails = SigningInfoClass.getDeclaredField("mSigningDetails");
-                mSigningDetails.setAccessible(true);
-                Object signing_details = mSigningDetails.get(package_info.signingInfo);
-                Field signatures = signing_details.getClass().getDeclaredField("signatures");
-                signatures.setAccessible(true);
-                signatures.set(signing_details, new Signature[]{new Signature("{{PACKAGE_SIGNATURE}}")});
-            } catch (NoSuchFieldException ignored) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
+                    package_info.signingInfo = new SigningInfo(3, Collections.singletonList(new Signature("{{PACKAGE_SIGNATURE}}")), null, null);
+                } else {
+                    Class<?> SigningInfoClass = Class.forName("android.content.pm.SigningInfo");
+                    // Is this field actually exist?
+                    @SuppressLint("SoonBlockedPrivateApi") Field mSigningDetails = SigningInfoClass.getDeclaredField("mSigningDetails");
+                    mSigningDetails.setAccessible(true);
+                    Object signing_details = mSigningDetails.get(package_info.signingInfo);
+                    assert signing_details != null;
+                    Field signatures = signing_details.getClass().getDeclaredField("signatures");
+                    signatures.setAccessible(true);
+                    signatures.set(signing_details, new Signature[]{new Signature("{{PACKAGE_SIGNATURE}}")});
+                }
             } catch (Exception e) {
                 Log.e("PATCH", "PackageManagerHook: Error: " + e.getMessage());
             }
-
         }
         return package_info;
     }
