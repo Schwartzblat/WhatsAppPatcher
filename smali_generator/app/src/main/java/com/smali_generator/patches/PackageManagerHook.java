@@ -38,7 +38,7 @@ public class PackageManagerHook implements Hook {
             package_info.signatures = new Signature[]{new Signature("{{PACKAGE_SIGNATURE}}")};
             try {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
-                    package_info.signingInfo = new SigningInfo(3, Collections.singletonList(new Signature("{{PACKAGE_SIGNATURE}}")), null, null);
+                    package_info.signingInfo = new SigningInfo(2, Collections.singletonList(new Signature("{{PACKAGE_SIGNATURE}}")), null, null);
                 } else {
                     Class<?> SigningInfoClass = Class.forName("android.content.pm.SigningInfo");
                     // Is this field actually exist?

@@ -1,13 +1,36 @@
+import glob
 import os
 import pathlib
+import shutil
 import subprocess
 import typing
-
+import zipfile
+import yaml
 from ultimate_patcher import config
 
 
-def extract_apk(apk_path: str, output_path: str = './extracted') -> None:
+def is_bundle(path: os.PathLike) -> bool:
+    with zipfile.ZipFile(path, 'r') as zip_file:
+        for file in zip_file.namelist():
+            if file.endswith('.apk'):
+                return True
+    return False
+
+
+def extract_apk(apk_path: os.PathLike, output_path: str = './extracted', temp_path: str = './temp') -> None:
     if os.path.exists(output_path):
+        return
+    if is_bundle(apk_path):
+        bundle_extracted_path = pathlib.Path(temp_path) / config.BUNDLE_APK_EXTRACTED_PATH
+        with zipfile.ZipFile(apk_path, 'r') as zip_file:
+            zip_file.extractall(bundle_extracted_path)
+        shutil.rmtree('./bundle_apks')
+        os.makedirs('./bundle_apks', exist_ok=True)
+        for apk_file in glob.iglob(str(bundle_extracted_path / '*.apk')):
+            if os.path.basename(apk_file) != 'base.apk':
+                shutil.copy(apk_file, './bundle_apks')
+
+        extract_apk(bundle_extracted_path / 'base.apk', output_path, temp_path)
         return
     subprocess.check_call(
         [
@@ -26,6 +49,14 @@ def extract_apk(apk_path: str, output_path: str = './extracted') -> None:
 
 
 def compile_apk(input_path: str = './extracted', output_path: str = 'output.apk') -> None:
+    yml_path = pathlib.Path(input_path) / 'apktool.yml'
+    if yml_path.exists():
+        with open(yml_path, 'r') as file:
+            apktool_yml = yaml.safe_load(file)
+        if 'so' not in apktool_yml['doNotCompress']:
+            apktool_yml['doNotCompress'].append('so')
+        with open(yml_path, 'w') as file:
+            yaml.safe_dump(apktool_yml, file, default_flow_style=False, sort_keys=False)
     subprocess.check_call([
         "java",
         "-jar",
@@ -42,23 +73,30 @@ def compile_apk(input_path: str = './extracted', output_path: str = 'output.apk'
     )
 
 
-def sign_apk(apk_path: str, output_path: str = 'signed-output.apk') -> None:
-    args = ["java", "-jar", config.UBER_APK_SIGNER_PATH]
-    if os.environ.get('KEYSTORE_PATH') is not None:
-        args.extend(["--ks", os.environ['KEYSTORE_PATH']])
-    if os.environ.get('KEY_ALIAS') is not None:
-        args.extend(["--ksAlias", os.environ['KEY_ALIAS']])
-    if os.environ.get('KEYSTORE_PASSWORD') is not None:
-        args.extend(["--ksPass", os.environ['KEYSTORE_PASSWORD']])
-    if os.environ.get('KEY_PASSWORD') is not None:
-        args.extend(["--ksKeyPass", os.environ['KEY_PASSWORD']])
-    args.extend(['--apks', apk_path])
-    subprocess.check_call(args, timeout=20 * 60)
-    os.remove(apk_path)
-    os.rename(
-        f'{apk_path.removesuffix(".apk")}-aligned-signed.apk',
-        output_path,
-    )
+def sign_apk(original_apk_path, apk_path: str, output_path: str = 'signed-output.apk') -> None:
+    apk_files = [apk_path]
+    for file in glob.glob(str(config.BUNDLE_APKS_OUTPUT_PATH / '*.apk')):
+        apk_files.append(file)
+    for file in apk_files:
+        args = ["java", "-jar", config.UBER_APK_SIGNER_PATH]
+        if os.environ.get('KEYSTORE_PATH') is not None:
+            args.extend(["--ks", os.environ['KEYSTORE_PATH']])
+        if os.environ.get('KEY_ALIAS') is not None:
+            args.extend(["--ksAlias", os.environ['KEY_ALIAS']])
+        if os.environ.get('KEYSTORE_PASSWORD') is not None:
+            args.extend(["--ksPass", os.environ['KEYSTORE_PASSWORD']])
+        if os.environ.get('KEY_PASSWORD') is not None:
+            args.extend(["--ksKeyPass", os.environ['KEY_PASSWORD']])
+        args.extend(['--allowResign', '--apks', file])
+        subprocess.check_call(args, timeout=20 * 60)
+        os.remove(file)
+        if is_bundle(original_apk_path):
+            os.rename(
+                f'{file.removesuffix(".apk")}-aligned-signed.apk',
+                f'{file.removesuffix(".apk")}.apk',
+            )
+        else:
+            os.rename(f'{apk_path.removesuffix(".apk")}-aligned-signed.apk', output_path)
 
 
 def _recursive_search_class(parent: pathlib.Path, class_path: list) -> typing.Optional[pathlib.Path]:

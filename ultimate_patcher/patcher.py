@@ -9,7 +9,7 @@ import lxml.etree
 from androguard.core.apk import APK
 from androguard.util import set_log
 from ultimate_patcher import config
-from ultimate_patcher.apk_utils import find_smali_file_by_class_name, extract_apk
+from ultimate_patcher.apk_utils import find_smali_file_by_class_name, extract_apk, is_bundle
 from ultimate_patcher.config import ManifestKeys
 
 set_log('CRITICAL')
@@ -82,13 +82,15 @@ def add_static_call_to_on_load(args, class_name: str, function_name: str) -> Non
 
 def patch_entries(args) -> None:
     print('[+] Searching for activities with entry points...')
-    activities_to_patch = get_activities_with_entry_points(args.apk_path)
+    activities_to_patch = get_activities_with_entry_points(
+        pathlib.Path(args.temp_path) / config.BUNDLE_APK_EXTRACTED_PATH / 'base.apk' if is_bundle(
+            args.apk_path) else args.apk_path)
     print(f'[+] Found {len(activities_to_patch)} activities with entry points')
     for activity in activities_to_patch:
         add_static_call_to_on_load(args, activity.get(
             ManifestKeys.TARGET_ACTIVITY if activity.tag == 'activity-alias' else ManifestKeys.NAME),
-            'onCreate' if 'activity' in activity.tag else '<init>'
-        )
+                                   'onCreate' if 'activity' in activity.tag else '<init>'
+                                   )
 
 
 def patch_apk(args) -> None:

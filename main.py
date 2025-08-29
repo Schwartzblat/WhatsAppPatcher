@@ -49,7 +49,7 @@ def main():
         compile_apk(str(pathlib.Path(args.temp_path) / config.EXTRACTED_TEMP_DIR), args.output)
 
         print('[+] Signing APK...')
-        sign_apk(args.output)
+        sign_apk(args.apk_path, args.output)
     finally:
         print('[+] Cleaning up...')
         clean_up(args)
