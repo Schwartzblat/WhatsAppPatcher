@@ -89,8 +89,8 @@ def patch_entries(args) -> None:
     for activity in activities_to_patch:
         add_static_call_to_on_load(args, activity.get(
             ManifestKeys.TARGET_ACTIVITY if activity.tag == 'activity-alias' else ManifestKeys.NAME),
-                                   'onCreate' if 'activity' in activity.tag else '<init>'
-                                   )
+            'onCreate' if 'activity' in activity.tag else '<init>'
+        )
 
 
 def patch_apk(args) -> None:
