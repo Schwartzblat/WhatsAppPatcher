@@ -8,6 +8,12 @@
 #include <android/log.h>
 #include <stdint.h>
 
+// Android 16
+#ifndef __ANDROID_API_B__
+#define __ANDROID_API_B__ 36
+#endif
+
+
 // Android 15
 #ifndef __ANDROID_API_V__
 #define __ANDROID_API_V__ 35
