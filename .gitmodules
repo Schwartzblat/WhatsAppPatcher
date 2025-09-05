@@ -1,0 +1,3 @@
+[submodule "smali_generator/library"]
+	path = smali_generator/library
+	url = git@github.com:Schwartzblat/YAHFA.git
