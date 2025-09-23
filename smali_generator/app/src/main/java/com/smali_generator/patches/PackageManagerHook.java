@@ -8,14 +8,11 @@ import android.content.pm.SigningInfo;
 import android.content.pm.VersionedPackage;
 import android.os.Build;
 import android.util.Log;
-
-import com.smali_generator.utils.Utils;
 import com.smali_generator.Hook;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.Collections;
-import java.util.Objects;
 
 import lab.galaxy.yahfa.HookMain;
 
@@ -28,6 +25,43 @@ public class PackageManagerHook implements Hook {
     static PackageInfo get_package_info_hook_backup(PackageManager obj, VersionedPackage package_name, PackageManager.PackageInfoFlags flags) {
         return null;
     }
+
+    static PackageInfo get_package_info_hook_backup(PackageManager obj, String package_name, PackageManager.PackageInfoFlags flags) {
+        return null;
+    }
+
+    static PackageInfo get_package_info_hook(PackageManager obj, String package_name, PackageManager.PackageInfoFlags flags) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            Log.e("PATCH", "PackageManagerHook: Unsupported flags type: " + flags);
+            throw new RuntimeException("Unsupported flags type");
+        }
+        PackageInfo package_info = PackageManagerHook.get_package_info_hook_backup(obj, package_name, flags);
+        Log.i("PATCH", "PackageManagerHook: package_info: " + package_info + ", package_name: " + package_name + ", flags: " + flags);
+        if (package_name.equals("com.whatsapp") && (flags.getValue() & 0x8000000) != 0 && package_info != null) {
+            Log.i("PATCH", "PackageManagerHook: Replacing package info...");
+            package_info.signatures = new Signature[]{new Signature("{{PACKAGE_SIGNATURE}}")};
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
+                    package_info.signingInfo = new SigningInfo(2, Collections.singletonList(new Signature("{{PACKAGE_SIGNATURE}}")), null, null);
+                } else {
+                    Class<?> SigningInfoClass = Class.forName("android.content.pm.SigningInfo");
+                    // Is this field actually exist?
+                    @SuppressLint("SoonBlockedPrivateApi") Field mSigningDetails = SigningInfoClass.getDeclaredField("mSigningDetails");
+                    mSigningDetails.setAccessible(true);
+                    Object signing_details = mSigningDetails.get(package_info.signingInfo);
+                    assert signing_details != null;
+                    Field signatures = signing_details.getClass().getDeclaredField("signatures");
+                    signatures.setAccessible(true);
+                    signatures.set(signing_details, new Signature[]{new Signature("{{PACKAGE_SIGNATURE}}")});
+                }
+            } catch (Exception e) {
+                Log.e("PATCH", "PackageManagerHook: Error: " + e.getMessage());
+            }
+        }
+        return package_info;
+    }
+
+
 
     static PackageInfo get_package_info_hook(PackageManager obj, VersionedPackage versioned_package, int flags) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -101,7 +135,14 @@ public class PackageManagerHook implements Hook {
                 get_package_info_hook_method = PackageManagerHook.class.getDeclaredMethod("get_package_info_hook", PackageManager.class, VersionedPackage.class, PackageManager.PackageInfoFlags.class);
                 get_package_info_hook_method_backup = PackageManagerHook.class.getDeclaredMethod("get_package_info_hook_backup", PackageManager.class, VersionedPackage.class, PackageManager.PackageInfoFlags.class);
                 original_get_package_info = ApplicationPackageManager.getDeclaredMethod("getPackageInfo", VersionedPackage.class, PackageManager.PackageInfoFlags.class);
+                HookMain.backupAndHook(original_get_package_info, get_package_info_hook_method, get_package_info_hook_method_backup);
+
+                get_package_info_hook_method = PackageManagerHook.class.getDeclaredMethod("get_package_info_hook", PackageManager.class, String.class, PackageManager.PackageInfoFlags.class);
+                get_package_info_hook_method_backup = PackageManagerHook.class.getDeclaredMethod("get_package_info_hook_backup", PackageManager.class, String.class, PackageManager.PackageInfoFlags.class);
+                original_get_package_info = ApplicationPackageManager.getDeclaredMethod("getPackageInfo", String.class, PackageManager.PackageInfoFlags.class);
+
             } else {
+                Log.i("PATCH", "PackageManagerHook: using old versioned package method");
                 get_package_info_hook_method = PackageManagerHook.class.getDeclaredMethod("get_package_info_hook", PackageManager.class, VersionedPackage.class, int.class);
                 get_package_info_hook_method_backup = PackageManagerHook.class.getDeclaredMethod("get_package_info_hook_backup", PackageManager.class, VersionedPackage.class, int.class);
                 original_get_package_info = ApplicationPackageManager.getDeclaredMethod("getPackageInfo", VersionedPackage.class, int.class);
