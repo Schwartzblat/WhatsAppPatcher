@@ -28,6 +28,7 @@ android {
 
 dependencies {
     implementation project(':library')
+    implementation libs.androidx.annotation.jvm
 }
 
 tasks.whenTaskAdded { task ->

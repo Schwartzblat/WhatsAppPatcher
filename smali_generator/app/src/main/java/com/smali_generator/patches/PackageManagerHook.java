@@ -8,25 +8,31 @@ import android.content.pm.SigningInfo;
 import android.content.pm.VersionedPackage;
 import android.os.Build;
 import android.util.Log;
+
 import com.smali_generator.Hook;
+import com.smali_generator.utils.Utils;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.Collections;
+import java.util.Objects;
 
 import lab.galaxy.yahfa.HookMain;
 
 
 public class PackageManagerHook implements Hook {
     static PackageInfo get_package_info_hook_backup(PackageManager obj, VersionedPackage package_name, int flags) {
+        Log.e("PATCH", "PackageManagerHook: WTF get_package_info_hook_backup(VersionedPackage, int) called");
         return null;
     }
 
     static PackageInfo get_package_info_hook_backup(PackageManager obj, VersionedPackage package_name, PackageManager.PackageInfoFlags flags) {
+        Log.e("PATCH", "PackageManagerHook: WTF get_package_info_hook_backup(VersionedPackage, int) called");
         return null;
     }
 
     static PackageInfo get_package_info_hook_backup(PackageManager obj, String package_name, PackageManager.PackageInfoFlags flags) {
+        Log.e("PATCH", "PackageManagerHook: WTF get_package_info_hook_backup(String, PackageInfoFlags) called");
         return null;
     }
 
@@ -36,8 +42,16 @@ public class PackageManagerHook implements Hook {
             throw new RuntimeException("Unsupported flags type");
         }
         PackageInfo package_info = PackageManagerHook.get_package_info_hook_backup(obj, package_name, flags);
+        if (package_info == null) {
+            try {
+                package_info = obj.getPackageInfo(new VersionedPackage(package_name, -1), flags);
+            } catch (Exception e) {
+                Log.e("PATCH", "PackageManagerHook: Error getting package info: " + e.getMessage());
+                return null;
+            }
+        }
         Log.i("PATCH", "PackageManagerHook: package_info: " + package_info + ", package_name: " + package_name + ", flags: " + flags);
-        if (package_name.equals("com.whatsapp") && (flags.getValue() & 0x8000000) != 0 && package_info != null) {
+        if (package_name.equals("com.whatsapp") && (flags.getValue() & 64) != 0 && (flags.getValue() & 0x08000000) != 0 && package_info != null) {
             Log.i("PATCH", "PackageManagerHook: Replacing package info...");
             package_info.signatures = new Signature[]{new Signature("{{PACKAGE_SIGNATURE}}")};
             try {
@@ -61,8 +75,6 @@ public class PackageManagerHook implements Hook {
         return package_info;
     }
 
-
-
     static PackageInfo get_package_info_hook(PackageManager obj, VersionedPackage versioned_package, int flags) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             Log.e("PATCH", "PackageManagerHook: Unsupported flags type: " + flags);
@@ -71,7 +83,7 @@ public class PackageManagerHook implements Hook {
         String package_name = versioned_package.getPackageName();
         PackageInfo package_info = PackageManagerHook.get_package_info_hook_backup(obj, versioned_package, flags);
         Log.e("PATCH", "PackageManagerHook: package_info: " + package_info + ", package_name: " + package_name + ", flags: " + flags);
-        if (package_name.equals("com.whatsapp") && (flags & 0x8000000) != 0 && package_info != null) {
+        if (package_name.equals("com.whatsapp") && (flags & 64) != 0 && (flags & 0x08000000) != 0 && package_info != null) {
             Log.i("PATCH", "PackageManagerHook: Replacing package info...");
             package_info.signatures = new Signature[]{new Signature("{{PACKAGE_SIGNATURE}}")};
             try {
@@ -99,7 +111,7 @@ public class PackageManagerHook implements Hook {
         String package_name = versioned_package.getPackageName();
         PackageInfo package_info = PackageManagerHook.get_package_info_hook_backup(obj, versioned_package, flags);
         Log.e("PATCH", "PackageManagerHook: package_info: " + package_info + ", package_name: " + package_name + ", flags: " + flags);
-        if (package_name.equals("com.whatsapp") && (flags.getValue() & 0x8000000) != 0 && package_info != null) {
+        if (package_name.equals("com.whatsapp") && (flags.getValue() & 64) != 0 && (flags.getValue() & 0x08000000) != 0 && package_info != null) {
             Log.i("PATCH", "PackageManagerHook: Replacing package info...");
             package_info.signatures = new Signature[]{new Signature("{{PACKAGE_SIGNATURE}}")};
             try {

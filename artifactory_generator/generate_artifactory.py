@@ -7,6 +7,7 @@ import os
 
 from artifactory_generator.artifactory_types.decrypt_protobuf_finder import DecryptProtobufFinder
 from artifactory_generator.artifactory_types.dex_copier import DexCopier
+from artifactory_generator.artifactory_types.fmessage import FMessage
 from artifactory_generator.artifactory_types.signature_finder import SignatureFinder
 from ultimate_patcher import config
 
@@ -16,7 +17,8 @@ def generate_artifactory(args):
     simple_artifacts_to_find = [
         DecryptProtobufFinder(args),
         SignatureFinder(args),
-        DexCopier(args)
+        DexCopier(args),
+        FMessage(args),
     ]
     for filename in glob.iglob(os.path.join(args.temp_path, config.EXTRACTED_TEMP_DIR, "**", "*.smali"), recursive=True):
         if len(simple_artifacts_to_find) == 0:
