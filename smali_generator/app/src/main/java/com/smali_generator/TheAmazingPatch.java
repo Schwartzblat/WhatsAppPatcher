@@ -18,7 +18,7 @@ public class TheAmazingPatch {
             FMessage.class,
     };
     static Hook[] hooks = {
-//            new DecryptProtobuf(),
+            new DecryptProtobuf(),
             new PackageManagerHook(),
             new ZipFileHook(),
             new ActivityHook(),

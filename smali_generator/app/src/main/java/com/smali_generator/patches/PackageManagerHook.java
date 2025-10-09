@@ -50,8 +50,8 @@ public class PackageManagerHook implements Hook {
                 return null;
             }
         }
-        Log.i("PATCH", "PackageManagerHook: package_info: " + package_info + ", package_name: " + package_name + ", flags: " + flags);
-        if (package_name.equals("com.whatsapp") && (flags.getValue() & 64) != 0 && (flags.getValue() & 0x08000000) != 0 && package_info != null) {
+        Log.i("PATCH", "PackageManagerHook: package_info: " + package_info + ", package_name: " + package_name + ", flags: " + flags.getValue());
+        if (package_name.equals("com.whatsapp") && ((flags.getValue() & 64) != 0 || (flags.getValue() & 0x8000000) != 0) && package_info != null) {
             Log.i("PATCH", "PackageManagerHook: Replacing package info...");
             package_info.signatures = new Signature[]{new Signature("{{PACKAGE_SIGNATURE}}")};
             try {
@@ -83,7 +83,7 @@ public class PackageManagerHook implements Hook {
         String package_name = versioned_package.getPackageName();
         PackageInfo package_info = PackageManagerHook.get_package_info_hook_backup(obj, versioned_package, flags);
         Log.e("PATCH", "PackageManagerHook: package_info: " + package_info + ", package_name: " + package_name + ", flags: " + flags);
-        if (package_name.equals("com.whatsapp") && (flags & 64) != 0 && (flags & 0x08000000) != 0 && package_info != null) {
+        if (package_name.equals("com.whatsapp") && ((flags & 64) != 0 || (flags & 0x8000000) != 0) && package_info != null) {
             Log.i("PATCH", "PackageManagerHook: Replacing package info...");
             package_info.signatures = new Signature[]{new Signature("{{PACKAGE_SIGNATURE}}")};
             try {
@@ -110,8 +110,8 @@ public class PackageManagerHook implements Hook {
         }
         String package_name = versioned_package.getPackageName();
         PackageInfo package_info = PackageManagerHook.get_package_info_hook_backup(obj, versioned_package, flags);
-        Log.e("PATCH", "PackageManagerHook: package_info: " + package_info + ", package_name: " + package_name + ", flags: " + flags);
-        if (package_name.equals("com.whatsapp") && (flags.getValue() & 64) != 0 && (flags.getValue() & 0x08000000) != 0 && package_info != null) {
+        Log.e("PATCH", "PackageManagerHook: package_info: " + package_info + ", package_name: " + package_name + ", flags: " + flags.getValue());
+        if (package_name.equals("com.whatsapp") && ((flags.getValue() & 64) != 0 || (flags.getValue() & 0x8000000) != 0) && package_info != null) {
             Log.i("PATCH", "PackageManagerHook: Replacing package info...");
             package_info.signatures = new Signature[]{new Signature("{{PACKAGE_SIGNATURE}}")};
             try {
