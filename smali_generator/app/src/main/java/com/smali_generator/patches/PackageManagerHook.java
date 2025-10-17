@@ -36,6 +36,11 @@ public class PackageManagerHook implements Hook {
         return null;
     }
 
+    static PackageInfo get_package_info_hook_backup(PackageManager obj, String package_name, int flags) {
+        Log.e("PATCH", "PackageManagerHook: WTF get_package_info_hook_backup(String, int) called");
+        return null;
+    }
+
     static PackageInfo get_package_info_hook(PackageManager obj, String package_name, PackageManager.PackageInfoFlags flags) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
             Log.e("PATCH", "PackageManagerHook: Unsupported flags type: " + flags);
@@ -75,6 +80,28 @@ public class PackageManagerHook implements Hook {
         return package_info;
     }
 
+    static PackageInfo get_package_info_hook(PackageManager obj, String package_name, int flags) {
+        if (Build.VERSION.SDK_INT > Build.VERSION_CODES.TIRAMISU) {
+            Log.e("PATCH", "PackageManagerHook: Unsupported flags type: " + flags);
+            throw new RuntimeException("Unsupported flags type");
+        }
+        PackageInfo package_info = PackageManagerHook.get_package_info_hook_backup(obj, package_name, flags);
+        if (package_info == null) {
+            try {
+                package_info = obj.getPackageInfo(new VersionedPackage(package_name, -1), flags);
+            } catch (Exception e) {
+                Log.e("PATCH", "PackageManagerHook: Error getting package info: " + e.getMessage());
+                return null;
+            }
+        }
+        Log.i("PATCH", "PackageManagerHook: package_info: " + package_info + ", package_name: " + package_name + ", flags: " + flags);
+        if (package_name.equals("com.whatsapp") && ((flags & 64) != 0 || (flags & 0x8000000) != 0) && package_info != null) {
+            Log.i("PATCH", "PackageManagerHook: Replacing package info...");
+            package_info.signatures = new Signature[]{new Signature("{{PACKAGE_SIGNATURE}}")};
+            package_info.signingInfo = null;
+        }
+        return package_info;
+    }
     static PackageInfo get_package_info_hook(PackageManager obj, VersionedPackage versioned_package, int flags) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             Log.e("PATCH", "PackageManagerHook: Unsupported flags type: " + flags);
@@ -158,6 +185,11 @@ public class PackageManagerHook implements Hook {
                 get_package_info_hook_method = PackageManagerHook.class.getDeclaredMethod("get_package_info_hook", PackageManager.class, VersionedPackage.class, int.class);
                 get_package_info_hook_method_backup = PackageManagerHook.class.getDeclaredMethod("get_package_info_hook_backup", PackageManager.class, VersionedPackage.class, int.class);
                 original_get_package_info = ApplicationPackageManager.getDeclaredMethod("getPackageInfo", VersionedPackage.class, int.class);
+                HookMain.backupAndHook(original_get_package_info, get_package_info_hook_method, get_package_info_hook_method_backup);
+
+                get_package_info_hook_method = PackageManagerHook.class.getDeclaredMethod("get_package_info_hook", PackageManager.class, String.class, int.class);
+                get_package_info_hook_method_backup = PackageManagerHook.class.getDeclaredMethod("get_package_info_hook_backup", PackageManager.class, String.class, int.class);
+                original_get_package_info = ApplicationPackageManager.getDeclaredMethod("getPackageInfo", String.class, int.class);
             }
             HookMain.backupAndHook(original_get_package_info, get_package_info_hook_method, get_package_info_hook_method_backup);
         } catch (Exception e) {
