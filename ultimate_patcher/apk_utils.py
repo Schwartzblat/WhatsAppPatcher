@@ -1,12 +1,12 @@
 import glob
 import os
-import pathlib
+from pathlib import Path
 import shutil
 import subprocess
 import typing
 import zipfile
 import yaml
-from ultimate_patcher import config
+from ultimate_patcher.common import APKTOOL_PATH, UBER_APK_SIGNER_PATH, EXTRACTED_PATH, BUNDLE_APK_EXTRACTED_PATH
 
 
 def is_bundle(path: os.PathLike) -> bool:
@@ -17,39 +17,36 @@ def is_bundle(path: os.PathLike) -> bool:
     return False
 
 
-def extract_apk(apk_path: os.PathLike, output_path: str = './extracted', temp_path: str = './temp') -> None:
-    if os.path.exists(output_path):
-        return
+def extract_apk(apk_path: os.PathLike, temp_path: Path, extracted_path: typing.Optional[Path] = None) -> None:
     if is_bundle(apk_path):
-        bundle_extracted_path = pathlib.Path(temp_path) / config.BUNDLE_APK_EXTRACTED_PATH
         with zipfile.ZipFile(apk_path, 'r') as zip_file:
-            zip_file.extractall(bundle_extracted_path)
+            zip_file.extractall(temp_path / BUNDLE_APK_EXTRACTED_PATH)
         shutil.rmtree('./bundle_apks')
         os.makedirs('./bundle_apks', exist_ok=True)
-        for apk_file in glob.iglob(str(bundle_extracted_path / '*.apk')):
+        for apk_file in glob.iglob(str(temp_path / BUNDLE_APK_EXTRACTED_PATH / '*.apk')):
             if os.path.basename(apk_file) != 'base.apk':
                 shutil.copy(apk_file, './bundle_apks')
 
-        extract_apk(bundle_extracted_path / 'base.apk', output_path, temp_path)
+        extract_apk(temp_path / BUNDLE_APK_EXTRACTED_PATH / 'base.apk', temp_path)
         return
     subprocess.check_call(
         [
             "java",
             "-jar",
-            config.APKTOOL_PATH,
-            "-q",
+            APKTOOL_PATH,
             "d",
+            "-q",
             "-r",
             "--output",
-            output_path,
+            extracted_path if extracted_path is not None else temp_path / EXTRACTED_PATH,
             apk_path,
         ],
         timeout=20 * 60,
     )
 
 
-def compile_apk(input_path: str = './extracted', output_path: str = 'output.apk') -> None:
-    yml_path = pathlib.Path(input_path) / 'apktool.yml'
+def compile_apk(input_path: Path, output_path: Path) -> None:
+    yml_path = input_path / 'apktool.yml'
     if yml_path.exists():
         with open(yml_path, 'r') as file:
             apktool_yml = yaml.safe_load(file)
@@ -60,25 +57,24 @@ def compile_apk(input_path: str = './extracted', output_path: str = 'output.apk'
     subprocess.check_call([
         "java",
         "-jar",
-        config.APKTOOL_PATH,
-        "-q",
+        APKTOOL_PATH,
         "build",
-        "--use-aapt2",
-        input_path,
+        "-q",
+        str(input_path),
         "--output",
-        output_path
+        str(output_path)
     ],
         timeout=20 * 60,
 
     )
 
 
-def sign_apk(original_apk_path, apk_path: str, output_path: str = 'signed-output.apk') -> None:
-    apk_files = [apk_path]
-    for file in glob.glob(str(config.BUNDLE_APKS_OUTPUT_PATH / '*.apk')):
-        apk_files.append(file)
+def sign_apk(original_apk_path: Path, apk_path: Path, output_path: Path) -> None:
+    apk_files = [str(apk_path)]
+    for file in glob.glob(str(BUNDLE_APK_EXTRACTED_PATH / '*.apk')):
+        apk_files.append(str(file))
     for file in apk_files:
-        args = ["java", "-jar", config.UBER_APK_SIGNER_PATH]
+        args = ["java", "-jar", UBER_APK_SIGNER_PATH]
         if os.environ.get('KEYSTORE_PATH') is not None:
             args.extend(["--ks", os.environ['KEYSTORE_PATH']])
         if os.environ.get('KEY_ALIAS') is not None:
@@ -96,10 +92,10 @@ def sign_apk(original_apk_path, apk_path: str, output_path: str = 'signed-output
                 f'{file.removesuffix(".apk")}.apk',
             )
         else:
-            os.rename(f'{apk_path.removesuffix(".apk")}-aligned-signed.apk', output_path)
+            os.rename(f'{str(apk_path).removesuffix(".apk")}-aligned-signed.apk', output_path)
 
 
-def _recursive_search_class(parent: pathlib.Path, class_path: list) -> typing.Optional[pathlib.Path]:
+def _recursive_search_class(parent: Path, class_path: list) -> typing.Optional[Path]:
     for child in parent.iterdir():
         if len(class_path) == 1 and child.is_file() and child.name == f'{class_path[0]}.smali':
             return child
@@ -108,7 +104,7 @@ def _recursive_search_class(parent: pathlib.Path, class_path: list) -> typing.Op
     return None
 
 
-def find_smali_file_by_class_name(parent: pathlib.Path, class_name: str) -> typing.Optional[pathlib.Path]:
+def find_smali_file_by_class_name(parent: Path, class_name: str) -> typing.Optional[Path]:
     for child in parent.iterdir():
         if not child.is_dir() or not str(child.name).startswith('smali'):
             continue

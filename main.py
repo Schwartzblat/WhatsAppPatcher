@@ -1,10 +1,11 @@
 import argparse
 import shutil
 import os
-import pathlib
+from pathlib import Path
 from ultimate_patcher import config
 from ultimate_patcher.apk_utils import extract_apk, compile_apk, sign_apk
 from artifactory import prepare_artifactory
+from ultimate_patcher.common import SMALI_GENERATOR_TEMP_PATH, EXTRACTED_PATH
 from ultimate_patcher.patcher import patch_apk
 from downloader import download_latest_whatsapp
 
@@ -37,19 +38,21 @@ def main():
             exit(1)
     try:
         print('[+] Extracting APK...')
-        extract_apk(args.apk_path, str(pathlib.Path(args.temp_path) / config.EXTRACTED_TEMP_DIR))
+        extract_apk(Path(args.apk_path), Path(args.temp_path))
 
         print('[+] Finding artifacts...')
         prepare_artifactory(args)
 
         print('[+] Patching APK...')
-        patch_apk(args)
+        patch_apk(Path(args.apk_path), Path(args.temp_path), Path(args.artifactory), Path(SMALI_GENERATOR_TEMP_PATH),
+                  args.arch)
 
         print('[+] Compiling APK...')
-        compile_apk(str(pathlib.Path(args.temp_path) / config.EXTRACTED_TEMP_DIR), args.output)
+        compile_apk(Path(args.temp_path) / EXTRACTED_PATH, Path(args.output))
 
         print('[+] Signing APK...')
-        sign_apk(args.apk_path, args.output)
+        sign_apk(Path(args.apk_path), Path(args.output), Path('signed_' + args.output))
+
     finally:
         print('[+] Cleaning up...')
         clean_up(args)
