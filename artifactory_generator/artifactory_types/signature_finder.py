@@ -1,9 +1,9 @@
 from cryptography.hazmat.primitives import serialization
 
-from ultimate_patcher import config
 from cryptography.hazmat.primitives.serialization import pkcs7
 
 from artifactory_generator.SimpleArtifactoryFinder import SimpleArtifactoryFinder
+from ultimate_patcher.common import EXTRACTED_PATH
 
 
 class SignatureFinder(SimpleArtifactoryFinder):
@@ -17,7 +17,7 @@ class SignatureFinder(SimpleArtifactoryFinder):
         return True
 
     def extract_artifacts(self, artifacts: dict, class_data: str) -> None:
-        with open(self.args.temp_path / config.EXTRACTED_TEMP_DIR / "./unknown/META-INF/IMPORTED.DSA", "rb") as f:
+        with open(self.args.temp_path / EXTRACTED_PATH / "./unknown/META-INF/IMPORTED.DSA", "rb") as f:
             public_key = f.read()
         der_cert = pkcs7.load_der_pkcs7_certificates(public_key)[0]
         bytes_signature = der_cert.public_bytes(serialization.Encoding.DER)

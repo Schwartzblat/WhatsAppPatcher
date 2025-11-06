@@ -8,7 +8,6 @@ import subprocess
 import lxml.etree
 from androguard.core.apk import APK
 from androguard.util import set_log
-from ultimate_patcher import config
 from ultimate_patcher.apk_utils import find_smali_file_by_class_name, extract_apk, is_bundle
 from ultimate_patcher.common import ManifestKeys, SMALI_GENERATOR_TEMP_PATH, SMALI_GENERATOR_OUTPUT_PATH, SMALI_EXTRACTED_PATH, \
     BUNDLE_APK_EXTRACTED_PATH, EXTRACTED_PATH

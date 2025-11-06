@@ -2,7 +2,6 @@ import argparse
 import shutil
 import os
 from pathlib import Path
-from ultimate_patcher import config
 from ultimate_patcher.apk_utils import extract_apk, compile_apk, sign_apk
 from artifactory import prepare_artifactory
 from ultimate_patcher.common import SMALI_GENERATOR_TEMP_PATH, EXTRACTED_PATH
