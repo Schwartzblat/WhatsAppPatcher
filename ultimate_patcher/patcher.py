@@ -9,7 +9,8 @@ import lxml.etree
 from androguard.core.apk import APK
 from androguard.util import set_log
 from ultimate_patcher.apk_utils import find_smali_file_by_class_name, extract_apk, is_bundle
-from ultimate_patcher.common import ManifestKeys, SMALI_GENERATOR_TEMP_PATH, SMALI_GENERATOR_OUTPUT_PATH, SMALI_EXTRACTED_PATH, \
+from ultimate_patcher.common import ManifestKeys, SMALI_GENERATOR_TEMP_PATH, SMALI_GENERATOR_OUTPUT_PATH, \
+    SMALI_EXTRACTED_PATH, \
     BUNDLE_APK_EXTRACTED_PATH, EXTRACTED_PATH
 
 set_log('CRITICAL')
@@ -88,8 +89,8 @@ def patch_entries(apk_path: Path, temp_path: Path) -> None:
     for activity in activities_to_patch:
         add_static_call_to_on_load(temp_path, activity.get(
             ManifestKeys.TARGET_ACTIVITY if activity.tag == 'activity-alias' else ManifestKeys.NAME),
-                                   'onCreate' if 'activity' in activity.tag else '<init>'
-                                   )
+            'onCreate' if 'activity' in activity.tag else '<init>'
+        )
 
 
 def patch_apk(apk_path: Path, temp_path: Path, artifactory: Path, external_module: Path, arch: str) -> None:
