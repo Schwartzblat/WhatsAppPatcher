@@ -5,9 +5,12 @@ from pathlib import Path
 import re
 import shutil
 import subprocess
+from typing import Optional
+
 import lxml.etree
 from androguard.core.apk import APK
 from androguard.util import set_log
+from androguard.core.axml import ARSCParser
 from ultimate_patcher.apk_utils import find_smali_file_by_class_name, extract_apk, is_bundle
 from ultimate_patcher.common import ManifestKeys, SMALI_GENERATOR_TEMP_PATH, SMALI_GENERATOR_OUTPUT_PATH, \
     SMALI_EXTRACTED_PATH, \
@@ -93,13 +96,52 @@ def patch_entries(apk_path: Path, temp_path: Path) -> None:
         )
 
 
-def patch_apk(apk_path: Path, temp_path: Path, artifactory: Path, external_module: Path, arch: str) -> None:
+def patch_google_api_key(temp_path: Path, package_name: str, custom_google_api_key: str) -> None:
+    print('[+] Searching for google api key...')
+    resources_path = temp_path / EXTRACTED_PATH / 'resources.arsc'
+    resources = ARSCParser(resources_path.read_bytes())
+    _, original_google_api_key = resources.get_string(package_name, 'google_api_key')
+    print(f'[+] Original google api key: {original_google_api_key}')
+    with open(resources_path, 'rb') as file:
+        resources_data = file.read()
+    resources_data = resources_data.replace(original_google_api_key.encode(), custom_google_api_key.encode())
+    with open(resources_path, 'wb') as file:
+        file.write(resources_data)
+
+
+def get_new_smali_folder(smali_path: Path) -> Path:
+    smali_folders = [folder for folder in smali_path.iterdir() if
+                     folder.is_dir() and folder.name.startswith('smali_classes')]
+    if not smali_folders:
+        return smali_path / 'smali'
+    smali_folders.sort(key=lambda x: int(x.name.replace('smali_classes', '')))
+    smali_index = int(smali_folders[-1].name.replace('smali_classes', '')) + 1
+    (smali_path / f'smali_classes{smali_index}').mkdir()
+    return smali_path / f'smali_classes{smali_index}'
+
+
+def patch_apk(apk_path: Path, temp_path: Path, artifactory: Path, external_module: Path, arch: str,
+              api_key: Optional[str] = None) -> None:
     print('[+] Preparing the smali...')
     prepare_smali(temp_path, artifactory, external_module)
-    print('[+] Applying the custom smali...')
-    shutil.copytree(temp_path / SMALI_GENERATOR_TEMP_PATH / SMALI_EXTRACTED_PATH / 'smali',
-                    temp_path / EXTRACTED_PATH / 'smali',
+
+    new_smali_folder = get_new_smali_folder(temp_path / EXTRACTED_PATH)
+
+    print(f'[+] Applying the custom smali into {new_smali_folder.name}...')
+    shutil.copytree(temp_path / SMALI_GENERATOR_TEMP_PATH /  SMALI_EXTRACTED_PATH / 'smali',
+                    new_smali_folder,
                     dirs_exist_ok=True)
+
+    smali_folders = [folder for folder in
+                     (temp_path / EXTRACTED_PATH).iterdir() if
+                     folder.is_dir() and (folder.name.startswith('smali_classes') or folder.name == 'smali')]
+    for folder in smali_folders:
+        # move every first folder within to the new smali folder
+        for file in folder.iterdir():
+            if not (new_smali_folder / file.name).exists():
+                shutil.move(file, new_smali_folder)
+                break
+
     print('[+] Injecting the custom so...')
     os.makedirs(temp_path / EXTRACTED_PATH / 'lib' / arch, exist_ok=True)
     shutil.copytree(
@@ -108,3 +150,7 @@ def patch_apk(apk_path: Path, temp_path: Path, artifactory: Path, external_modul
         dirs_exist_ok=True)
     print('[+] Adding calls to the custom smali...')
     patch_entries(apk_path, temp_path)
+
+    if api_key is not None:
+        print('[+] Patching google api key...')
+        patch_google_api_key(temp_path, APK(str(apk_path)).get_package(), api_key)

@@ -15,6 +15,7 @@ def get_args():
     parser.add_argument('-o', '--output', dest='output', help='Output APK path', required=False, default='output.apk')
     parser.add_argument('-t', '--temp', dest='temp_path', help='Temp path for extracted content', required=False,
                         default='./temp')
+    parser.add_argument('-g', '--google-api-key', dest='api_key', help='Custom google api key', required=False, default=None)
     parser.add_argument('--arch', dest='arch', help='Architecture', required=False, default='arm64-v8a',
                         choices=['arm64-v8a', 'armeabi-v7a', 'x86', 'x86_64'])
     parser.add_argument('--artifactory', dest='artifactory', help='Artifactory path', required=False,
@@ -44,7 +45,7 @@ def main():
 
         print('[+] Patching APK...')
         patch_apk(Path(args.apk_path), Path(args.temp_path), Path(args.artifactory), Path(SMALI_GENERATOR_TEMP_PATH),
-                  args.arch)
+                  args.arch, args.api_key)
 
         print('[+] Compiling APK...')
         compile_apk(Path(args.temp_path) / EXTRACTED_PATH, Path(args.output))

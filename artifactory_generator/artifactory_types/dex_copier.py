@@ -1,6 +1,6 @@
 import os
 import zipfile
-
+from pathlib import Path
 from artifactory_generator.SimpleArtifactoryFinder import SimpleArtifactoryFinder
 from ultimate_patcher.common import EXTRACTED_PATH
 
@@ -16,10 +16,11 @@ class DexCopier(SimpleArtifactoryFinder):
         return True
 
     def extract_artifacts(self, artifacts: dict, class_data: str) -> None:
+        temp_path = Path(self.args.temp_path)
         zipfile.ZipFile(self.args.apk_path).extract(
             'classes.dex',
-            self.args.temp_path / EXTRACTED_PATH
+            temp_path / EXTRACTED_PATH
         )
-        os.rename(self.args.temp_path / EXTRACTED_PATH / 'classes.dex',
-                  self.args.temp_path / EXTRACTED_PATH / 'classes69.dex')
+        os.rename(temp_path / EXTRACTED_PATH / 'classes.dex',
+                  temp_path / EXTRACTED_PATH / 'classes69.dex')
         self.is_found = True
