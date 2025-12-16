@@ -75,15 +75,15 @@ public class DecryptProtobuf implements Hook {
     static int decrypt_protobuf_hook(Object self, Object d4o, Object obj, byte[] bArr, int i, int i2, int i3) {
         int ret = DecryptProtobuf.decrypt_protobuf_hook_backup(self, d4o, obj, bArr, i, i2, i3);
         handle_view_once(obj);
-        try {
-            Class<?> MessageClass = obj.getClass();
-            MessageClass.getDeclaredField("protocolMessage_");
-            // Should check if the receiver method is expecting a specific type of message because of the previous ones.
-            handle_final_message(MessageClass, obj);
-        } catch (NoSuchFieldException ignored) {
-        } catch (Exception e) {
-            Log.e("PATCH", "DecryptProtobuf: Error: " + e.getMessage());
-        }
+//        try {
+//            Class<?> MessageClass = obj.getClass();
+//            MessageClass.getDeclaredField("protocolMessage_");
+//            // Should check if the receiver method is expecting a specific type of message because of the previous ones.
+//            handle_final_message(MessageClass, obj);
+//        } catch (NoSuchFieldException ignored) {
+//        } catch (Exception e) {
+//            Log.e("PATCH", "DecryptProtobuf: Error: " + e.getMessage());
+//        }
         return ret;
     }
 

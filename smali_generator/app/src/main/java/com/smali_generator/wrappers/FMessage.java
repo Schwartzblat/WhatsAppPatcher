@@ -2,29 +2,28 @@ package com.smali_generator.wrappers;
 
 import android.util.Log;
 
-import com.smali_generator.Wrapper;
 import com.smali_generator.utils.ReflectionUtils;
 
 import java.lang.reflect.Field;
 
-public class FMessage implements Wrapper {
-    static final String TAG = "PATCH";
-    public static Class<?> FMESSAGE_CLASS;
+public class FMessage extends Wrapper {
     private static Field device_jid;
-
-    private final Object fmessage;
+    public static Class<?> TYPE_CLASS;
 
     public FMessage(Object fmessage) {
-        this.fmessage = fmessage;
+        this.object = fmessage;
     }
 
+    Class<?> get_type_class() {
+        return TYPE_CLASS;
+    }
 
     @SuppressWarnings("unused")
     public static void init() {
         try {
-            FMESSAGE_CLASS = Class.forName("{{FMESSAGE_CLASS}}");
-            Class<?> device_jid_class = Class.forName("com.whatsapp.jid.DeviceJid");
-            device_jid = ReflectionUtils.findFieldUsingFilter(FMESSAGE_CLASS, field -> field.getType() == device_jid_class);
+            TYPE_CLASS = Class.forName("{{FMESSAGE_CLASS}}");
+            Class<?> device_jid_class = Class.forName("com.whatsapp.infra.core.jid.DeviceJid");
+            device_jid = ReflectionUtils.findFieldUsingFilter(TYPE_CLASS, field -> field.getType() == device_jid_class);
             Log.i("PATCH", "FMessage: init success");
         } catch (Exception e) {
             Log.e("PATCH", "FMessage: init error: " + e.getMessage());
@@ -33,7 +32,7 @@ public class FMessage implements Wrapper {
 
     public Object getDeviceJid() {
         try {
-            return device_jid.get(this.fmessage);
+            return device_jid.get(this.object);
         } catch (Exception e) {
             Log.e(TAG, "FMessage: getDeviceJid error: " + e.getMessage());
         }

@@ -7,8 +7,12 @@ import os
 
 from artifactory_generator.artifactory_types.decrypt_protobuf_finder import DecryptProtobufFinder
 from artifactory_generator.artifactory_types.dex_copier import DexCopier
+from artifactory_generator.artifactory_types.e2e_message_params import E2EMessageParams
 from artifactory_generator.artifactory_types.fmessage import FMessage
+from artifactory_generator.artifactory_types.message_manager import IncomingMessageManagerFinder
+from artifactory_generator.artifactory_types.message_secret import MessageSecret
 from artifactory_generator.artifactory_types.signature_finder import SignatureFinder
+from artifactory_generator.artifactory_types.fmessage_protobuf import FMessageProtobufFinder
 from ultimate_patcher.common import EXTRACTED_PATH
 
 
@@ -19,6 +23,10 @@ def generate_artifactory(args):
         SignatureFinder(args),
         DexCopier(args),
         FMessage(args),
+        FMessageProtobufFinder(args),
+        IncomingMessageManagerFinder(args),
+        E2EMessageParams(args),
+        MessageSecret(args),
     ]
     for filename in glob.iglob(os.path.join(args.temp_path, EXTRACTED_PATH, "**", "*.smali"), recursive=True):
         if len(simple_artifacts_to_find) == 0:

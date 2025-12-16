@@ -4,9 +4,18 @@ import android.util.Log;
 
 import com.smali_generator.patches.ActivityHook;
 import com.smali_generator.patches.DecryptProtobuf;
+import com.smali_generator.patches.FMessageProtobufHook;
 import com.smali_generator.patches.PackageManagerHook;
 import com.smali_generator.patches.ZipFileHook;
+import com.smali_generator.wrappers.ContextInfo;
+import com.smali_generator.wrappers.E2EMessageParams;
+import com.smali_generator.wrappers.ExtendedTextMessage;
 import com.smali_generator.wrappers.FMessage;
+import com.smali_generator.wrappers.MessageContextInfo;
+import com.smali_generator.wrappers.MessageKey;
+import com.smali_generator.wrappers.MessageSecret;
+import com.smali_generator.wrappers.ProtocolMessage;
+import com.smali_generator.wrappers.WhatsAppProtobufMessage;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -16,12 +25,21 @@ public class TheAmazingPatch {
 
     static Class<?>[] wrappers = {
             FMessage.class,
+            E2EMessageParams.class,
+            WhatsAppProtobufMessage.class,
+            ProtocolMessage.class,
+            MessageContextInfo.class,
+            MessageSecret.class,
+            ExtendedTextMessage.class,
+            ContextInfo.class,
+            MessageKey.class,
     };
     static Hook[] hooks = {
             new DecryptProtobuf(),
             new PackageManagerHook(),
             new ZipFileHook(),
             new ActivityHook(),
+            new FMessageProtobufHook(),
     };
 
     static AtomicBoolean is_loaded = new AtomicBoolean(false);
