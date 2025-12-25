@@ -1,0 +1,51 @@
+plugins {
+    alias(libs.plugins.android.application)
+}
+
+android {
+    namespace 'com.smali_generator'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId "com.smali_generator"
+        minSdk 28
+        //noinspection ExpiredTargetSdkVersion
+        targetSdk 35
+        versionCode 1
+        versionName "1.0"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+        }
+    }
+//    compileOptions {
+//        sourceCompatibility JavaVersion.VERSION_11
+//        targetCompatibility JavaVersion.VERSION_11
+//    }
+}
+
+dependencies {
+    implementation project(':library')
+    implementation libs.androidx.annotation.jvm
+}
+
+tasks.whenTaskAdded { task ->
+    if (task.name == 'assembleRelease') {
+        task.doLast {
+            def apkDir = "$buildDir/outputs/apk/release"
+            def apkFile = fileTree(dir: apkDir, includes: ["*.apk"]).singleFile
+            def destinationDir = "./"
+
+            mkdir(destinationDir)
+            copy {
+                from apkFile
+                into "$destinationDir"
+            }
+            def output_apk = file("$destinationDir/${apkFile.name}")
+            output_apk.renameTo("${destinationDir}/smali_generator.apk")
+            println "APK moved to $destinationDir"
+        }
+    }
+}
