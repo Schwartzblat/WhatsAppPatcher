@@ -3,6 +3,9 @@ name: release
 on:
   release:
     types: [ created ]
+  push:
+    branches:
+      - ci_tests
 
 jobs:
   create_release:
