@@ -34,7 +34,7 @@ jobs:
           encodedString: ${{ secrets.SIGNING_KEY }}
       - name: Preparing the patched apk
         env:
-          KEYSTORE_PATH: './keystore.jks'
+          KEYSTORE_PATH: ${{ steps.prepare_keystore.outputs.filePath }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
