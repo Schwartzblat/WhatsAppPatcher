@@ -10,7 +10,6 @@ on:
 jobs:
   create_release:
     name: Create Release
-    if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
