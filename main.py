@@ -46,12 +46,11 @@ def main():
         print('[+] Patching APK...')
         patch_apk(Path(args.apk_path), Path(args.temp_path), Path(args.artifactory), Path(SMALI_GENERATOR_TEMP_PATH),
                   args.arch, args.api_key)
-
         print('[+] Compiling APK...')
         compile_apk(Path(args.temp_path) / EXTRACTED_PATH, Path(args.output))
 
         print('[+] Signing APK...')
-        sign_apk(Path(args.apk_path), Path(args.output), Path('signed_' + args.output))
+        sign_apk(Path(args.temp_path), args.apk_path, Path(args.output), Path('signed_' + args.output))
 
     finally:
         print('[+] Cleaning up...')

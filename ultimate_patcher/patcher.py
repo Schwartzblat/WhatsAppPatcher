@@ -84,9 +84,10 @@ def add_static_call_to_on_load(temp_path: Path, class_name: str, function_name: 
 
 
 def patch_entries(apk_path: Path, temp_path: Path) -> None:
+    from ultimate_patcher.apk_utils import main_apk_name
     print('[+] Searching for activities with entry points...')
     activities_to_patch = get_activities_with_entry_points(
-        Path(temp_path) / BUNDLE_APK_EXTRACTED_PATH / 'base.apk' if is_bundle(
+        Path(temp_path) / BUNDLE_APK_EXTRACTED_PATH / main_apk_name if is_bundle(
             apk_path) else apk_path)
     print(f'[+] Found {len(activities_to_patch)} activities with entry points')
     for activity in activities_to_patch:
@@ -128,7 +129,7 @@ def patch_apk(apk_path: Path, temp_path: Path, artifactory: Path, external_modul
     new_smali_folder = get_new_smali_folder(temp_path / EXTRACTED_PATH)
 
     print(f'[+] Applying the custom smali into {new_smali_folder.name}...')
-    shutil.copytree(temp_path / SMALI_GENERATOR_TEMP_PATH /  SMALI_EXTRACTED_PATH / 'smali',
+    shutil.copytree(temp_path / SMALI_GENERATOR_TEMP_PATH / SMALI_EXTRACTED_PATH / 'smali',
                     new_smali_folder,
                     dirs_exist_ok=True)
 
@@ -153,4 +154,9 @@ def patch_apk(apk_path: Path, temp_path: Path, artifactory: Path, external_modul
 
     if api_key is not None:
         print('[+] Patching google api key...')
-        patch_google_api_key(temp_path, APK(str(apk_path)).get_package(), api_key)
+        if is_bundle(apk_path):
+            from ultimate_patcher.apk_utils import main_apk_name
+            package_name = APK(str(temp_path / BUNDLE_APK_EXTRACTED_PATH / main_apk_name)).get_package()
+        else:
+            package_name = APK(str(apk_path)).get_package()
+        patch_google_api_key(temp_path, package_name, api_key)

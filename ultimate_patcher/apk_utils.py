@@ -8,6 +8,8 @@ import zipfile
 import yaml
 from ultimate_patcher.common import APKTOOL_PATH, UBER_APK_SIGNER_PATH, EXTRACTED_PATH, BUNDLE_APK_EXTRACTED_PATH
 
+main_apk_name = 'base.apk'
+
 
 def is_bundle(path: os.PathLike) -> bool:
     with zipfile.ZipFile(path, 'r') as zip_file:
@@ -18,16 +20,23 @@ def is_bundle(path: os.PathLike) -> bool:
 
 
 def extract_apk(apk_path: os.PathLike, temp_path: Path, extracted_path: typing.Optional[Path] = None) -> None:
+    if str(apk_path).endswith('.xapk'):
+        global main_apk_name
+        with zipfile.ZipFile(apk_path, 'r') as zip_file:
+            apk_files = [file for file in zip_file.namelist() if file.endswith('.apk')]
+            if len(apk_files) == 0:
+                raise ValueError('No APK files found in the XAPK.')
+            main_apk_name = max(apk_files, key=lambda x: zip_file.getinfo(x).file_size)
     if is_bundle(apk_path):
         with zipfile.ZipFile(apk_path, 'r') as zip_file:
             zip_file.extractall(temp_path / BUNDLE_APK_EXTRACTED_PATH)
-        shutil.rmtree('./bundle_apks')
+        shutil.rmtree('./bundle_apks', ignore_errors=True)
         os.makedirs('./bundle_apks', exist_ok=True)
         for apk_file in glob.iglob(str(temp_path / BUNDLE_APK_EXTRACTED_PATH / '*.apk')):
-            if os.path.basename(apk_file) != 'base.apk':
+            if os.path.basename(apk_file) != main_apk_name:
                 shutil.copy(apk_file, './bundle_apks')
 
-        extract_apk(temp_path / BUNDLE_APK_EXTRACTED_PATH / 'base.apk', temp_path)
+        extract_apk(temp_path / BUNDLE_APK_EXTRACTED_PATH / main_apk_name, temp_path)
         return
     subprocess.check_call(
         [
@@ -69,9 +78,9 @@ def compile_apk(input_path: Path, output_path: Path) -> None:
     )
 
 
-def sign_apk(original_apk_path: Path, apk_path: Path, output_path: Path) -> None:
+def sign_apk(temp_path: Path, original_apk_path: Path, apk_path: Path, output_path: Path) -> None:
     apk_files = [str(apk_path)]
-    for file in glob.glob(str(BUNDLE_APK_EXTRACTED_PATH / '*.apk')):
+    for file in glob.glob(str(temp_path / BUNDLE_APK_EXTRACTED_PATH / '*.apk')):
         apk_files.append(str(file))
     for file in apk_files:
         args = ["java", "-jar", UBER_APK_SIGNER_PATH]
@@ -91,8 +100,13 @@ def sign_apk(original_apk_path: Path, apk_path: Path, output_path: Path) -> None
                 f'{file.removesuffix(".apk")}-aligned-signed.apk',
                 f'{file.removesuffix(".apk")}.apk',
             )
+
         else:
             os.rename(f'{str(apk_path).removesuffix(".apk")}-aligned-signed.apk', output_path)
+
+    if is_bundle(original_apk_path):
+        shutil.move(apk_path, temp_path / BUNDLE_APK_EXTRACTED_PATH / main_apk_name)
+        shutil.move(temp_path / BUNDLE_APK_EXTRACTED_PATH, 'output_bundle_apks')
 
 
 def _recursive_search_class(parent: Path, class_path: list) -> typing.Optional[Path]:
