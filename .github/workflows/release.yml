@@ -26,7 +26,18 @@ jobs:
           git submodule update --init --recursive
           python -m pip install --upgrade pip
           pip install -r requirements.txt -U
+      - name: Preparing keystore
+        id: prepare_keystore
+        uses: timheuer/base64-to-file@v1
+        with:
+          fileName: './keystore.jks'
+          encodedString: ${{ secrets.SIGNING_KEY }}
       - name: Preparing the patched apk
+        env:
+          KEYSTORE_PATH: './keystore.jks'
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
           python main.py
       - name: Get release
