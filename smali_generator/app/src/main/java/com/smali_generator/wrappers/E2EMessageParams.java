@@ -12,6 +12,7 @@ public class E2EMessageParams extends Wrapper {
     public static Class<?> TYPE_CLASS;
 
     public static Field editedVersion;
+    public static Field isQuoted;
 
     public E2EMessageParams(Object e2EMessageParams) {
         this.object = e2EMessageParams;
@@ -34,6 +35,7 @@ public class E2EMessageParams extends Wrapper {
                 return false;
             });
             editedVersion = TYPE_CLASS.getDeclaredField("{{EDITED_VERSION_FIELD}}");
+            isQuoted = TYPE_CLASS.getDeclaredField("{{INCLUDE_QUOTED_FIELD}}");
             Log.i("PATCH", "E2EMessageParams: found protobuf fields count: " + protobuf_fields.length);
             Log.i("PATCH", "E2EMessageParams: init success");
         } catch (Exception e) {
