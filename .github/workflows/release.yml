@@ -30,7 +30,7 @@ jobs:
         id: prepare_keystore
         uses: timheuer/base64-to-file@v1
         with:
-          fileName: './keystore.jks'
+          fileName: 'keystore.jks'
           encodedString: ${{ secrets.SIGNING_KEY }}
       - name: Preparing the patched apk
         env:
@@ -39,6 +39,7 @@ jobs:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
+          ls -la
           python main.py
       - name: Get release
         id: get_release
