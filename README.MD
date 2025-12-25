@@ -17,7 +17,7 @@ There is support for apks, apkm and xapk files.
 
 ## Requirements
 
-1. Python3
+1. Python 3.11
 2. Java installed
 
 ## Installation
