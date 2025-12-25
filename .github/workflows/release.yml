@@ -14,6 +14,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
+        with:
+          submodules: recursive
+          token: ${{ secrets.PAT_TOKEN }}
       - name: Set up Python 3.13
         uses: actions/setup-python@v3
         with:
