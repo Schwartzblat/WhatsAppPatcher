@@ -11,7 +11,7 @@ class DecryptProtobufFinder(SimpleArtifactoryFinder):
         self.is_found = False
 
     def class_filter(self, class_data: str) -> bool:
-        return '"Mutating immutable message: "' in class_data
+        return '"Unable to parse map entry."' in class_data
 
     def extract_artifacts(self, artifacts: dict, class_data: str) -> None:
         matches = list(self.DECRYPT_PROTOBUF_RE.finditer(class_data))
