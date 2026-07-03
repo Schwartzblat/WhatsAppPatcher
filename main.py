@@ -9,6 +9,7 @@ from artifactory_generator.fmessage import FMessage
 from artifactory_generator.dex_copier import DexCopier
 from artifactory_generator.signature_finder import SignatureFinder
 from artifactory_generator.decrypt_protobuf_finder import DecryptProtobufFinder
+from artifactory_generator.whatsapp_plus import WhatsAppPlusFinder
 
 
 def get_args():
@@ -48,6 +49,7 @@ def main():
         SignatureFinder(args),
         DecryptProtobufFinder(args),
         FirebaseParamsFinder(args),
+        WhatsAppPlusFinder(args)
     ]
     with Stitch(
             apk_path=args.apk_path,
