@@ -3,7 +3,7 @@ from stitch.artifactory_generator.SimpleArtifactoryFinder import SimpleArtifacto
 
 
 class DecryptProtobufFinder(SimpleArtifactoryFinder):
-    DECRYPT_PROTOBUF_RE = re.compile(r'\.method public (?P<method_name>\w+)(?P<sig>\(L[^;]+;Ljava/lang/Object;\[BIII\)I)')
+    DECRYPT_PROTOBUF_RE = re.compile(r'\.method public (?:static )?(?P<method_name>\w+)(?P<sig>\(\[B\).*)')
 
     def __init__(self, args):
         super().__init__(args)
@@ -11,7 +11,7 @@ class DecryptProtobufFinder(SimpleArtifactoryFinder):
         self.is_found = False
 
     def class_filter(self, class_data: str) -> bool:
-        return '"Unable to parse map entry."' in class_data
+        return '"newsletterFollowerInviteMessage_"' in class_data
 
     def extract_artifacts(self, artifacts: dict, class_data: str) -> None:
         matches = list(self.DECRYPT_PROTOBUF_RE.finditer(class_data))
