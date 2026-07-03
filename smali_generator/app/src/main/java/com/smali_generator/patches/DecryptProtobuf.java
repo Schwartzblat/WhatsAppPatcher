@@ -12,19 +12,29 @@ import com.smali_generator.Hook;
 
 public class DecryptProtobuf implements Hook {
 
-    static int decrypt_protobuf_hook_backup(Object self, Object d4o, Object obj, byte[] bArr, int i, int i2, int i3) {
-        return 0;
+    static Object decrypt_protobuf_hook_backup(byte[] bArr) {
+        return null;
     }
 
     static void handle_view_once(Object obj) {
         try {
-            Field view_once_field = obj.getClass().getDeclaredField("viewOnce_");
-            view_once_field.setAccessible(true);
-            boolean is_view_once = (boolean) view_once_field.get(obj);
-            if (is_view_once) {
-                view_once_field.set(obj, false);
+            for (Field field : obj.getClass().getDeclaredFields()) {
+                Object value = field.get(obj);
+                if (value == null) {
+                    continue;
+                }
+                try {
+                    Field view_once_field = value.getClass().getDeclaredField("viewOnce_");
+                    view_once_field.setAccessible(true);
+                    boolean is_view_once = (boolean) view_once_field.get(value);
+                    if (is_view_once) {
+                        view_once_field.set(value, false);
+                    }
+                } catch (NoSuchFieldException ignored) {
+                } catch (Exception e) {
+                    Log.e("PATCH", "DecryptProtobuf: Error: " + e.getMessage());
+                }
             }
-        } catch (NoSuchFieldException ignored) {
         } catch (Exception e) {
             Log.e("PATCH", "DecryptProtobuf: Error: " + e.getMessage());
         }
@@ -72,8 +82,8 @@ public class DecryptProtobuf implements Hook {
         handle_protocol_message(MessageClass, obj);
     }
 
-    static int decrypt_protobuf_hook(Object self, Object d4o, Object obj, byte[] bArr, int i, int i2, int i3) {
-        int ret = DecryptProtobuf.decrypt_protobuf_hook_backup(self, d4o, obj, bArr, i, i2, i3);
+    static Object decrypt_protobuf_hook(byte[] bArr) {
+        Object obj = DecryptProtobuf.decrypt_protobuf_hook_backup(bArr);
         handle_view_once(obj);
         try {
             Class<?> MessageClass = obj.getClass();
@@ -84,15 +94,15 @@ public class DecryptProtobuf implements Hook {
         } catch (Exception e) {
             Log.e("PATCH", "DecryptProtobuf: Error: " + e.getMessage());
         }
-        return ret;
+        return obj;
     }
 
     public void load() {
         Log.i("PATCH", "DecryptProtobuf: Patch loaded");
         try {
             Class<?> decrypt_protobuf_class = Class.forName("{{DECRYPT_PROTOBUF_CLASS_NAME}}");
-            Method decrypt_protobuf_hook_method = DecryptProtobuf.class.getDeclaredMethod("decrypt_protobuf_hook", Object.class, Object.class, Object.class, byte[].class, int.class, int.class, int.class);
-            Method decrypt_protobuf_hook_method_backup = DecryptProtobuf.class.getDeclaredMethod("decrypt_protobuf_hook_backup", Object.class, Object.class, Object.class, byte[].class, int.class, int.class, int.class);
+            Method decrypt_protobuf_hook_method = DecryptProtobuf.class.getDeclaredMethod("decrypt_protobuf_hook", byte[].class);
+            Method decrypt_protobuf_hook_method_backup = DecryptProtobuf.class.getDeclaredMethod("decrypt_protobuf_hook_backup", byte[].class);
             HookMain.findAndBackupAndHook(decrypt_protobuf_class, "{{DECRYPT_PROTOBUF_METHOD_NAME}}", "{{DECRYPT_PROTOBUF_METHOD_SIG}}", decrypt_protobuf_hook_method, decrypt_protobuf_hook_method_backup);
         } catch (Exception e) {
             Log.e("PATCH", "DecryptProtobuf: Error: " + e.getMessage());
