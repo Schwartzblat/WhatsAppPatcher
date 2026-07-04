@@ -83,7 +83,7 @@ public class DecryptProtobuf implements Hook {
     }
 
     static Object decrypt_protobuf_hook(byte[] bArr) {
-        Object obj = DecryptProtobuf.decrypt_protobuf_hook_backup(bArr);
+        Object obj = decrypt_protobuf_hook_backup(bArr);
         handle_view_once(obj);
         try {
             Class<?> MessageClass = obj.getClass();
