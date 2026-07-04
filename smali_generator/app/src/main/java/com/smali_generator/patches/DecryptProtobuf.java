@@ -12,9 +12,10 @@ import com.smali_generator.Hook;
 
 public class DecryptProtobuf implements Hook {
 
-    static Object decrypt_protobuf_hook_backup(byte[] bArr) {
-        return null;
-    }
+    public static Class<?> decrypt_protobuf_class;
+    public static Class<?> GeneratedMessageLite;
+    public static Method parseFromMethod;
+    public static Object default_instance;
 
     static void handle_view_once(Object obj) {
         try {
@@ -83,7 +84,13 @@ public class DecryptProtobuf implements Hook {
     }
 
     static Object decrypt_protobuf_hook(byte[] bArr) {
-        Object obj = decrypt_protobuf_hook_backup(bArr);
+        Object obj;
+        try {
+            obj = parseFromMethod.invoke(decrypt_protobuf_class, default_instance, bArr);
+        } catch (Exception e) {
+            Log.e("PATCH", "DecryptProtobuf: Error: " + e.getMessage());
+            return null;
+        }
         handle_view_once(obj);
         try {
             Class<?> MessageClass = obj.getClass();
@@ -100,10 +107,12 @@ public class DecryptProtobuf implements Hook {
     public void load() {
         Log.i("PATCH", "DecryptProtobuf: Patch loaded");
         try {
-            Class<?> decrypt_protobuf_class = Class.forName("{{DECRYPT_PROTOBUF_CLASS_NAME}}");
+            GeneratedMessageLite = Class.forName("com.google.protobuf.GeneratedMessageLite");
+            parseFromMethod = GeneratedMessageLite.getDeclaredMethod("parseFrom", GeneratedMessageLite, byte[].class);
+            default_instance = decrypt_protobuf_class.getField("DEFAULT_INSTANCE").get(decrypt_protobuf_class);
+            decrypt_protobuf_class = Class.forName("{{DECRYPT_PROTOBUF_CLASS_NAME}}");
             Method decrypt_protobuf_hook_method = DecryptProtobuf.class.getDeclaredMethod("decrypt_protobuf_hook", byte[].class);
-            Method decrypt_protobuf_hook_method_backup = DecryptProtobuf.class.getDeclaredMethod("decrypt_protobuf_hook_backup", byte[].class);
-            HookMain.findAndBackupAndHook(decrypt_protobuf_class, "{{DECRYPT_PROTOBUF_METHOD_NAME}}", "{{DECRYPT_PROTOBUF_METHOD_SIG}}", decrypt_protobuf_hook_method, decrypt_protobuf_hook_method_backup);
+            HookMain.findAndHook(decrypt_protobuf_class, "{{DECRYPT_PROTOBUF_METHOD_NAME}}", "{{DECRYPT_PROTOBUF_METHOD_SIG}}", decrypt_protobuf_hook_method);
         } catch (Exception e) {
             Log.e("PATCH", "DecryptProtobuf: Error: " + e.getMessage());
         }
