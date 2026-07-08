@@ -107,10 +107,10 @@ public class DecryptProtobuf implements Hook {
     public void load() {
         Log.i("PATCH", "DecryptProtobuf: Patch loaded");
         try {
+            decrypt_protobuf_class = Class.forName("{{DECRYPT_PROTOBUF_CLASS_NAME}}");
             GeneratedMessageLite = Class.forName("com.google.protobuf.GeneratedMessageLite");
             parseFromMethod = GeneratedMessageLite.getDeclaredMethod("parseFrom", GeneratedMessageLite, byte[].class);
             default_instance = decrypt_protobuf_class.getField("DEFAULT_INSTANCE").get(decrypt_protobuf_class);
-            decrypt_protobuf_class = Class.forName("{{DECRYPT_PROTOBUF_CLASS_NAME}}");
             Method decrypt_protobuf_hook_method = DecryptProtobuf.class.getDeclaredMethod("decrypt_protobuf_hook", byte[].class);
             HookMain.findAndHook(decrypt_protobuf_class, "{{DECRYPT_PROTOBUF_METHOD_NAME}}", "{{DECRYPT_PROTOBUF_METHOD_SIG}}", decrypt_protobuf_hook_method);
         } catch (Exception e) {
