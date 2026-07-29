@@ -1,8 +1,10 @@
 [versions]
 agp = "8.10.0"
 annotationJvm = "1.9.1"
+arthooks = "1.0.3"
 [libraries]
 androidx-annotation-jvm = { group = "androidx.annotation", name = "annotation-jvm", version.ref = "annotationJvm" }
+arthooks = { module = "com.github.Schwartzblat:ArtHooks", version.ref = "arthooks" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

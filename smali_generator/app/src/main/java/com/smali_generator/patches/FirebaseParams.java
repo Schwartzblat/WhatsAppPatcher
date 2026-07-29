@@ -4,9 +4,10 @@ import android.util.Log;
 
 import com.smali_generator.Hook;
 
+import java.lang.reflect.Executable;
 import java.lang.reflect.Method;
 
-import lab.galaxy.yahfa.HookMain;
+import com.arthooks.ArtHooks;
 
 
 public class FirebaseParams implements Hook {
@@ -28,7 +29,8 @@ public class FirebaseParams implements Hook {
             Class<?> decrypt_protobuf_class = Class.forName("{{FIREBASE_PARAMS_CLASS_NAME}}");
             Method params_constructor = FirebaseParams.class.getDeclaredMethod("params_constructor", Object.class, String.class, String.class, String.class, String.class, String.class, String.class, String.class);
             Method params_constructor_backup = FirebaseParams.class.getDeclaredMethod("params_constructor_backup", Object.class, String.class, String.class, String.class, String.class, String.class, String.class, String.class);
-            HookMain.findAndBackupAndHook(decrypt_protobuf_class, "<init>", method_sig, params_constructor, params_constructor_backup);
+            Executable to_hook = ArtHooks.find_function(decrypt_protobuf_class, "<init>", method_sig);
+            ArtHooks.hook_function(params_constructor, to_hook, params_constructor_backup);
         } catch (Exception e) {
             Log.e("PATCH", "FirebaseParams: Error:" + e.getMessage());
         }

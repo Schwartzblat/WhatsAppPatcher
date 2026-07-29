@@ -1,11 +1,12 @@
 package com.smali_generator.patches;
 
+import java.lang.reflect.Executable;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 
 import android.util.Log;
 
-import lab.galaxy.yahfa.HookMain;
+import com.arthooks.ArtHooks;
 
 import com.smali_generator.Hook;
 
@@ -112,7 +113,8 @@ public class DecryptProtobuf implements Hook {
             parseFromMethod = GeneratedMessageLite.getDeclaredMethod("parseFrom", GeneratedMessageLite, byte[].class);
             default_instance = decrypt_protobuf_class.getField("DEFAULT_INSTANCE").get(decrypt_protobuf_class);
             Method decrypt_protobuf_hook_method = DecryptProtobuf.class.getDeclaredMethod("decrypt_protobuf_hook", byte[].class);
-            HookMain.findAndHook(decrypt_protobuf_class, "{{DECRYPT_PROTOBUF_METHOD_NAME}}", "{{DECRYPT_PROTOBUF_METHOD_SIG}}", decrypt_protobuf_hook_method);
+            Executable to_hook = ArtHooks.find_function(decrypt_protobuf_class, "{{DECRYPT_PROTOBUF_METHOD_NAME}}", "{{DECRYPT_PROTOBUF_METHOD_SIG}}");
+            ArtHooks.hook_function(decrypt_protobuf_hook_method, to_hook);
         } catch (Exception e) {
             Log.e("PATCH", "DecryptProtobuf: Error: " + e.getMessage());
         }

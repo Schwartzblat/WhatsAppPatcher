@@ -1,6 +1,5 @@
 package com.smali_generator.patches;
 
-import android.annotation.SuppressLint;
 import android.app.Activity;
 
 import android.os.Build;
@@ -12,12 +11,8 @@ import com.smali_generator.Hook;
 
 import java.lang.reflect.Method;
 import java.util.concurrent.Executor;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipFile;
 
-import lab.galaxy.yahfa.HookMain;
-
-
+import com.arthooks.ArtHooks;
 public class ActivityHook implements Hook {
 
     static void register_screen_capture_hook(Activity activity, Executor executor, Activity.ScreenCaptureCallback callback) {
@@ -42,12 +37,12 @@ public class ActivityHook implements Hook {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
                 Method register_screen_capture_method = ActivityHook.class.getDeclaredMethod("register_screen_capture_hook", Activity.class, Executor.class, Activity.ScreenCaptureCallback.class);
                 Method original_register_screen_capture = Activity.class.getDeclaredMethod("registerScreenCaptureCallback", Executor.class, Activity.ScreenCaptureCallback.class);
-                HookMain.hook(original_register_screen_capture, register_screen_capture_method);
+                ArtHooks.hook_function(original_register_screen_capture, register_screen_capture_method);
             }
             Method original_set_flags = Window.class.getMethod("setFlags", int.class, int.class);
             Method set_flags_hook_method = ActivityHook.class.getDeclaredMethod("set_flags_hook", Window.class, int.class, int.class);
             Method set_flags_hook_method_backup = ActivityHook.class.getDeclaredMethod("set_flags_hook_backup", Window.class, int.class, int.class);
-            HookMain.backupAndHook(original_set_flags, set_flags_hook_method, set_flags_hook_method_backup);
+            ArtHooks.hook_function(original_set_flags, set_flags_hook_method, set_flags_hook_method_backup);
         } catch (Exception e) {
             Log.e("PATCH", "ActivityHook: Error:" + e.getMessage());
         }

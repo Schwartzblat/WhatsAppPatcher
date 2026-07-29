@@ -10,14 +10,12 @@ import android.os.Build;
 import android.util.Log;
 
 import com.smali_generator.Hook;
-import com.smali_generator.utils.Utils;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.Collections;
-import java.util.Objects;
 
-import lab.galaxy.yahfa.HookMain;
+import com.arthooks.ArtHooks;
 
 
 public class PackageManagerHook implements Hook {
@@ -174,7 +172,7 @@ public class PackageManagerHook implements Hook {
                 get_package_info_hook_method = PackageManagerHook.class.getDeclaredMethod("get_package_info_hook", PackageManager.class, VersionedPackage.class, PackageManager.PackageInfoFlags.class);
                 get_package_info_hook_method_backup = PackageManagerHook.class.getDeclaredMethod("get_package_info_hook_backup", PackageManager.class, VersionedPackage.class, PackageManager.PackageInfoFlags.class);
                 original_get_package_info = ApplicationPackageManager.getDeclaredMethod("getPackageInfo", VersionedPackage.class, PackageManager.PackageInfoFlags.class);
-                HookMain.backupAndHook(original_get_package_info, get_package_info_hook_method, get_package_info_hook_method_backup);
+                ArtHooks.hook_function(original_get_package_info, get_package_info_hook_method, get_package_info_hook_method_backup);
 
                 get_package_info_hook_method = PackageManagerHook.class.getDeclaredMethod("get_package_info_hook", PackageManager.class, String.class, PackageManager.PackageInfoFlags.class);
                 get_package_info_hook_method_backup = PackageManagerHook.class.getDeclaredMethod("get_package_info_hook_backup", PackageManager.class, String.class, PackageManager.PackageInfoFlags.class);
@@ -185,13 +183,13 @@ public class PackageManagerHook implements Hook {
                 get_package_info_hook_method = PackageManagerHook.class.getDeclaredMethod("get_package_info_hook", PackageManager.class, VersionedPackage.class, int.class);
                 get_package_info_hook_method_backup = PackageManagerHook.class.getDeclaredMethod("get_package_info_hook_backup", PackageManager.class, VersionedPackage.class, int.class);
                 original_get_package_info = ApplicationPackageManager.getDeclaredMethod("getPackageInfo", VersionedPackage.class, int.class);
-                HookMain.backupAndHook(original_get_package_info, get_package_info_hook_method, get_package_info_hook_method_backup);
+                ArtHooks.hook_function(original_get_package_info, get_package_info_hook_method, get_package_info_hook_method_backup);
 
                 get_package_info_hook_method = PackageManagerHook.class.getDeclaredMethod("get_package_info_hook", PackageManager.class, String.class, int.class);
                 get_package_info_hook_method_backup = PackageManagerHook.class.getDeclaredMethod("get_package_info_hook_backup", PackageManager.class, String.class, int.class);
                 original_get_package_info = ApplicationPackageManager.getDeclaredMethod("getPackageInfo", String.class, int.class);
             }
-            HookMain.backupAndHook(original_get_package_info, get_package_info_hook_method, get_package_info_hook_method_backup);
+            ArtHooks.hook_function(original_get_package_info, get_package_info_hook_method, get_package_info_hook_method_backup);
         } catch (Exception e) {
             Log.e("PATCH", "PackageManagerHook: Error:" + e.getMessage());
         }

@@ -4,13 +4,13 @@ plugins {
 
 android {
     namespace 'com.smali_generator'
-    compileSdk 35
+    compileSdk 36
 
     defaultConfig {
         applicationId "com.smali_generator"
-        minSdk 28
+        minSdk 33
         //noinspection ExpiredTargetSdkVersion
-        targetSdk 35
+        targetSdk 36
         versionCode 1
         versionName "1.0"
     }
@@ -27,7 +27,7 @@ android {
 }
 
 dependencies {
-    implementation project(':library')
+    implementation libs.arthooks
     implementation libs.androidx.annotation.jvm
 }
 
