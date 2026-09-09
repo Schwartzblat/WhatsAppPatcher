@@ -28,5 +28,5 @@ class DexCopier(SimpleArtifactoryFinder):
             temp_path / EXTRACTED_PATH
         )
         os.rename(temp_path / EXTRACTED_PATH / 'classes.dex',
-                  temp_path / EXTRACTED_PATH / 'classes69.dex')
+                  temp_path / EXTRACTED_PATH / 'classes69.dex.file')
         self.is_found = True

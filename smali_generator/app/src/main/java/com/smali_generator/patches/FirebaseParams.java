@@ -30,7 +30,7 @@ public class FirebaseParams implements Hook {
             Method params_constructor = FirebaseParams.class.getDeclaredMethod("params_constructor", Object.class, String.class, String.class, String.class, String.class, String.class, String.class, String.class);
             Method params_constructor_backup = FirebaseParams.class.getDeclaredMethod("params_constructor_backup", Object.class, String.class, String.class, String.class, String.class, String.class, String.class, String.class);
             Executable to_hook = ArtHooks.find_function(decrypt_protobuf_class, "<init>", method_sig);
-            ArtHooks.hook_function(params_constructor, to_hook, params_constructor_backup);
+            ArtHooks.hook_function(to_hook, params_constructor, params_constructor_backup);
         } catch (Exception e) {
             Log.e("PATCH", "FirebaseParams: Error:" + e.getMessage());
         }

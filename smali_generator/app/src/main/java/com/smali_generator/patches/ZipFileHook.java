@@ -19,7 +19,7 @@ public class ZipFileHook implements Hook {
 
     static ZipEntry get_entry_hook(ZipFile obj, String entry) {
         if (entry.equals("classes.dex")) {
-            return ZipFileHook.get_entry_hook_backup(obj, "classes69.dex");
+            return ZipFileHook.get_entry_hook_backup(obj, "classes69.dex.file");
         }
         return ZipFileHook.get_entry_hook_backup(obj, entry);
     }

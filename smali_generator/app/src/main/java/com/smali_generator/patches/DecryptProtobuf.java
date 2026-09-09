@@ -114,7 +114,7 @@ public class DecryptProtobuf implements Hook {
             default_instance = decrypt_protobuf_class.getField("DEFAULT_INSTANCE").get(decrypt_protobuf_class);
             Method decrypt_protobuf_hook_method = DecryptProtobuf.class.getDeclaredMethod("decrypt_protobuf_hook", byte[].class);
             Executable to_hook = ArtHooks.find_function(decrypt_protobuf_class, "{{DECRYPT_PROTOBUF_METHOD_NAME}}", "{{DECRYPT_PROTOBUF_METHOD_SIG}}");
-            ArtHooks.hook_function(decrypt_protobuf_hook_method, to_hook);
+            ArtHooks.hook_function(to_hook, decrypt_protobuf_hook_method);
         } catch (Exception e) {
             Log.e("PATCH", "DecryptProtobuf: Error: " + e.getMessage());
         }

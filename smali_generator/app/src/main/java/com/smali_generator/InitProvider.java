@@ -1,6 +1,12 @@
 package com.smali_generator;
 
+import android.content.ContentProvider;
+import android.content.ContentValues;
+import android.database.Cursor;
+import android.net.Uri;
 import android.util.Log;
+
+import androidx.annotation.NonNull;
 
 import com.smali_generator.patches.ActivityHook;
 import com.smali_generator.patches.DecryptProtobuf;
@@ -14,7 +20,20 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 
 @SuppressWarnings("unused")
-public class TheAmazingPatch {
+public class InitProvider extends ContentProvider {
+
+    @Override
+    public boolean onCreate() {
+        Log.i("PATCH", "InitProvider: onCreate called");
+        on_load();
+        return true;
+    }
+
+    @Override public Cursor query(@NonNull Uri u, String[] p, String s, String[] a, String o) { return null; }
+    @Override public String getType(@NonNull Uri u) { return null; }
+    @Override public Uri insert(@NonNull Uri u, ContentValues v) { return null; }
+    @Override public int delete(@NonNull Uri u, String s, String[] a) { return 0; }
+    @Override public int update(@NonNull Uri u, ContentValues v, String s, String[] a) { return 0; }
 
     static Class<?>[] wrappers = {
             FMessage.class,
@@ -35,7 +54,7 @@ public class TheAmazingPatch {
             return;
         }
 
-        Log.e("PATCH", "Patch loaded!");
+        Log.i("PATCH", "Patch loaded!");
 
         try {
             for (Class<?> wrapper : wrappers) {
