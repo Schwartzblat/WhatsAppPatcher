@@ -27,6 +27,8 @@ class DexCopier(SimpleArtifactoryFinder):
             'classes.dex',
             temp_path / EXTRACTED_PATH
         )
+        new_assets_path = temp_path / EXTRACTED_PATH / 'assets' / 'smali_generator'
+        os.makedirs(new_assets_path, exist_ok=True)
         os.rename(temp_path / EXTRACTED_PATH / 'classes.dex',
-                  temp_path / EXTRACTED_PATH / 'classes69.dex.file')
+                  new_assets_path / 'classes.dex.bin')
         self.is_found = True
