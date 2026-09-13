@@ -4,13 +4,8 @@ import android.app.Activity;
 import android.app.AlarmManager;
 import android.app.PendingIntent;
 import android.content.Intent;
-import android.content.res.ColorStateList;
-import android.content.res.Configuration;
 import android.graphics.Insets;
 import android.graphics.Typeface;
-import android.graphics.drawable.Drawable;
-import android.graphics.drawable.GradientDrawable;
-import android.graphics.drawable.RippleDrawable;
 import android.os.Bundle;
 import android.os.Process;
 import android.util.Log;
@@ -49,30 +44,6 @@ import java.util.Locale;
 public class PatchSettingsActivity extends Activity {
     private static final String TAG = "PATCH";
 
-    /** WhatsApp's green, so the switches read as part of the app they live in. */
-    private static final int ACCENT = 0xFF25D366;
-
-    /** The off state. A mid grey rather than a theme colour: it has to sit on
-     *  both the light and the dark background this activity can be shown on. */
-    private static final int NEUTRAL = 0xFF9E9E9E;
-
-    /**
-     * Text colours, picked per theme rather than left to the theme's own.
-     *
-     * DeviceDefault's primary text is a light grey on dark, which reads as
-     * washed out against this background; these are pushed towards white, and
-     * the secondary tone is a light slate rather than a dimmed copy of the
-     * primary. Nothing here uses View.setAlpha on text -- dimming the view
-     * dims the glyph edges too, which is most of what made it hard to read.
-     */
-    private static final int TEXT_PRIMARY_DARK = 0xFFFFFFFF;
-    private static final int TEXT_SECONDARY_DARK = 0xFFCFD6DB;
-    private static final int TEXT_PRIMARY_LIGHT = 0xFF0B141A;
-    private static final int TEXT_SECONDARY_LIGHT = 0xFF3B4A54;
-
-    /** WhatsApp puts dark text on its own green buttons; so does this one. */
-    private static final int ON_ACCENT = 0xFF0B141A;
-
     private static final int SIDE_PADDING_DP = 20;
     private static final int ROW_PADDING_DP = 14;
 
@@ -84,6 +55,10 @@ public class PatchSettingsActivity extends Activity {
 
     private TextView pendingNotice;
 
+    /** Survives the rebuild in onResume, which is what shows a summary changed
+     *  on the picker screen; without it the notice would vanish on the way back. */
+    private boolean restartPending;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -94,6 +69,16 @@ public class PatchSettingsActivity extends Activity {
         // Idempotent, and the screen has to read flags even in the unlikely
         // case that the provider never ran.
         PatchDb.init(getApplicationContext());
+    }
+
+    /**
+     * Rebuilt on every resume rather than only on create: a hook's summary line
+     * is written by its own configuration screen, so coming back from one has
+     * to re-read it.
+     */
+    @Override
+    protected void onResume() {
+        super.onResume();
         setContentView(buildContent());
     }
 
@@ -115,9 +100,9 @@ public class PatchSettingsActivity extends Activity {
         pendingNotice = new TextView(this);
         pendingNotice.setText("Restart WhatsApp to apply the change.");
         pendingNotice.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f);
-        pendingNotice.setTextColor(ACCENT);
+        pendingNotice.setTextColor(Palette.ACCENT);
         pendingNotice.setPadding(0, 0, 0, dp(12));
-        pendingNotice.setVisibility(View.GONE);
+        pendingNotice.setVisibility(restartPending ? View.VISIBLE : View.GONE);
         content.addView(pendingNotice);
 
         boolean isFirstSection = true;
@@ -163,20 +148,61 @@ public class PatchSettingsActivity extends Activity {
         title.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f);
         title.setTypeface(Typeface.DEFAULT_BOLD);
         title.setLetterSpacing(0.10f);
-        title.setTextColor(ACCENT);
+        title.setTextColor(Palette.ACCENT);
         header.addView(title);
 
         if (!category.caption().isEmpty()) {
             TextView caption = new TextView(this);
             caption.setText(category.caption());
             caption.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f);
-            caption.setTextColor(secondaryText());
+            caption.setTextColor(Palette.secondaryText(this));
             header.addView(caption);
         }
         return header;
     }
 
     private View hookRow(Hook hook) {
+        LinearLayout block = new LinearLayout(this);
+        block.setOrientation(LinearLayout.VERTICAL);
+        block.addView(switchRow(hook));
+        View config = configRow(hook);
+        if (config != null) {
+            block.addView(config);
+        }
+        return block;
+    }
+
+    /**
+     * The line a hook uses to say how it is configured, and the way in.
+     *
+     * Shown for any hook that declares both a summary and a screen, so this
+     * stays as generic as the rest of the list: nothing here knows what read
+     * receipts are.
+     */
+    private View configRow(Hook hook) {
+        String summary = hook.configSummary();
+        Class<?> screen = hook.configScreen();
+        if (summary == null || screen == null) {
+            return null;
+        }
+        TextView row = new TextView(this);
+        row.setText(summary + "  \u203A");
+        row.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f);
+        row.setTypeface(Typeface.DEFAULT_BOLD);
+        row.setTextColor(Palette.ACCENT);
+        row.setPadding(0, 0, 0, dp(ROW_PADDING_DP));
+        row.setBackground(Palette.rowRipple(this));
+        row.setOnClickListener(view -> {
+            try {
+                startActivity(new Intent(this, screen));
+            } catch (Throwable t) {
+                Log.e(TAG, "PatchSettingsActivity: could not open " + screen.getName(), t);
+            }
+        });
+        return row;
+    }
+
+    private View switchRow(Hook hook) {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
@@ -188,7 +214,7 @@ public class PatchSettingsActivity extends Activity {
         TextView title = new TextView(this);
         title.setText(hook.title());
         title.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f);
-        title.setTextColor(primaryText());
+        title.setTextColor(Palette.primaryText(this));
         text.addView(title);
 
         // No "Required." here any more: the Mandatory section says it once,
@@ -197,7 +223,7 @@ public class PatchSettingsActivity extends Activity {
             TextView subtitle = new TextView(this);
             subtitle.setText(hook.description());
             subtitle.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f);
-            subtitle.setTextColor(secondaryText());
+            subtitle.setTextColor(Palette.secondaryText(this));
             text.addView(subtitle);
         }
         row.addView(text, new LinearLayout.LayoutParams(0,
@@ -206,7 +232,7 @@ public class PatchSettingsActivity extends Activity {
         Switch toggle = new Switch(this);
         toggle.setChecked(hook.isEnabled());
         toggle.setEnabled(hook.toggleable());
-        paint(toggle);
+        Palette.paintSwitch(toggle);
         if (hook.toggleable()) {
             toggle.setOnCheckedChangeListener((button, checked) -> onToggled(hook, checked));
         }
@@ -214,47 +240,11 @@ public class PatchSettingsActivity extends Activity {
         return row;
     }
 
-    /**
-     * Green when on, grey when off, and a dimmed green when on but locked --
-     * a mandatory hook should read as switched on, not as switched off.
-     */
-    private void paint(Switch toggle) {
-        toggle.setThumbTintList(states(ACCENT, NEUTRAL, alpha(ACCENT, 0x8A), alpha(NEUTRAL, 0x61)));
-        toggle.setTrackTintList(states(alpha(ACCENT, 0x7A), alpha(NEUTRAL, 0x52),
-                alpha(ACCENT, 0x47), alpha(NEUTRAL, 0x33)));
-    }
-
-    private static ColorStateList states(int on, int off, int onLocked, int offLocked) {
-        int[][] specs = {
-                {-android.R.attr.state_enabled, android.R.attr.state_checked},
-                {-android.R.attr.state_enabled},
-                {android.R.attr.state_checked},
-                new int[0],
-        };
-        return new ColorStateList(specs, new int[]{onLocked, offLocked, on, off});
-    }
-
-    private static int alpha(int color, int alpha) {
-        return (color & 0x00FFFFFF) | (alpha << 24);
-    }
-
-    private boolean isNight() {
-        return (getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK)
-                == Configuration.UI_MODE_NIGHT_YES;
-    }
-
-    private int primaryText() {
-        return isNight() ? TEXT_PRIMARY_DARK : TEXT_PRIMARY_LIGHT;
-    }
-
-    private int secondaryText() {
-        return isNight() ? TEXT_SECONDARY_DARK : TEXT_SECONDARY_LIGHT;
-    }
-
     private void onToggled(Hook hook, boolean enabled) {
         PatchDb.setFlag(hook.id(), enabled);
         // The hook is already installed or already absent for this process:
         // ArtHooks redirects a method, and nothing puts it back.
+        restartPending = true;
         pendingNotice.setVisibility(View.VISIBLE);
     }
 
@@ -265,11 +255,11 @@ public class PatchSettingsActivity extends Activity {
         button.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f);
         button.setTypeface(Typeface.DEFAULT_BOLD);
         button.setLetterSpacing(0.01f);
-        button.setTextColor(ON_ACCENT);
+        button.setTextColor(Palette.ON_ACCENT);
         // The framework button draws its own grey nine-patch and lifts on
         // press; both have to go before a flat pill looks like anything.
         button.setStateListAnimator(null);
-        button.setBackground(pill());
+        button.setBackground(Palette.pill(this));
         button.setPadding(dp(24), dp(14), dp(24), dp(14));
         button.setMinimumHeight(dp(52));
         button.setOnClickListener(view -> restart());
@@ -280,21 +270,12 @@ public class PatchSettingsActivity extends Activity {
         return button;
     }
 
-    /** A solid green pill with a press ripple, drawn rather than themed. */
-    private Drawable pill() {
-        GradientDrawable shape = new GradientDrawable();
-        shape.setShape(GradientDrawable.RECTANGLE);
-        shape.setCornerRadius(dp(26));
-        shape.setColor(ACCENT);
-        return new RippleDrawable(ColorStateList.valueOf(alpha(ON_ACCENT, 0x33)), shape, null);
-    }
-
     private View footer() {
         TextView footer = new TextView(this);
         footer.setText("Switches take effect the next time WhatsApp starts.");
         footer.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f);
         footer.setTypeface(Typeface.DEFAULT, Typeface.ITALIC);
-        footer.setTextColor(secondaryText());
+        footer.setTextColor(Palette.secondaryText(this));
         footer.setPadding(0, dp(12), 0, 0);
         return footer;
     }
@@ -352,6 +333,6 @@ public class PatchSettingsActivity extends Activity {
     }
 
     private int dp(int dp) {
-        return Math.round(dp * getResources().getDisplayMetrics().density);
+        return Palette.dp(this, dp);
     }
 }

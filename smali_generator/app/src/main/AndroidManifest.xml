@@ -17,6 +17,12 @@
             android:label="Patcher"
             android:theme="@android:style/Theme.DeviceDefault.DayNight" />
 
+        <activity
+            android:name="com.smali_generator.ui.ChatPickerActivity"
+            android:exported="false"
+            android:label="Read receipts"
+            android:theme="@android:style/Theme.DeviceDefault.DayNight" />
+
     </application>
 
 </manifest>

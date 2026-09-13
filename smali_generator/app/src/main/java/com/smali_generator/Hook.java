@@ -54,6 +54,24 @@ public interface Hook {
     }
 
     /**
+     * A line under this hook's switch describing how it is configured, or null
+     * when it has nothing to configure beyond being on.
+     */
+    default String configSummary() {
+        return null;
+    }
+
+    /**
+     * The Activity that configures this hook, or null when there is none.
+     *
+     * Declared rather than opened, so that a hook never has to know what a
+     * screen is: the settings screen is what starts it.
+     */
+    default Class<?> configScreen() {
+        return null;
+    }
+
+    /**
      * Whether {@link InitProvider} should install this hook.
      *
      * Read once per hook at startup, which is why turning one off only takes

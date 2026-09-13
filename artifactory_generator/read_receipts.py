@@ -40,11 +40,19 @@ class ReadReceiptsFinder(SimpleArtifactoryFinder):
        are called from the receipt-type method and the played gate, and from
        nowhere else.
 
-    Verified to resolve both methods, and nothing else, on 2.26.17.72,
-    2.26.27.85, 2.26.29.74 and 2.26.33.76.
+    The same finder also resolves how to read a chat's Jid as a string, which
+    the per-chat lists are keyed on. ``Jid.toString()`` is not it: it returns
+    ``getObfuscatedString()``, whose name says exactly what it is meant to
+    become even though today it happens to delegate to the raw value. The
+    accessor wanted is the one that builds the string from the ``user`` field
+    and the server, found by that shape rather than by name.
+
+    Verified to resolve all three, and nothing else, on 2.26.17.72, 2.26.27.85,
+    2.26.29.74 and 2.26.33.76.
     """
 
     ANCHOR = 'ReadReceiptUtils/'
+    JID_CLASS = 'com/whatsapp/infra/core/jid/Jid'
 
     METHOD_RE = re.compile(
         r'^\.method (?P<modifiers>[\w ]*?)(?P<name>[\w$]+)(?P<sig>\([^)\n]*\)[\w/$;\[]+)\n'
@@ -55,21 +63,50 @@ class ReadReceiptsFinder(SimpleArtifactoryFinder):
     READ_RE = re.compile(r'const-string(?:/jumbo)? [vp]\d+, "read"')
     READ_SELF_RE = re.compile(r'const-string(?:/jumbo)? [vp]\d+, "read-self"')
 
+    RAW_STRING_SIG = '()Ljava/lang/String;'
+    USER_FIELD_RE = re.compile(r'->user:Ljava/lang/String;')
+    GET_SERVER_RE = re.compile(r'->getServer\(\)Ljava/lang/String;')
+
     MIN_SHARED_HELPERS = 2
 
     def __init__(self, args):
         super().__init__(args)
         self.is_once = True
         self.is_found = False
+        self._found_utils = False
+        self._found_jid = False
 
     def class_filter(self, class_data: str) -> bool:
-        return self.ANCHOR in class_data
+        return self.ANCHOR in class_data or self._is_jid_class(class_data)
+
+    def _is_jid_class(self, class_data: str) -> bool:
+        match = CLASS_NAME_RE.match(class_data)
+        return match is not None and match.groupdict().get('name') == self.JID_CLASS
 
     @staticmethod
     def _calls(body: str, name: str) -> bool:
         return re.search(r'->%s\(L[\w/$]+;\)Z' % re.escape(name), body) is not None
 
     def extract_artifacts(self, artifacts: dict, class_data: str) -> None:
+        if self._is_jid_class(class_data):
+            self._extract_jid(artifacts, class_data)
+        else:
+            self._extract_receipt_methods(artifacts, class_data)
+        self.is_found = self._found_utils and self._found_jid
+
+    def _extract_jid(self, artifacts: dict, class_data: str) -> None:
+        accessors = [method for method in self.METHOD_RE.finditer(class_data)
+                     if 'public' in method.group('modifiers')
+                     and method.group('sig') == self.RAW_STRING_SIG
+                     and self.USER_FIELD_RE.search(method.group('body'))
+                     and self.GET_SERVER_RE.search(method.group('body'))]
+        if len(accessors) != 1:
+            return
+        artifacts['JID_CLASS_NAME'] = self.JID_CLASS.replace('/', '.')
+        artifacts['JID_RAW_STRING_METHOD_NAME'] = accessors[0].group('name')
+        self._found_jid = True
+
+    def _extract_receipt_methods(self, artifacts: dict, class_data: str) -> None:
         methods = list(self.METHOD_RE.finditer(class_data))
 
         receipt_types = [method for method in methods
@@ -109,4 +146,4 @@ class ReadReceiptsFinder(SimpleArtifactoryFinder):
         artifacts['RECEIPT_TYPE_METHOD_SIG'] = receipt_type.group('sig')
         artifacts['PLAYED_RECEIPT_GATE_METHOD_NAME'] = played_gate.group('name')
         artifacts['PLAYED_RECEIPT_GATE_METHOD_SIG'] = played_gate.group('sig')
-        self.is_found = True
+        self._found_utils = True

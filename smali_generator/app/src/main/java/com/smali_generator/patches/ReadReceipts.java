@@ -6,9 +6,12 @@ import com.arthooks.ArtHooks;
 
 import com.smali_generator.Hook;
 import com.smali_generator.HookCategory;
+import com.smali_generator.db.PatchDb;
+import com.smali_generator.ui.ChatPickerActivity;
 
 import java.lang.reflect.Executable;
 import java.lang.reflect.Method;
+import java.util.Locale;
 
 
 /**
@@ -35,6 +38,11 @@ import java.lang.reflect.Method;
  * because the two are one setting in WhatsApp's own UI, so leaving it out
  * would leak the very thing the hook is for -- grey ticks on a chat, and then
  * a blue mic the moment a voice note is opened.
+ *
+ * Which chats it applies to is a {@link Scope}, chosen on {@link
+ * ChatPickerActivity}. Both hooked methods take the chat's Jid, so the scope
+ * is consulted per receipt rather than per process -- unlike the switch that
+ * installs the hook at all, changing the scope takes effect immediately.
  */
 public class ReadReceipts implements Hook {
 
@@ -43,20 +51,139 @@ public class ReadReceipts implements Hook {
     /** The receipt that syncs to your own devices and goes nowhere else. */
     private static final String READ_SELF = "read-self";
 
+    /** Key for this hook's chat list, and for its scope setting. */
+    public static final String FEATURE = "read_receipts";
+    private static final String SCOPE_KEY = "read_receipts_scope";
+
+    /**
+     * Which chats receipts are held back from.
+     *
+     * One list covers both directions people ask for: {@code ONLY_LISTED} is a
+     * blocklist and {@code ALL_EXCEPT_LISTED} an allowlist over the same set of
+     * chats, so switching between them keeps the picks.
+     */
+    public enum Scope {
+        EVERYONE("Every chat", "Nobody sees your read receipts."),
+        ONLY_LISTED("Only the chats I pick", "Hidden from the chats below. Everyone else sees them as usual."),
+        ALL_EXCEPT_LISTED("Every chat except the ones I pick", "Hidden from everyone but the chats below.");
+
+        private final String title;
+        private final String caption;
+
+        Scope(String title, String caption) {
+            this.title = title;
+            this.caption = caption;
+        }
+
+        public String title() {
+            return title;
+        }
+
+        public String caption() {
+            return caption;
+        }
+    }
+
+    /** Resolved once at load; the Jid class is the host app's, so it is found by reflection. */
+    private static volatile Method rawJidMethod;
+
+    public static Scope scope() {
+        String stored = PatchDb.getString(SCOPE_KEY, Scope.EVERYONE.name());
+        try {
+            return Scope.valueOf(stored);
+        } catch (IllegalArgumentException e) {
+            // A scope written by a newer build, or a corrupted row. Holding
+            // everything back is the reading that cannot leak a receipt.
+            Log.e(TAG, "ReadReceipts: unknown scope " + stored + ", falling back to every chat");
+            return Scope.EVERYONE;
+        }
+    }
+
+    public static void setScope(Scope scope) {
+        PatchDb.setString(SCOPE_KEY, scope.name());
+    }
+
     /** Volatile so "once" holds across the threads receipts are sent from. */
     private static volatile boolean logged_read;
     private static volatile boolean logged_played;
 
     /**
+     * Why one chat's receipts were, or were not, held back.
+     *
+     * Carries no chat identifier, and neither does anything logged from it:
+     * this runs for every message read, and a log line naming the chat would
+     * be a record of who the user talks to and when -- the thing the hook
+     * exists to keep from leaking.
+     */
+    private static final class Decision {
+        final boolean suppress;
+        private final Scope scope;
+        private final String chat;
+
+        private Decision(boolean suppress, Scope scope, String chat) {
+            this.suppress = suppress;
+            this.scope = scope;
+            this.chat = chat;
+        }
+
+        /** Nothing about the chat was looked at, so the line must not claim otherwise. */
+        static Decision everyChat(Scope scope) {
+            return new Decision(true, scope, null);
+        }
+
+        static Decision unidentified(Scope scope) {
+            return new Decision(true, scope, "chat unidentified");
+        }
+
+        static Decision forChat(Scope scope, boolean picked) {
+            return new Decision(scope == Scope.ONLY_LISTED ? picked : !picked, scope,
+                    picked ? "chat is picked" : "chat is not picked");
+        }
+
+        @Override
+        public String toString() {
+            return "scope=" + scope + (chat == null ? "" : ", " + chat)
+                    + (suppress ? ", held back" : ", sent as usual");
+        }
+    }
+
+    /**
      * Whether this chat's receipts should be held back.
      *
-     * One decision for both receipt kinds, taking the chat's Jid, which is
-     * where a per-chat exception list plugs in. Today the answer is the same
-     * for every chat: either the hook is installed and no receipt goes out, or
-     * it is switched off and none of this runs.
+     * One decision for both receipt kinds. A chat that cannot be identified is
+     * held back whatever the scope says: the two ways to be wrong are not
+     * equal, since a receipt withheld by mistake is invisible and one sent by
+     * mistake cannot be taken back.
      */
-    private static boolean should_suppress(Object jid) {
-        return true;
+    private static Decision decide(Object jid) {
+        Scope scope = scope();
+        if (scope == Scope.EVERYONE) {
+            return Decision.everyChat(scope);
+        }
+        String raw = raw_jid(jid);
+        if (raw == null) {
+            return Decision.unidentified(scope);
+        }
+        return Decision.forChat(scope, PatchDb.isChatSelected(FEATURE, raw));
+    }
+
+    /**
+     * The chat's jid as text, which is what a selection is keyed on.
+     *
+     * Deliberately not toString(): that returns the Jid's obfuscated form,
+     * which is what the app logs rather than what identifies a chat.
+     */
+    private static String raw_jid(Object jid) {
+        Method method = rawJidMethod;
+        if (method == null || jid == null) {
+            return null;
+        }
+        try {
+            Object raw = method.invoke(jid);
+            return raw instanceof String ? (String) raw : null;
+        } catch (Throwable t) {
+            return null;
+        }
     }
 
     /** Empty on purpose: ArtHooks rewrites its entry point to the original. */
@@ -65,18 +192,18 @@ public class ReadReceipts implements Hook {
     }
 
     static String receipt_type_hook(Object thiz, Object jid, boolean force_read_self) {
-        if (!should_suppress(jid)) {
-            return receipt_type_backup(thiz, jid, force_read_self);
-        }
+        Decision decision = decide(jid);
+        // Always asked, even when the answer is discarded: it is what the app
+        // would have done, so a chat that is not held back keeps WhatsApp's own
+        // rules rather than a second implementation of them. Calling through is
+        // safe and cheap -- the original only reads settings and chat state.
+        String original = receipt_type_backup(thiz, jid, force_read_self);
         if (!logged_read) {
             logged_read = true;
-            // What the app would have sent, so the log says whether the hook is
-            // merely running or actually changing the answer. Calling through is
-            // safe: the original only reads settings and chat state.
-            Log.i(TAG, "ReadReceipts: holding back read receipts, app wanted \""
-                    + receipt_type_backup(thiz, jid, force_read_self) + "\"");
+            Log.i(TAG, "ReadReceipts: first read receipt: " + decision
+                    + ", app wanted \"" + original + "\"");
         }
-        return READ_SELF;
+        return decision.suppress ? READ_SELF : original;
     }
 
     /** Empty on purpose: ArtHooks rewrites its entry point to the original. */
@@ -85,16 +212,15 @@ public class ReadReceipts implements Hook {
     }
 
     static boolean played_gate_hook(Object thiz, Object jid) {
-        if (!should_suppress(jid)) {
-            return played_gate_backup(thiz, jid);
-        }
+        Decision decision = decide(jid);
+        boolean original = played_gate_backup(thiz, jid);
         if (!logged_played) {
             logged_played = true;
-            Log.i(TAG, "ReadReceipts: holding back played receipts, app wanted \""
-                    + (played_gate_backup(thiz, jid) ? "played" : "played-self") + "\"");
+            Log.i(TAG, "ReadReceipts: first played receipt: " + decision
+                    + ", app wanted \"" + (original ? "played" : "played-self") + "\"");
         }
         // false picks "played-self", the voice-note counterpart of read-self.
-        return false;
+        return decision.suppress ? false : original;
     }
 
     public String id() {
@@ -113,8 +239,25 @@ public class ReadReceipts implements Hook {
         return HookCategory.PRIVACY;
     }
 
+    public String configSummary() {
+        Scope scope = scope();
+        if (scope == Scope.EVERYONE) {
+            return "Applies to every chat";
+        }
+        int count = PatchDb.selectedChats(FEATURE).size();
+        String chats = count == 1 ? "1 chat" : count + " chats";
+        return String.format(Locale.US, scope == Scope.ONLY_LISTED
+                ? "Applies to %s" : "Applies to every chat except %s", chats);
+    }
+
+    public Class<?> configScreen() {
+        return ChatPickerActivity.class;
+    }
+
     public void load() {
         try {
+            rawJidMethod = Class.forName("{{JID_CLASS_NAME}}")
+                    .getMethod("{{JID_RAW_STRING_METHOD_NAME}}");
             Class<?> read_receipt_utils = Class.forName("{{READ_RECEIPT_UTILS_CLASS_NAME}}");
 
             Executable receipt_type = ArtHooks.find_function(read_receipt_utils,
@@ -136,7 +279,8 @@ public class ReadReceipts implements Hook {
                     played_gate, played_gate_replacement, played_gate_original);
 
             Log.i(TAG, "ReadReceipts: Patch loaded on " + read_receipt_utils.getName()
-                    + ", read=" + read_hooked + " played=" + played_hooked);
+                    + ", read=" + read_hooked + " played=" + played_hooked
+                    + ", scope=" + scope() + " chats=" + PatchDb.selectedChats(FEATURE).size());
         } catch (Throwable t) {
             Log.e(TAG, "ReadReceipts: Error: " + t);
         }

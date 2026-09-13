@@ -10,7 +10,7 @@ WhatsApp patcher is a program that patches WhatsApp apk.
 |              Enable all AB tests              |      X       |
 |         Keep revoked for all messages         |      ✔       |
 |     Trash icon marking a revoked message      |      ✔       |
-|             Disable read receipts             |      ✔       |
+|        Disable read receipts, per chat        |      ✔       |
 |        Option to save view once media         |      ✔       |
 |          Profile Picture Screenshot           |      ✔       |
 |            Unlock premium features            |      ✔       |
@@ -28,6 +28,12 @@ switch in the app.
 It works by changing the *type* of receipt the app sends rather than dropping it:
 WhatsApp already has a `read-self` receipt that only syncs to your own linked
 devices, so your other devices still mark the chat read.
+
+It can also apply to some chats rather than all of them. The settings screen
+offers every chat, only the chats you pick, or every chat except the ones you
+pick -- a blocklist and an allowlist over one list of chats, so switching between
+them keeps your picks. Chats are picked from WhatsApp's own contacts and groups,
+and unlike the switches this takes effect straight away, with no restart.
 
 ### Settings
 

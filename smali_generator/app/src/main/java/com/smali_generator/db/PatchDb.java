@@ -7,6 +7,7 @@ import android.database.sqlite.SQLiteDatabase;
 import android.util.Log;
 
 import java.io.File;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -24,7 +25,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class PatchDb {
     private static final String TAG = "PATCH";
     private static final String DB_NAME = "patch_metadata.db";
-    private static final int SCHEMA_VERSION = 2;
+    private static final int SCHEMA_VERSION = 3;
 
     /** Message ids known to have been deleted. Read on every row bind. */
     private static final Set<String> deletedIds = ConcurrentHashMap.newKeySet();
@@ -36,6 +37,15 @@ public final class PatchDb {
      * settings screen is built.
      */
     private static final Map<String, String> settings = new ConcurrentHashMap<>();
+
+    /**
+     * Chats a feature has been pointed at, per feature.
+     *
+     * Read on the receipt path, so it is held in memory for the same reason
+     * the settings map is. A feature with no chats selected has no entry here
+     * rather than an empty set; {@link #selectedChats} is what papers over it.
+     */
+    private static final Map<String, Set<String>> chatSelection = new ConcurrentHashMap<>();
 
     private static volatile SQLiteDatabase db;
 
@@ -58,6 +68,7 @@ public final class PatchDb {
                 migrate(opened);
                 warmCache(opened);
                 warmSettings(opened);
+                warmChatSelection(opened);
                 db = opened;
                 Log.i(TAG, "PatchDb: ready at " + file + ", " + deletedIds.size() + " deleted message(s)");
             } catch (Throwable t) {
@@ -103,6 +114,14 @@ public final class PatchDb {
                         + "key TEXT NOT NULL PRIMARY KEY,"
                         + "value TEXT NOT NULL)");
             }
+            if (version < 3) {
+                // Keyed by feature as well as jid so a second per-chat feature
+                // needs storage work no more than once.
+                database.execSQL("CREATE TABLE IF NOT EXISTS chat_selection ("
+                        + "feature TEXT NOT NULL,"
+                        + "jid TEXT NOT NULL,"
+                        + "PRIMARY KEY (feature, jid))");
+            }
             database.setVersion(SCHEMA_VERSION);
         }
     }
@@ -129,6 +148,21 @@ public final class PatchDb {
                 String value = cursor.getString(1);
                 if (key != null && value != null) {
                     settings.put(key, value);
+                }
+            }
+        } finally {
+            cursor.close();
+        }
+    }
+
+    private static void warmChatSelection(SQLiteDatabase database) {
+        Cursor cursor = database.rawQuery("SELECT feature, jid FROM chat_selection", null);
+        try {
+            while (cursor.moveToNext()) {
+                String feature = cursor.getString(0);
+                String jid = cursor.getString(1);
+                if (feature != null && jid != null) {
+                    chatSelection.computeIfAbsent(feature, key -> ConcurrentHashMap.newKeySet()).add(jid);
                 }
             }
         } finally {
@@ -173,6 +207,78 @@ public final class PatchDb {
             Log.i(TAG, "PatchDb: " + key + " = " + value);
         } catch (Throwable t) {
             Log.e(TAG, "PatchDb: setFlag failed", t);
+        }
+    }
+
+    /** A named string setting, or {@code fallback} when nothing has been stored. */
+    public static String getString(String key, String fallback) {
+        String value = settings.get(key);
+        return value == null ? fallback : value;
+    }
+
+    /** Stores a string setting. Shares the table, and the caching, with {@link #setFlag}. */
+    public static void setString(String key, String value) {
+        if (key == null || value == null) {
+            return;
+        }
+        settings.put(key, value);
+        SQLiteDatabase database = db;
+        if (database == null) {
+            Log.e(TAG, "PatchDb: setString before init, kept in memory only: " + key);
+            return;
+        }
+        try {
+            ContentValues values = new ContentValues();
+            values.put("key", key);
+            values.put("value", value);
+            database.insertWithOnConflict("settings", null, values, SQLiteDatabase.CONFLICT_REPLACE);
+            Log.i(TAG, "PatchDb: " + key + " = " + value);
+        } catch (Throwable t) {
+            Log.e(TAG, "PatchDb: setString failed", t);
+        }
+    }
+
+    /** Whether {@code jid} is one of the chats picked for {@code feature}. */
+    public static boolean isChatSelected(String feature, String jid) {
+        if (feature == null || jid == null) {
+            return false;
+        }
+        Set<String> chats = chatSelection.get(feature);
+        return chats != null && chats.contains(jid);
+    }
+
+    /** Every chat picked for {@code feature}; empty, never null. */
+    public static Set<String> selectedChats(String feature) {
+        Set<String> chats = feature == null ? null : chatSelection.get(feature);
+        return chats == null ? Collections.emptySet() : chats;
+    }
+
+    public static void setChatSelected(String feature, String jid, boolean selected) {
+        if (feature == null || jid == null) {
+            return;
+        }
+        Set<String> chats = chatSelection.computeIfAbsent(feature, key -> ConcurrentHashMap.newKeySet());
+        if (selected) {
+            chats.add(jid);
+        } else {
+            chats.remove(jid);
+        }
+        SQLiteDatabase database = db;
+        if (database == null) {
+            Log.e(TAG, "PatchDb: setChatSelected before init, kept in memory only: " + feature);
+            return;
+        }
+        try {
+            if (selected) {
+                ContentValues values = new ContentValues();
+                values.put("feature", feature);
+                values.put("jid", jid);
+                database.insertWithOnConflict("chat_selection", null, values, SQLiteDatabase.CONFLICT_REPLACE);
+            } else {
+                database.delete("chat_selection", "feature = ? AND jid = ?", new String[]{feature, jid});
+            }
+        } catch (Throwable t) {
+            Log.e(TAG, "PatchDb: setChatSelected failed", t);
         }
     }
 
