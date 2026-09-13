@@ -7,6 +7,7 @@ import android.database.sqlite.SQLiteDatabase;
 import android.util.Log;
 
 import java.io.File;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -23,10 +24,18 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class PatchDb {
     private static final String TAG = "PATCH";
     private static final String DB_NAME = "patch_metadata.db";
-    private static final int SCHEMA_VERSION = 1;
+    private static final int SCHEMA_VERSION = 2;
 
     /** Message ids known to have been deleted. Read on every row bind. */
     private static final Set<String> deletedIds = ConcurrentHashMap.newKeySet();
+
+    /**
+     * The settings table, in full. It holds one row per hook, so reading it
+     * whole at init costs nothing and keeps {@link #getFlag} off SQLite -- it
+     * is called once per hook during startup and once per row when the
+     * settings screen is built.
+     */
+    private static final Map<String, String> settings = new ConcurrentHashMap<>();
 
     private static volatile SQLiteDatabase db;
 
@@ -48,6 +57,7 @@ public final class PatchDb {
             try {
                 migrate(opened);
                 warmCache(opened);
+                warmSettings(opened);
                 db = opened;
                 Log.i(TAG, "PatchDb: ready at " + file + ", " + deletedIds.size() + " deleted message(s)");
             } catch (Throwable t) {
@@ -88,6 +98,11 @@ public final class PatchDb {
                         + "deleted_at INTEGER,"
                         + "PRIMARY KEY (msg_id, remote_jid, from_me))");
             }
+            if (version < 2) {
+                database.execSQL("CREATE TABLE IF NOT EXISTS settings ("
+                        + "key TEXT NOT NULL PRIMARY KEY,"
+                        + "value TEXT NOT NULL)");
+            }
             database.setVersion(SCHEMA_VERSION);
         }
     }
@@ -103,6 +118,61 @@ public final class PatchDb {
             }
         } finally {
             cursor.close();
+        }
+    }
+
+    private static void warmSettings(SQLiteDatabase database) {
+        Cursor cursor = database.rawQuery("SELECT key, value FROM settings", null);
+        try {
+            while (cursor.moveToNext()) {
+                String key = cursor.getString(0);
+                String value = cursor.getString(1);
+                if (key != null && value != null) {
+                    settings.put(key, value);
+                }
+            }
+        } finally {
+            cursor.close();
+        }
+    }
+
+    /**
+     * A named on/off flag, or {@code fallback} when nothing has been stored.
+     *
+     * Answered from the cache alone, so it is also correct before init and
+     * after an init failure: an absent flag reads as its fallback, which is
+     * how a hook that has never been configured stays at its default.
+     */
+    public static boolean getFlag(String key, boolean fallback) {
+        String value = settings.get(key);
+        if (value == null) {
+            return fallback;
+        }
+        return Boolean.parseBoolean(value);
+    }
+
+    /**
+     * Stores a flag. The cache is updated even when persistence fails, so the
+     * screen that wrote it keeps showing what the user chose for this run.
+     */
+    public static void setFlag(String key, boolean value) {
+        if (key == null) {
+            return;
+        }
+        settings.put(key, Boolean.toString(value));
+        SQLiteDatabase database = db;
+        if (database == null) {
+            Log.e(TAG, "PatchDb: setFlag before init, kept in memory only: " + key);
+            return;
+        }
+        try {
+            ContentValues values = new ContentValues();
+            values.put("key", key);
+            values.put("value", Boolean.toString(value));
+            database.insertWithOnConflict("settings", null, values, SQLiteDatabase.CONFLICT_REPLACE);
+            Log.i(TAG, "PatchDb: " + key + " = " + value);
+        } catch (Throwable t) {
+            Log.e(TAG, "PatchDb: setFlag failed", t);
         }
     }
 

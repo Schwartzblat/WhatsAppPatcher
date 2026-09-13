@@ -7,11 +7,28 @@ import android.util.Log;
 
 import com.arthooks.ArtHooks;
 import com.smali_generator.Hook;
+import com.smali_generator.HookCategory;
 
 
 public class WhatsAppPlus implements Hook {
     static boolean is_premium(Object self, Object feature) {
         return true;
+    }
+
+    public String id() {
+        return "whatsapp_plus";
+    }
+
+    public String title() {
+        return "Premium features";
+    }
+
+    public String description() {
+        return "Reports every paid feature as unlocked.";
+    }
+
+    public HookCategory category() {
+        return HookCategory.UNLOCKS;
     }
 
     public void load() {

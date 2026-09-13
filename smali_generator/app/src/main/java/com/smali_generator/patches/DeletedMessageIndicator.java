@@ -9,6 +9,7 @@ import android.widget.BaseAdapter;
 
 import com.arthooks.ArtHooks;
 import com.smali_generator.Hook;
+import com.smali_generator.HookCategory;
 import com.smali_generator.db.PatchDb;
 import com.smali_generator.ui.RowDecorator;
 import com.smali_generator.wrappers.FMessageKey;
@@ -148,6 +149,22 @@ public class DeletedMessageIndicator implements Hook {
         } catch (Throwable t) {
             logRefreshFailureOnce(t);
         }
+    }
+
+    public String id() {
+        return "deleted_indicator";
+    }
+
+    public String title() {
+        return "Trash icon on deleted messages";
+    }
+
+    public String description() {
+        return "Marks a message whose deletion was ignored.";
+    }
+
+    public HookCategory category() {
+        return HookCategory.MESSAGES;
     }
 
     public void load() {

@@ -8,6 +8,7 @@ import android.view.Window;
 import android.view.WindowManager.LayoutParams;
 
 import com.smali_generator.Hook;
+import com.smali_generator.HookCategory;
 
 import java.lang.reflect.Method;
 import java.util.concurrent.Executor;
@@ -29,6 +30,22 @@ public class ActivityHook implements Hook {
             mask ^= LayoutParams.FLAG_SECURE;
         }
         set_flags_hook_backup(window, flags, mask);
+    }
+
+    public String id() {
+        return "allow_screenshots";
+    }
+
+    public String title() {
+        return "Allow screenshots";
+    }
+
+    public String description() {
+        return "Clears FLAG_SECURE so screenshots and screen recording work.";
+    }
+
+    public HookCategory category() {
+        return HookCategory.PRIVACY;
     }
 
     public void load() {

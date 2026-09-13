@@ -160,6 +160,22 @@ public class PackageManagerHook implements Hook {
         return package_info;
     }
 
+    public String id() {
+        return "package_manager";
+    }
+
+    public String title() {
+        return "Signature bypass";
+    }
+
+    public String description() {
+        return "Reports the original signature to the app.";
+    }
+
+    public boolean toggleable() {
+        return false;
+    }
+
     public void load() {
         Log.i("PATCH", "PackageManagerHook: Patch loaded");
         try {

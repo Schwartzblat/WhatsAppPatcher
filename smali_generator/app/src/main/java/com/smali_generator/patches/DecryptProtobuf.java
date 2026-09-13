@@ -9,6 +9,7 @@ import android.util.Log;
 import com.arthooks.ArtHooks;
 
 import com.smali_generator.Hook;
+import com.smali_generator.HookCategory;
 import com.smali_generator.db.MessageKey;
 import com.smali_generator.db.PatchDb;
 
@@ -137,6 +138,22 @@ public class DecryptProtobuf implements Hook {
             Log.e("PATCH", "DecryptProtobuf: Error: " + e.getMessage());
         }
         return obj;
+    }
+
+    public String id() {
+        return "decrypt_protobuf";
+    }
+
+    public String title() {
+        return "Keep deleted and view-once";
+    }
+
+    public String description() {
+        return "Ignores \"delete for everyone\" and unlocks view-once media.";
+    }
+
+    public HookCategory category() {
+        return HookCategory.PRIVACY;
     }
 
     public void load() {

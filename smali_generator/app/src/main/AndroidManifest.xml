@@ -1,6 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:tools="http://schemas.android.com/tools">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
-    <application tools:ignore="MissingApplicationIcon" />
+    <application tools:ignore="MissingApplicationIcon">
+
+        <!--
+          A framework theme, not the host's: the host's belongs to a resource
+          table this activity's views know nothing about, and a module theme
+          cannot be referenced from a manifest Stitch merges into the host.
+          DayNight follows the system setting, which is close enough to
+          WhatsApp's own for a screen of switches.
+        -->
+        <activity
+            android:name="com.smali_generator.ui.PatchSettingsActivity"
+            android:exported="false"
+            android:label="Patcher"
+            android:theme="@android:style/Theme.DeviceDefault.DayNight" />
+
+    </application>
 
 </manifest>

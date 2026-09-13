@@ -24,6 +24,22 @@ public class ZipFileHook implements Hook {
         return ZipFileHook.get_entry_hook_backup(obj, entry);
     }
 
+    public String id() {
+        return "zip_file";
+    }
+
+    public String title() {
+        return "APK integrity bypass";
+    }
+
+    public String description() {
+        return "Serves the unpatched classes.dex to the app's own checks.";
+    }
+
+    public boolean toggleable() {
+        return false;
+    }
+
     public void load() {
         Log.i("PATCH", "ZipFileHook: Patch loaded");
         try {

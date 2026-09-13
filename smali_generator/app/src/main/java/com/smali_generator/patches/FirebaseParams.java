@@ -22,6 +22,22 @@ public class FirebaseParams implements Hook {
         params_constructor_backup(thiz, applicationId, apiKey, databaseUrl, unknown, gcmSenderId, storageBucket, projectId);
     }
 
+    public String id() {
+        return "firebase_params";
+    }
+
+    public String title() {
+        return "Original Firebase key";
+    }
+
+    public String description() {
+        return "Restores the API key Google issued to WhatsApp.";
+    }
+
+    public boolean toggleable() {
+        return false;
+    }
+
     public void load() {
         Log.i("PATCH", "FirebaseParams: Patch loaded");
         try {

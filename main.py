@@ -11,6 +11,7 @@ from artifactory_generator.signature_finder import SignatureFinder
 from artifactory_generator.decrypt_protobuf_finder import DecryptProtobufFinder
 from artifactory_generator.whatsapp_plus import WhatsAppPlusFinder
 from artifactory_generator.row_binder import RowBinderFinder
+from artifactory_generator.settings_screen import SettingsScreenFinder
 
 
 def get_args():
@@ -51,7 +52,8 @@ def main():
         DecryptProtobufFinder(args),
         FirebaseParamsFinder(args),
         WhatsAppPlusFinder(args),
-        RowBinderFinder(args)
+        RowBinderFinder(args),
+        SettingsScreenFinder(args)
     ]
     with Stitch(
             apk_path=args.apk_path,

@@ -14,6 +14,7 @@ import com.smali_generator.patches.DecryptProtobuf;
 import com.smali_generator.patches.DeletedMessageIndicator;
 import com.smali_generator.patches.FirebaseParams;
 import com.smali_generator.patches.PackageManagerHook;
+import com.smali_generator.patches.SettingsEntryHook;
 import com.smali_generator.patches.WhatsAppPlus;
 import com.smali_generator.patches.ZipFileHook;
 import com.smali_generator.utils.Utils;
@@ -41,7 +42,11 @@ public class InitProvider extends ContentProvider {
     static Class<?>[] wrappers = {
             FMessageKey.class,
     };
-    static Hook[] hooks = {
+    /**
+     * Every hook, in load order. Also what the settings screen lists, which is
+     * why it is public: a hook added here shows up there with no other change.
+     */
+    public static final Hook[] hooks = {
             new DecryptProtobuf(),
             new PackageManagerHook(),
             new ZipFileHook(),
@@ -49,6 +54,7 @@ public class InitProvider extends ContentProvider {
             new FirebaseParams(),
             new WhatsAppPlus(),
             new DeletedMessageIndicator(),
+            new SettingsEntryHook(),
     };
 
     static AtomicBoolean is_loaded = new AtomicBoolean(false);
@@ -71,6 +77,13 @@ public class InitProvider extends ContentProvider {
 
         for (Hook hook : hooks) {
             try {
+                // Read here rather than inside the hook: a hook that is off is
+                // never installed at all, so it costs nothing for the life of
+                // the process. That is also why a switch needs a restart.
+                if (!hook.isEnabled()) {
+                    Log.i("PATCH", "Hook " + hook.getClass().getSimpleName() + " is off, skipping");
+                    continue;
+                }
                 hook.load();
             } catch (Throwable t) {
                 Log.e("PATCH", "Hook " + hook.getClass().getSimpleName() + " failed", t);
