@@ -4,16 +4,40 @@ WhatsApp patcher is a program that patches WhatsApp apk.
 
 ## Features
 
-|            Feature             | Availability |
-|:------------------------------:|:------------:|
-|   Signature Verifier Bypass    |      ✔       |
-|      Enable all AB tests       |      X       |
-| Keep revoked for all messages  |      ✔       |
-|     Disable read receipts      |      x       |
-| Option to save view once media |      ✔       |
-|   Profile Picture Screenshot   |      ✔       |
+|                    Feature                    | Availability |
+|:---------------------------------------------:|:------------:|
+|           Signature Verifier Bypass           |      ✔       |
+|              Enable all AB tests              |      X       |
+|         Keep revoked for all messages         |      ✔       |
+|     Trash icon marking a revoked message      |      ✔       |
+|             Disable read receipts             |      ✔       |
+|        Option to save view once media         |      ✔       |
+|          Profile Picture Screenshot           |      ✔       |
+|            Unlock premium features            |      ✔       |
+| Settings screen to switch features on and off |      ✔       |
 
 There is support for apks, apkm and xapk files.
+
+### Read receipts
+
+Turning this on stops both the blue ticks and the blue microphone on voice notes
+from reaching the sender, while you still see theirs. WhatsApp's own privacy
+setting does both directions at once, which is why this is a patch and not just a
+switch in the app.
+
+It works by changing the *type* of receipt the app sends rather than dropping it:
+WhatsApp already has a `read-self` receipt that only syncs to your own linked
+devices, so your other devices still mark the chat read.
+
+### Settings
+
+The patch adds a **Patcher** row to WhatsApp's own settings screen, leading to a
+list of everything above grouped into sections, each with a switch. The ones the
+patched app needs in order to run at all are listed but locked.
+
+Switches are read once when the app starts, so changing one takes effect on the
+next launch -- there is a button at the bottom of the screen that restarts
+WhatsApp for you.
 
 ## Requirements
 
@@ -39,7 +63,7 @@ pip install -r requirements.txt
 ## Usage
 
 ```bash
-python whatsapp_patcher/main.py -p ./WhatsApp.apk -o PatchedWhatsApp.apk -g YOUR_GOOGLE_API_KEY
+python main.py -p ./WhatsApp.apk -o PatchedWhatsApp.apk -g YOUR_GOOGLE_API_KEY
 ```
 
 You don't have to provide a Google API key, only if you want to patch the OAuth bypass feature.

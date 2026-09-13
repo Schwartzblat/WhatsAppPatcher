@@ -14,6 +14,7 @@ import com.smali_generator.patches.DecryptProtobuf;
 import com.smali_generator.patches.DeletedMessageIndicator;
 import com.smali_generator.patches.FirebaseParams;
 import com.smali_generator.patches.PackageManagerHook;
+import com.smali_generator.patches.ReadReceipts;
 import com.smali_generator.patches.SettingsEntryHook;
 import com.smali_generator.patches.WhatsAppPlus;
 import com.smali_generator.patches.ZipFileHook;
@@ -54,6 +55,7 @@ public class InitProvider extends ContentProvider {
             new FirebaseParams(),
             new WhatsAppPlus(),
             new DeletedMessageIndicator(),
+            new ReadReceipts(),
             new SettingsEntryHook(),
     };
 

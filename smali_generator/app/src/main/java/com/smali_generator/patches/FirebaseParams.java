@@ -27,11 +27,11 @@ public class FirebaseParams implements Hook {
     }
 
     public String title() {
-        return "Original Firebase key";
+        return "Google services";
     }
 
     public String description() {
-        return "Restores the API key Google issued to WhatsApp.";
+        return "Keeps the app's connection to Google working after patching.";
     }
 
     public boolean toggleable() {

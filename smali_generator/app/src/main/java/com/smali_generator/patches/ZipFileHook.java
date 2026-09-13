@@ -29,11 +29,11 @@ public class ZipFileHook implements Hook {
     }
 
     public String title() {
-        return "APK integrity bypass";
+        return "File check";
     }
 
     public String description() {
-        return "Serves the unpatched classes.dex to the app's own checks.";
+        return "Shows the app its original files when it checks itself for changes.";
     }
 
     public boolean toggleable() {

@@ -24,7 +24,7 @@ public class WhatsAppPlus implements Hook {
     }
 
     public String description() {
-        return "Reports every paid feature as unlocked.";
+        return "Unlocks the features WhatsApp charges for.";
     }
 
     public HookCategory category() {

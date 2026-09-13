@@ -156,11 +156,11 @@ public class DeletedMessageIndicator implements Hook {
     }
 
     public String title() {
-        return "Trash icon on deleted messages";
+        return "Mark deleted messages";
     }
 
     public String description() {
-        return "Marks a message whose deletion was ignored.";
+        return "Adds a trash icon to any message the sender tried to delete.";
     }
 
     public HookCategory category() {

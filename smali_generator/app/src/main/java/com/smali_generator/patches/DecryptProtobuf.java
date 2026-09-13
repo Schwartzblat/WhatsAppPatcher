@@ -145,11 +145,11 @@ public class DecryptProtobuf implements Hook {
     }
 
     public String title() {
-        return "Keep deleted and view-once";
+        return "Deleted and view-once messages";
     }
 
     public String description() {
-        return "Ignores \"delete for everyone\" and unlocks view-once media.";
+        return "Messages someone deletes stay in the chat, and view-once photos can be opened more than once.";
     }
 
     public HookCategory category() {

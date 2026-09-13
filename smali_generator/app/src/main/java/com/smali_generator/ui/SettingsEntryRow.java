@@ -30,7 +30,7 @@ public final class SettingsEntryRow {
     private static final String ROW_TAG = "com.smali_generator.settings_row";
 
     private static final String ROW_TITLE = "Patcher";
-    private static final String ROW_SUBTITLE = "Hooks and patch settings";
+    private static final String ROW_SUBTITLE = "Extra features added by the patch";
 
     /**
      * How many rows a view group needs before it is taken for the settings

@@ -37,11 +37,11 @@ public class ActivityHook implements Hook {
     }
 
     public String title() {
-        return "Allow screenshots";
+        return "Screenshots and screen recording";
     }
 
     public String description() {
-        return "Clears FLAG_SECURE so screenshots and screen recording work.";
+        return "Lets you capture the screens the app normally blocks.";
     }
 
     public HookCategory category() {

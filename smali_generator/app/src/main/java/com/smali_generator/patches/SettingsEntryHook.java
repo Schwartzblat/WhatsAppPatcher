@@ -55,11 +55,11 @@ public class SettingsEntryHook implements Hook {
     }
 
     public String title() {
-        return "Settings entry";
+        return "Settings shortcut";
     }
 
     public String description() {
-        return "Adds this screen's row to WhatsApp's settings.";
+        return "Adds the Patcher row to WhatsApp's own settings.";
     }
 
     public boolean toggleable() {

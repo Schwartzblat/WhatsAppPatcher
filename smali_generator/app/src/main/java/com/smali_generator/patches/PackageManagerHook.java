@@ -165,11 +165,11 @@ public class PackageManagerHook implements Hook {
     }
 
     public String title() {
-        return "Signature bypass";
+        return "App identity";
     }
 
     public String description() {
-        return "Reports the original signature to the app.";
+        return "Tells the app it is still the copy WhatsApp published.";
     }
 
     public boolean toggleable() {
