@@ -8,13 +8,16 @@ import android.util.Log;
 
 import androidx.annotation.NonNull;
 
+import com.smali_generator.db.PatchDb;
 import com.smali_generator.patches.ActivityHook;
 import com.smali_generator.patches.DecryptProtobuf;
+import com.smali_generator.patches.DeletedMessageIndicator;
 import com.smali_generator.patches.FirebaseParams;
 import com.smali_generator.patches.PackageManagerHook;
 import com.smali_generator.patches.WhatsAppPlus;
 import com.smali_generator.patches.ZipFileHook;
-import com.smali_generator.wrappers.FMessage;
+import com.smali_generator.utils.Utils;
+import com.smali_generator.wrappers.FMessageKey;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -36,7 +39,7 @@ public class InitProvider extends ContentProvider {
     @Override public int update(@NonNull Uri u, ContentValues v, String s, String[] a) { return 0; }
 
     static Class<?>[] wrappers = {
-            FMessage.class,
+            FMessageKey.class,
     };
     static Hook[] hooks = {
             new DecryptProtobuf(),
@@ -45,6 +48,7 @@ public class InitProvider extends ContentProvider {
             new ActivityHook(),
             new FirebaseParams(),
             new WhatsAppPlus(),
+            new DeletedMessageIndicator(),
     };
 
     static AtomicBoolean is_loaded = new AtomicBoolean(false);
@@ -55,21 +59,22 @@ public class InitProvider extends ContentProvider {
         }
 
         Log.i("PATCH", "Patch loaded!");
+        PatchDb.init(Utils.getApplicationContext());
 
-        try {
-            for (Class<?> wrapper : wrappers) {
+        for (Class<?> wrapper : wrappers) {
+            try {
                 wrapper.getDeclaredMethod("init").invoke(null);
+            } catch (Throwable t) {
+                Log.e("PATCH", "Wrapper " + wrapper.getSimpleName() + " failed", t);
             }
-        } catch (Exception e) {
-            Log.e("PATCH", "Error: " + e.getMessage());
         }
 
-        try {
-            for (Hook hook : hooks) {
+        for (Hook hook : hooks) {
+            try {
                 hook.load();
+            } catch (Throwable t) {
+                Log.e("PATCH", "Hook " + hook.getClass().getSimpleName() + " failed", t);
             }
-        } catch (Exception e) {
-            Log.e("PATCH", "Error: " + e.getMessage());
         }
     }
 }
