@@ -6,58 +6,18 @@ WhatsApp patcher is a program that patches WhatsApp apk.
 
 |                    Feature                    | Availability |
 |:---------------------------------------------:|:------------:|
-|           Signature Verifier Bypass           |      ✔       |
+|           Signature Verifier Bypass           |      ✔      |
 |              Enable all AB tests              |      X       |
-|         Keep revoked for all messages         |      ✔       |
-|     Trash icon marking a revoked message      |      ✔       |
-|        Disable read receipts, per chat        |      ✔       |
-|      Remove Meta AI from the home screen      |      ✔       |
-|        Option to save view once media         |      ✔       |
-|          Profile Picture Screenshot           |      ✔       |
-|            Unlock premium features            |      ✔       |
-| Settings screen to switch features on and off |      ✔       |
+|         Keep revoked for all messages         |      ✔      |
+|     Trash icon marking a revoked message      |      ✔      |
+|        Disable read receipts, per chat        |      ✔      |
+|      Remove Meta AI from the home screen      |      ✔      |
+|        Option to save view once media         |      ✔      |
+|          Profile Picture Screenshot           |      ✔      |
+|            Unlock premium features            |      ✔      |
+| Settings screen to switch features on and off |      ✔      |
 
 There is support for apks, apkm and xapk files.
-
-### Read receipts
-
-Turning this on stops both the blue ticks and the blue microphone on voice notes
-from reaching the sender, while you still see theirs. WhatsApp's own privacy
-setting does both directions at once, which is why this is a patch and not just a
-switch in the app.
-
-It works by changing the *type* of receipt the app sends rather than dropping it:
-WhatsApp already has a `read-self` receipt that only syncs to your own linked
-devices, so your other devices still mark the chat read.
-
-It can also apply to some chats rather than all of them. The settings screen
-offers every chat, only the chats you pick, or every chat except the ones you
-pick -- a blocklist and an allowlist over one list of chats, so switching between
-them keeps your picks. Chats are picked from WhatsApp's own contacts and groups,
-and unlike the switches this takes effect straight away, with no restart.
-
-### Meta AI
-
-WhatsApp puts Meta AI on the home screen in two different places, and which one
-you get depends on the build and on your account, so this removes both: the
-**Meta AI tab** in the bottom bar, and the **Meta AI button** above the new-chat
-button on the chats screen.
-
-Neither is hidden -- both are removed the way WhatsApp removes them itself. The
-bottom bar is drawn from a list of tabs the app builds when it starts, and the
-patch leaves Meta AI out of it; the button is kept in a stub the app only fills
-in after asking the chat list whether it wants one, and the patch answers no,
-exactly as every other tab already does.
-
-### Settings
-
-The patch adds a **Patcher** row to WhatsApp's own settings screen, leading to a
-list of everything above grouped into sections, each with a switch. The ones the
-patched app needs in order to run at all are listed but locked.
-
-Switches are read once when the app starts, so changing one takes effect on the
-next launch -- there is a button at the bottom of the screen that restarts
-WhatsApp for you.
 
 ## Requirements
 
