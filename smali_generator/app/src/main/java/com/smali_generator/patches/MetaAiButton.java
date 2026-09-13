@@ -25,20 +25,23 @@ import java.util.ArrayList;
  *     there per account -- Updates drops out under a privacy setting, the first
  *     slot is Meta AI or one of two other tabs depending on gating -- so taking
  *     one out is a shape the screen is built to take;</li>
- * <li>the <b>button</b> above the new-chat FAB on the chats tab, which the
- *     app keeps in a ViewStub and inflates only after asking the chat list
- *     whether it wants one. Every other tab answers a constant no and never
- *     gets a button, and so does an account Meta AI was never offered to; this
- *     makes the chat list answer the same way. The stub is then never inflated,
- *     so the button is absent rather than hidden.</li>
+ * <li>the <b>button</b> above the new-chat FAB, which appears as a round fab
+ *     carrying the Meta AI ring or as an extended pill with text beside it. The
+ *     screen asks one question before it draws either, and before it acts on a
+ *     tap: is the Meta AI button on? That is a setting WhatsApp keeps in its own
+ *     preferences, so answering no is a state it already has a name for. The
+ *     calls tab shows the same button from the same setting but asks the
+ *     question itself, with its own copy of the check, so it is answered
+ *     separately.</li>
  * </ul>
  *
- * Neither half depends on the other, and each is installed in its own
- * try/catch: a build that has only one of the two entry points still loses it.
+ * No half depends on another, and each is installed in its own try/catch: a
+ * build that has only some of these entry points still loses them.
  *
- * The chat list's gate is declared on the fragment the other chat lists --
- * archived, locked, the folder views -- inherit from without overriding, so one
- * hook keeps the button off all of them.
+ * Hooking the chat list's own "do you want the pill" gate instead was the
+ * earlier mistake. It is only one of the four callers of the real gate, so the
+ * round fab -- the form most accounts get -- was left in place, and on a device
+ * that was never offered the pill the patch logged success and changed nothing.
  */
 public class MetaAiButton implements Hook {
 
@@ -56,7 +59,8 @@ public class MetaAiButton implements Hook {
 
     /** Volatile so "once" holds however the home screen is rebuilt. */
     private static volatile boolean loggedTabs;
-    private static volatile boolean loggedFab;
+    private static volatile boolean loggedButton;
+    private static volatile boolean loggedCalls;
 
     /** Empty on purpose: ArtHooks rewrites its entry point to the original. */
     static ArrayList tabs_backup(Object thiz) {
@@ -86,15 +90,29 @@ public class MetaAiButton implements Hook {
     }
 
     /** Empty on purpose: ArtHooks rewrites its entry point to the original. */
-    static boolean fab_gate_backup(Object thiz) {
+    static boolean button_gate_backup(Object thiz) {
         return false;
     }
 
-    static boolean fab_gate_hook(Object thiz) {
-        if (!loggedFab) {
-            loggedFab = true;
-            Log.i(TAG, "MetaAiButton: the Meta AI button is blocked on the chats screen"
-                    + "; WhatsApp would have shown it: " + wanted(thiz));
+    static boolean button_gate_hook(Object thiz) {
+        if (!loggedButton) {
+            loggedButton = true;
+            Log.i(TAG, "MetaAiButton: the Meta AI button is off on the chats screen"
+                    + "; WhatsApp would have shown it: " + wanted(thiz, true));
+        }
+        return false;
+    }
+
+    /** Empty on purpose: ArtHooks rewrites its entry point to the original. */
+    static boolean calls_gate_backup(Object thiz) {
+        return false;
+    }
+
+    static boolean calls_gate_hook(Object thiz) {
+        if (!loggedCalls) {
+            loggedCalls = true;
+            Log.i(TAG, "MetaAiButton: the Meta AI button is off on the calls screen"
+                    + "; WhatsApp would have shown it: " + wanted(thiz, false));
         }
         return false;
     }
@@ -104,13 +122,14 @@ public class MetaAiButton implements Hook {
      *
      * It is the difference between "the button was taken away" and "this
      * account was never offered one", which is otherwise indistinguishable from
-     * outside. Safe to ask -- the original only reads settings and gating flags,
-     * which is the property the finder pins it on -- but guarded anyway, since a
-     * throw here would land in a call WhatsApp makes while building the screen.
+     * outside -- and telling those apart is the whole reason this hook was wrong
+     * the first time. Safe to ask: both originals only read a setting and a
+     * gating flag. Guarded anyway, since a throw here would land in a call
+     * WhatsApp makes while building the screen.
      */
-    private static String wanted(Object thiz) {
+    private static String wanted(Object thiz, boolean chats) {
         try {
-            return String.valueOf(fab_gate_backup(thiz));
+            return String.valueOf(chats ? button_gate_backup(thiz) : calls_gate_backup(thiz));
         } catch (Throwable t) {
             return "unknown (" + t + ")";
         }
@@ -125,7 +144,7 @@ public class MetaAiButton implements Hook {
     }
 
     public String description() {
-        return "Takes the Meta AI tab out of the bottom bar, and the Meta AI button off the chats screen.";
+        return "Takes the Meta AI tab out of the bottom bar, and the Meta AI button off the chats and calls screens.";
     }
 
     public HookCategory category() {
@@ -134,7 +153,8 @@ public class MetaAiButton implements Hook {
 
     public void load() {
         remove_tab();
-        remove_fab();
+        remove_button();
+        remove_calls_button();
     }
 
     private void remove_tab() {
@@ -158,20 +178,37 @@ public class MetaAiButton implements Hook {
         }
     }
 
-    private void remove_fab() {
+    private void remove_button() {
         try {
-            Class<?> chat_list = Class.forName("{{META_AI_FAB_GATE_CLASS_NAME}}");
+            Class<?> owner = Class.forName("{{META_AI_BUTTON_GATE_CLASS_NAME}}");
 
-            Executable gate = ArtHooks.find_function(chat_list,
-                    "{{META_AI_FAB_GATE_METHOD_NAME}}", "{{META_AI_FAB_GATE_METHOD_SIG}}");
-            Method replacement = MetaAiButton.class.getDeclaredMethod("fab_gate_hook", Object.class);
-            Method original = MetaAiButton.class.getDeclaredMethod("fab_gate_backup", Object.class);
+            Executable gate = ArtHooks.find_function(owner,
+                    "{{META_AI_BUTTON_GATE_METHOD_NAME}}", "{{META_AI_BUTTON_GATE_METHOD_SIG}}");
+            Method replacement = MetaAiButton.class.getDeclaredMethod("button_gate_hook", Object.class);
+            Method original = MetaAiButton.class.getDeclaredMethod("button_gate_backup", Object.class);
             boolean hooked = ArtHooks.hook_function(gate, replacement, original);
 
-            Log.i(TAG, "MetaAiButton: fab gate hooked on " + chat_list.getName()
-                    + ".{{META_AI_FAB_GATE_METHOD_NAME}}, hooked=" + hooked);
+            Log.i(TAG, "MetaAiButton: button gate hooked on " + owner.getName()
+                    + ".{{META_AI_BUTTON_GATE_METHOD_NAME}}, hooked=" + hooked);
         } catch (Throwable t) {
-            Log.e(TAG, "MetaAiButton: the Meta AI button was left in place: " + t);
+            Log.e(TAG, "MetaAiButton: the Meta AI button was left on the chats screen: " + t);
+        }
+    }
+
+    private void remove_calls_button() {
+        try {
+            Class<?> calls = Class.forName("{{META_AI_CALLS_GATE_CLASS_NAME}}");
+
+            Executable gate = ArtHooks.find_function(calls,
+                    "{{META_AI_CALLS_GATE_METHOD_NAME}}", "{{META_AI_CALLS_GATE_METHOD_SIG}}");
+            Method replacement = MetaAiButton.class.getDeclaredMethod("calls_gate_hook", Object.class);
+            Method original = MetaAiButton.class.getDeclaredMethod("calls_gate_backup", Object.class);
+            boolean hooked = ArtHooks.hook_function(gate, replacement, original);
+
+            Log.i(TAG, "MetaAiButton: calls gate hooked on " + calls.getName()
+                    + ".{{META_AI_CALLS_GATE_METHOD_NAME}}, hooked=" + hooked);
+        } catch (Throwable t) {
+            Log.e(TAG, "MetaAiButton: the Meta AI button was left on the calls screen: " + t);
         }
     }
 
