@@ -11,6 +11,7 @@ WhatsApp patcher is a program that patches WhatsApp apk.
 |         Keep revoked for all messages         |      ✔       |
 |     Trash icon marking a revoked message      |      ✔       |
 |        Disable read receipts, per chat        |      ✔       |
+|      Remove Meta AI from the home screen      |      ✔       |
 |        Option to save view once media         |      ✔       |
 |          Profile Picture Screenshot           |      ✔       |
 |            Unlock premium features            |      ✔       |
@@ -34,6 +35,19 @@ offers every chat, only the chats you pick, or every chat except the ones you
 pick -- a blocklist and an allowlist over one list of chats, so switching between
 them keeps your picks. Chats are picked from WhatsApp's own contacts and groups,
 and unlike the switches this takes effect straight away, with no restart.
+
+### Meta AI
+
+WhatsApp puts Meta AI on the home screen in two different places, and which one
+you get depends on the build and on your account, so this removes both: the
+**Meta AI tab** in the bottom bar, and the **Meta AI button** above the new-chat
+button on the chats screen.
+
+Neither is hidden -- both are removed the way WhatsApp removes them itself. The
+bottom bar is drawn from a list of tabs the app builds when it starts, and the
+patch leaves Meta AI out of it; the button is kept in a stub the app only fills
+in after asking the chat list whether it wants one, and the patch answers no,
+exactly as every other tab already does.
 
 ### Settings
 

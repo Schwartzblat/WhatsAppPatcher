@@ -13,6 +13,7 @@ package com.smali_generator;
 public enum HookCategory {
     PRIVACY("Privacy", "What others see, and what the app keeps from you."),
     MESSAGES("Messages", "How messages are shown."),
+    INTERFACE("Interface", "What the app puts on its own screens."),
     UNLOCKS("Unlocks", "Features the app charges for."),
     OTHER("Other", ""),
     MANDATORY("Mandatory", "Needed for the patched app to run. These cannot be turned off.");

@@ -13,6 +13,8 @@ from artifactory_generator.whatsapp_plus import WhatsAppPlusFinder
 from artifactory_generator.row_binder import RowBinderFinder
 from artifactory_generator.settings_screen import SettingsScreenFinder
 from artifactory_generator.read_receipts import ReadReceiptsFinder
+from artifactory_generator.meta_ai_fab import MetaAiFabFinder
+from artifactory_generator.meta_ai_tab import MetaAiTabFinder
 
 
 def get_args():
@@ -55,7 +57,9 @@ def main():
         WhatsAppPlusFinder(args),
         RowBinderFinder(args),
         SettingsScreenFinder(args),
-        ReadReceiptsFinder(args)
+        ReadReceiptsFinder(args),
+        MetaAiFabFinder(args),
+        MetaAiTabFinder(args)
     ]
     with Stitch(
             apk_path=args.apk_path,

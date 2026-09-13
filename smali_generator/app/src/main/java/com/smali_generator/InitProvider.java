@@ -13,6 +13,7 @@ import com.smali_generator.patches.ActivityHook;
 import com.smali_generator.patches.DecryptProtobuf;
 import com.smali_generator.patches.DeletedMessageIndicator;
 import com.smali_generator.patches.FirebaseParams;
+import com.smali_generator.patches.MetaAiButton;
 import com.smali_generator.patches.PackageManagerHook;
 import com.smali_generator.patches.ReadReceipts;
 import com.smali_generator.patches.SettingsEntryHook;
@@ -56,6 +57,7 @@ public class InitProvider extends ContentProvider {
             new WhatsAppPlus(),
             new DeletedMessageIndicator(),
             new ReadReceipts(),
+            new MetaAiButton(),
             new SettingsEntryHook(),
     };
 
