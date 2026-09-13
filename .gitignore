@@ -184,8 +184,14 @@ fabric.properties
 **.apk
 **.xapk
 **.apkm
-extracted/%
+extracted/
 script.js
 /keystore.jks
 **.jadx
 /smali_generator/app/release/
+
+# Persistent apk-extract work dirs (apktool output, several GB per build)
+/.patcher-work/
+/.superpowers/
+/out33
+/docs

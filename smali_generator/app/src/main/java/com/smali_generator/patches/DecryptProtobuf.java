@@ -9,6 +9,8 @@ import android.util.Log;
 import com.arthooks.ArtHooks;
 
 import com.smali_generator.Hook;
+import com.smali_generator.db.MessageKey;
+import com.smali_generator.db.PatchDb;
 
 
 public class DecryptProtobuf implements Hook {
@@ -42,11 +44,43 @@ public class DecryptProtobuf implements Hook {
         }
     }
 
+    /**
+     * The protocol message's key names the message being revoked. Jid and
+     * fromMe are best-effort: a missing one must not cost us the id, which is
+     * what the indicator actually looks up.
+     */
+    static void record_deleted(Object protocol_key) {
+        try {
+            Class<?> key_class = protocol_key.getClass();
+            Field id_field = key_class.getDeclaredField("id_");
+            id_field.setAccessible(true);
+            String id = (String) id_field.get(protocol_key);
+            if (id == null) {
+                return;
+            }
+            String remote_jid = null;
+            boolean from_me = false;
+            try {
+                Field jid_field = key_class.getDeclaredField("remoteJid_");
+                jid_field.setAccessible(true);
+                remote_jid = (String) jid_field.get(protocol_key);
+                Field from_me_field = key_class.getDeclaredField("fromMe_");
+                from_me_field.setAccessible(true);
+                from_me = from_me_field.getBoolean(protocol_key);
+            } catch (NoSuchFieldException ignored) {
+            }
+            PatchDb.markDeleted(new MessageKey(id, remote_jid, from_me), System.currentTimeMillis());
+        } catch (Throwable t) {
+            Log.e("PATCH", "DecryptProtobuf: could not record deleted message", t);
+        }
+    }
+
     static void handle_delete_message(Object base_message, Object protocol_message) {
         try {
             Field key_field = protocol_message.getClass().getDeclaredField("key_");
             Object new_key = key_field.get(protocol_message);
             assert new_key != null;
+            record_deleted(new_key);
             new_key.getClass().getDeclaredField("id_").set(new_key, "1234");
             key_field.set(protocol_message, new_key);
             base_message.getClass().getDeclaredField("protocolMessage_").set(base_message, protocol_message);
