@@ -194,4 +194,7 @@ script.js
 /.patcher-work/
 /.superpowers/
 /out33
-/docs
+/docsCLAUDE.md
+/CLAUDE.md
+/artifactory.json
+/docs/

@@ -26,9 +26,10 @@ import java.util.Locale;
  * everyone when its own Read receipts setting is off -- so this hook does not
  * invent a state: it takes a path the app takes for itself.
  *
- * That is the whole patch. Both decisions are made in the class its log
- * strings call ReadReceiptUtils, one method per receipt kind, and both are
- * forced to the self variant.
+ * Both decisions run through the class its log strings call ReadReceiptUtils.
+ * The read one has a method of its own, which is simply forced to the self
+ * variant. The played one does not, and is the reason for the third hook
+ * below.
  *
  * Doing it here rather than at the app's own privacy setting is what keeps the
  * asymmetry worth having: flipping that setting also stops *you* from seeing
@@ -38,6 +39,17 @@ import java.util.Locale;
  * because the two are one setting in WhatsApp's own UI, so leaving it out
  * would leak the very thing the hook is for -- grey ticks on a chat, and then
  * a blue mic the moment a voice note is opened.
+ *
+ * That gate is not a played-receipt method, though: it is the app's general
+ * "are read receipts on for this chat", with twelve callers on 2.26.36.71.
+ * One is the job that sends the played receipt; another is
+ * MessageStatusUpdateReceiptFactory, which reads it when a receipt arrives
+ * from the other side and, on a "no", rewrites the incoming read or played
+ * status down to delivered -- WhatsApp's own reciprocity rule. Answering no
+ * everywhere therefore turns that rule on the user and hides other people's
+ * blue ticks, which is the one thing this hook promises not to do. So the
+ * answer is scoped: {@link #played_job_hook} marks the job while it runs, and
+ * the gate lies only to the single call made inside it.
  *
  * Which chats it applies to is a {@link Scope}, chosen on {@link
  * ChatPickerActivity}. Both hooked methods take the chat's Jid, so the scope
@@ -106,6 +118,14 @@ public class ReadReceipts implements Hook {
     /** Volatile so "once" holds across the threads receipts are sent from. */
     private static volatile boolean logged_read;
     private static volatile boolean logged_played;
+
+    /**
+     * Set while this thread is inside the played-receipt job.
+     *
+     * The gate is shared, so this is what separates the one caller that is
+     * deciding what to *send* from the many that are deciding what to *show*.
+     */
+    private static final ThreadLocal<Boolean> in_played_job = new ThreadLocal<>();
 
     /**
      * Why one chat's receipts were, or were not, held back.
@@ -212,8 +232,18 @@ public class ReadReceipts implements Hook {
     }
 
     static boolean played_gate_hook(Object thiz, Object jid) {
-        Decision decision = decide(jid);
         boolean original = played_gate_backup(thiz, jid);
+        if (!Boolean.TRUE.equals(in_played_job.get())) {
+            // Every other caller is asking so it can decide what to display,
+            // and gets the app's own answer untouched. Note this returns
+            // before decide(), so the shared path costs one ThreadLocal read.
+            return original;
+        }
+        // Consumed rather than merely read: the job asks once, early, and
+        // whatever it calls afterwards on this thread is no longer the send
+        // decision. This narrows the lie to exactly that one question.
+        in_played_job.remove();
+        Decision decision = decide(jid);
         if (!logged_played) {
             logged_played = true;
             Log.i(TAG, "ReadReceipts: first played receipt: " + decision
@@ -221,6 +251,27 @@ public class ReadReceipts implements Hook {
         }
         // false picks "played-self", the voice-note counterpart of read-self.
         return decision.suppress ? false : original;
+    }
+
+    /** Empty on purpose: ArtHooks rewrites its entry point to the original. */
+    static void played_job_backup(Object thiz) {
+    }
+
+    /**
+     * Brackets one run of the played-receipt job, so the gate can tell that
+     * run's question apart from the same question asked anywhere else.
+     */
+    static void played_job_hook(Object thiz) {
+        in_played_job.set(Boolean.TRUE);
+        try {
+            played_job_backup(thiz);
+        } finally {
+            // Cleared even when the job throws -- it is allowed to, the queue
+            // retries it. A flag left behind would follow the next piece of
+            // work onto this pooled thread and suppress a receipt nobody asked
+            // about, or worse, clamp an incoming one.
+            in_played_job.remove();
+        }
     }
 
     public String id() {
@@ -278,8 +329,20 @@ public class ReadReceipts implements Hook {
             boolean played_hooked = ArtHooks.hook_function(
                     played_gate, played_gate_replacement, played_gate_original);
 
+            Class<?> played_job = Class.forName("{{PLAYED_RECEIPT_JOB_CLASS_NAME}}");
+            Executable played_run = ArtHooks.find_function(played_job,
+                    "{{PLAYED_RECEIPT_JOB_METHOD_NAME}}", "{{PLAYED_RECEIPT_JOB_METHOD_SIG}}");
+            Method played_job_replacement = ReadReceipts.class.getDeclaredMethod(
+                    "played_job_hook", Object.class);
+            Method played_job_original = ReadReceipts.class.getDeclaredMethod(
+                    "played_job_backup", Object.class);
+            boolean job_hooked = ArtHooks.hook_function(
+                    played_run, played_job_replacement, played_job_original);
+
+            // job= is worth reading: without it the gate never fires, so the
+            // blue microphone leaks while everything else looks installed.
             Log.i(TAG, "ReadReceipts: Patch loaded on " + read_receipt_utils.getName()
-                    + ", read=" + read_hooked + " played=" + played_hooked
+                    + ", read=" + read_hooked + " played=" + played_hooked + " job=" + job_hooked
                     + ", scope=" + scope() + " chats=" + PatchDb.selectedChats(FEATURE).size());
         } catch (Throwable t) {
             Log.e(TAG, "ReadReceipts: Error: " + t);
