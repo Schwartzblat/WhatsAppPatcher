@@ -28,9 +28,9 @@ public class SettingsEntryHook implements Hook {
 
     private static final String SETTINGS_ACTIVITY = "{{SETTINGS_ACTIVITY_CLASS_NAME}}";
 
-    /** Empty by design: only its entry point and signature matter. */
-    static void on_resume_backup(Object thiz) {
-    }
+    /** native on purpose: a body here would be inlined into the hook and the backup would
+     * silently answer for the original. ArtHooks rewrites its entry point. */
+    static native void on_resume_backup(Object thiz);
 
     static void on_resume_hook(Object thiz) {
         // First, and outside the try: the framework checks that

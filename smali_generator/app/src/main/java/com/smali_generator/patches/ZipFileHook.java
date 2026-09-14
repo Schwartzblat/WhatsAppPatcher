@@ -13,9 +13,7 @@ import com.arthooks.ArtHooks;
 
 public class ZipFileHook implements Hook {
 
-    static ZipEntry get_entry_hook_backup(ZipFile obj, String entry) {
-        return null;
-    }
+    static native ZipEntry get_entry_hook_backup(ZipFile obj, String entry);
 
     static ZipEntry get_entry_hook(ZipFile obj, String entry) {
         if (entry.equals("classes.dex")) {

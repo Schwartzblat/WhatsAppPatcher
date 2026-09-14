@@ -12,9 +12,7 @@ import com.arthooks.ArtHooks;
 
 public class FirebaseParams implements Hook {
 
-    static void params_constructor_backup(Object thiz, String applicationId, String apiKey, String databaseUrl, String unknown, String gcmSenderId, String storageBucket, String projectId) {
-        return;
-    }
+    static native void params_constructor_backup(Object thiz, String applicationId, String apiKey, String databaseUrl, String unknown, String gcmSenderId, String storageBucket, String projectId);
 
     static void params_constructor(Object thiz, String applicationId, String apiKey, String databaseUrl, String unknown, String gcmSenderId, String storageBucket, String projectId) {
         Log.i("PATCH", "FirebaseParams: applicationId: " + applicationId + ", apiKey: " + apiKey);

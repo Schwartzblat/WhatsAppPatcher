@@ -19,25 +19,13 @@ import com.arthooks.ArtHooks;
 
 
 public class PackageManagerHook implements Hook {
-    static PackageInfo get_package_info_hook_backup(PackageManager obj, VersionedPackage package_name, int flags) {
-        Log.e("PATCH", "PackageManagerHook: WTF get_package_info_hook_backup(VersionedPackage, int) called");
-        return null;
-    }
+    static native PackageInfo get_package_info_hook_backup(PackageManager obj, VersionedPackage package_name, int flags);
 
-    static PackageInfo get_package_info_hook_backup(PackageManager obj, VersionedPackage package_name, PackageManager.PackageInfoFlags flags) {
-        Log.e("PATCH", "PackageManagerHook: WTF get_package_info_hook_backup(VersionedPackage, int) called");
-        return null;
-    }
+    static native PackageInfo get_package_info_hook_backup(PackageManager obj, VersionedPackage package_name, PackageManager.PackageInfoFlags flags);
 
-    static PackageInfo get_package_info_hook_backup(PackageManager obj, String package_name, PackageManager.PackageInfoFlags flags) {
-        Log.e("PATCH", "PackageManagerHook: WTF get_package_info_hook_backup(String, PackageInfoFlags) called");
-        return null;
-    }
+    static native PackageInfo get_package_info_hook_backup(PackageManager obj, String package_name, PackageManager.PackageInfoFlags flags);
 
-    static PackageInfo get_package_info_hook_backup(PackageManager obj, String package_name, int flags) {
-        Log.e("PATCH", "PackageManagerHook: WTF get_package_info_hook_backup(String, int) called");
-        return null;
-    }
+    static native PackageInfo get_package_info_hook_backup(PackageManager obj, String package_name, int flags);
 
     static PackageInfo get_package_info_hook(PackageManager obj, String package_name, PackageManager.PackageInfoFlags flags) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {

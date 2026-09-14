@@ -62,10 +62,9 @@ public class MetaAiButton implements Hook {
     private static volatile boolean loggedButton;
     private static volatile boolean loggedCalls;
 
-    /** Empty on purpose: ArtHooks rewrites its entry point to the original. */
-    static ArrayList tabs_backup(Object thiz) {
-        return null;
-    }
+    /** native on purpose: a body here would be inlined into the hook and the backup would
+     * silently answer for the original. ArtHooks rewrites its entry point. */
+    static native ArrayList tabs_backup(Object thiz);
 
     static ArrayList tabs_hook(Object thiz) {
         ArrayList tabs = tabs_backup(thiz);
@@ -89,10 +88,9 @@ public class MetaAiButton implements Hook {
         return tabs;
     }
 
-    /** Empty on purpose: ArtHooks rewrites its entry point to the original. */
-    static boolean button_gate_backup(Object thiz) {
-        return false;
-    }
+    /** native on purpose: a body here would be inlined into the hook and the backup would
+     * silently answer for the original. ArtHooks rewrites its entry point. */
+    static native boolean button_gate_backup(Object thiz);
 
     static boolean button_gate_hook(Object thiz) {
         if (!loggedButton) {
@@ -103,10 +101,9 @@ public class MetaAiButton implements Hook {
         return false;
     }
 
-    /** Empty on purpose: ArtHooks rewrites its entry point to the original. */
-    static boolean calls_gate_backup(Object thiz) {
-        return false;
-    }
+    /** native on purpose: a body here would be inlined into the hook and the backup would
+     * silently answer for the original. ArtHooks rewrites its entry point. */
+    static native boolean calls_gate_backup(Object thiz);
 
     static boolean calls_gate_hook(Object thiz) {
         if (!loggedCalls) {

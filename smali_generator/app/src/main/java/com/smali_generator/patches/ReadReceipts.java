@@ -206,10 +206,9 @@ public class ReadReceipts implements Hook {
         }
     }
 
-    /** Empty on purpose: ArtHooks rewrites its entry point to the original. */
-    static String receipt_type_backup(Object thiz, Object jid, boolean force_read_self) {
-        return null;
-    }
+    /** native on purpose: a body here would be inlined into the hook and the backup would
+     * silently answer for the original. ArtHooks rewrites its entry point. */
+    static native String receipt_type_backup(Object thiz, Object jid, boolean force_read_self);
 
     static String receipt_type_hook(Object thiz, Object jid, boolean force_read_self) {
         Decision decision = decide(jid);
@@ -226,10 +225,9 @@ public class ReadReceipts implements Hook {
         return decision.suppress ? READ_SELF : original;
     }
 
-    /** Empty on purpose: ArtHooks rewrites its entry point to the original. */
-    static boolean played_gate_backup(Object thiz, Object jid) {
-        return false;
-    }
+    /** native on purpose: a body here would be inlined into the hook and the backup would
+     * silently answer for the original. ArtHooks rewrites its entry point. */
+    static native boolean played_gate_backup(Object thiz, Object jid);
 
     static boolean played_gate_hook(Object thiz, Object jid) {
         boolean original = played_gate_backup(thiz, jid);
@@ -253,9 +251,9 @@ public class ReadReceipts implements Hook {
         return decision.suppress ? false : original;
     }
 
-    /** Empty on purpose: ArtHooks rewrites its entry point to the original. */
-    static void played_job_backup(Object thiz) {
-    }
+    /** native on purpose: a body here would be inlined into the hook and the backup would
+     * silently answer for the original. ArtHooks rewrites its entry point. */
+    static native void played_job_backup(Object thiz);
 
     /**
      * Brackets one run of the played-receipt job, so the gate can tell that

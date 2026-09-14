@@ -55,10 +55,9 @@ public class DeletedMessageIndicator implements Hook {
 
     private static volatile Handler mainHandler;
 
-    /** Empty by design: only its entry point and signature matter. */
-    static View get_view_backup(Object thiz, int position, View convertView, ViewGroup parent) {
-        return null;
-    }
+    /** native on purpose: a body here would be inlined into the hook and the backup would
+     * silently answer for the original. ArtHooks rewrites its entry point. */
+    static native View get_view_backup(Object thiz, int position, View convertView, ViewGroup parent);
 
     static View get_view_hook(Object thiz, int position, View convertView, ViewGroup parent) {
         View row = get_view_backup(thiz, position, convertView, parent);

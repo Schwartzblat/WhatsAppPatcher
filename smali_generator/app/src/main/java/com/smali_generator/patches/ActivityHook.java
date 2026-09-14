@@ -20,8 +20,7 @@ public class ActivityHook implements Hook {
         Log.i("PATCH", "ActivityHook: registerScreenCaptureCallback has been called");
     }
 
-    static void set_flags_hook_backup(Window window, int flags, int mask) {
-    }
+    static native void set_flags_hook_backup(Window window, int flags, int mask);
 
     static void set_flags_hook(Window window, int flags, int mask) {
         if ((flags & LayoutParams.FLAG_SECURE) != 0) {
