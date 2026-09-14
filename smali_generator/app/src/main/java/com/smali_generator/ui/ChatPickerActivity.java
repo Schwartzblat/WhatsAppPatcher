@@ -1,6 +1,7 @@
 package com.smali_generator.ui;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.graphics.Insets;
 import android.graphics.Typeface;
 import android.os.Bundle;
@@ -13,6 +14,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowInsets;
 import android.widget.BaseAdapter;
+import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.LinearLayout;
@@ -38,6 +40,10 @@ import java.util.Set;
  * "everyone except these" are the same picks read in opposite directions, so
  * switching between a blocklist and an allowlist keeps them.
  *
+ * Clearing the picks is offered beside their count rather than left to the
+ * checkboxes: a list this long is otherwise undone one tap at a time, and a
+ * pick scrolled out of sight is one the count is the only sign of.
+ *
  * Everything is written as it is touched; there is no save button and no
  * restart. The hook reads the scope and the list per receipt, so a change here
  * is live -- which is the opposite of the switches on the previous screen, and
@@ -55,7 +61,10 @@ public class ChatPickerActivity extends Activity {
 
     private ChatAdapter adapter;
     private TextView scopeCaption;
-    private View searchBox;
+    private View pickTools;
+    private TextView pickCount;
+    private Button clearAll;
+    private EditText searchBox;
     private View listSection;
     private TextView emptyNotice;
 
@@ -74,6 +83,7 @@ public class ChatPickerActivity extends Activity {
         loadChats();
         setContentView(buildContent());
         applyScope(ReadReceipts.scope());
+        refreshPickTools();
     }
 
     @Override
@@ -125,6 +135,8 @@ public class ChatPickerActivity extends Activity {
         int side = dp(SIDE_PADDING_DP);
         header.setPadding(side, dp(12), side, 0);
         header.addView(scopeChooser());
+        pickTools = pickTools();
+        header.addView(pickTools);
         searchBox = searchBox();
         header.addView(searchBox);
         root.addView(header);
@@ -179,7 +191,94 @@ public class ChatPickerActivity extends Activity {
         return block;
     }
 
-    private View searchBox() {
+    /**
+     * How many chats are picked, and the one tap that undoes all of them.
+     *
+     * The count sits next to the button because it is what makes the button
+     * legible: the picks it clears are mostly scrolled out of sight.
+     */
+    private View pickTools() {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+
+        pickCount = new TextView(this);
+        pickCount.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f);
+        pickCount.setTextColor(Palette.secondaryText(this));
+        row.addView(pickCount, new LinearLayout.LayoutParams(0,
+                ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+        clearAll = new Button(this);
+        clearAll.setText("Clear all");
+        clearAll.setAllCaps(false);
+        clearAll.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f);
+        clearAll.setTypeface(Typeface.DEFAULT_BOLD);
+        clearAll.setTextColor(Palette.ACCENT);
+        // Flat and text-only. The green pill is the primary action on the
+        // screen it lives on, and this is the opposite of one: it only takes
+        // things away. The framework button's own nine-patch and press lift
+        // have to go before a flat control looks like anything.
+        clearAll.setStateListAnimator(null);
+        clearAll.setBackground(Palette.rowRipple(this));
+        clearAll.setMinWidth(0);
+        clearAll.setMinimumWidth(0);
+        clearAll.setMinHeight(0);
+        clearAll.setMinimumHeight(dp(40));
+        clearAll.setPadding(dp(12), dp(6), dp(12), dp(6));
+        clearAll.setOnClickListener(view -> confirmClearAll());
+        row.addView(clearAll);
+        return row;
+    }
+
+    private void refreshPickTools() {
+        int count = PatchDb.selectedChats(ReadReceipts.FEATURE).size();
+        pickCount.setText(count == 0 ? "No chats picked"
+                : count == 1 ? "1 chat picked" : count + " chats picked");
+        // Dimmed rather than hidden: a button that vanished as the last box was
+        // unticked would move the row out from under the finger.
+        clearAll.setEnabled(count > 0);
+        clearAll.setAlpha(count > 0 ? 1f : 0.4f);
+    }
+
+    /**
+     * Asked before rather than undone after: the picks are a list built by
+     * hand, and nothing on this screen would put them back.
+     */
+    private void confirmClearAll() {
+        int count = PatchDb.selectedChats(ReadReceipts.FEATURE).size();
+        if (count == 0) {
+            return;
+        }
+        // What an empty list then means depends on which way the scope reads
+        // it, and the two readings are opposites, so the question says which.
+        String consequence = ReadReceipts.scope() == ReadReceipts.Scope.ONLY_LISTED
+                ? "Your read receipts will then be sent in every chat."
+                : "Your read receipts will then be held back in every chat.";
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle("Clear all picks?")
+                .setMessage((count == 1 ? "The one chat you picked will be unpicked. "
+                        : "All " + count + " picked chats will be unpicked. ") + consequence)
+                .setNegativeButton("Cancel", null)
+                .setPositiveButton("Clear all", (ignored, which) -> clearAll())
+                .create();
+        dialog.show();
+        // The framework dialog paints its buttons in the device's accent; the
+        // rest of this screen is WhatsApp's green.
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(Palette.ACCENT);
+        dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setTextColor(Palette.secondaryText(this));
+    }
+
+    private void clearAll() {
+        PatchDb.clearChatSelection(ReadReceipts.FEATURE);
+        // Reloaded rather than only redrawn: the list carries a row for each
+        // pick whose contact has since gone, and with the picks cleared those
+        // rows name nothing the user could find again.
+        loadChats();
+        filter(searchBox.getText().toString());
+        refreshPickTools();
+    }
+
+    private EditText searchBox() {
         EditText search = new EditText(this);
         search.setHint("Search chats");
         search.setSingleLine(true);
@@ -243,10 +342,12 @@ public class ChatPickerActivity extends Activity {
         applyScope(scope);
     }
 
-    /** "Every chat" has nothing to pick, so the picker goes away rather than sitting there inert. */
+    /** A scope that picks no chats has no list, so the picker goes away rather
+     *  than sitting there inert. */
     private void applyScope(ReadReceipts.Scope scope) {
         scopeCaption.setText(scope.caption());
-        int visibility = scope == ReadReceipts.Scope.EVERYONE ? View.GONE : View.VISIBLE;
+        int visibility = scope.picksChats() ? View.VISIBLE : View.GONE;
+        pickTools.setVisibility(visibility);
         searchBox.setVisibility(visibility);
         listSection.setVisibility(visibility);
     }
@@ -313,8 +414,10 @@ public class ChatPickerActivity extends Activity {
             // that used to be here would fire for that chat, not this one.
             box.setOnCheckedChangeListener(null);
             box.setChecked(PatchDb.isChatSelected(ReadReceipts.FEATURE, chat.jid));
-            box.setOnCheckedChangeListener((button, checked) ->
-                    PatchDb.setChatSelected(ReadReceipts.FEATURE, chat.jid, checked));
+            box.setOnCheckedChangeListener((button, checked) -> {
+                PatchDb.setChatSelected(ReadReceipts.FEATURE, chat.jid, checked);
+                refreshPickTools();
+            });
             row.setOnClickListener(view -> box.toggle());
             return row;
         }

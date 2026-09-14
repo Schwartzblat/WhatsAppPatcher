@@ -64,6 +64,12 @@ public class ReadReceipts implements Hook {
     /** The receipt that syncs to your own devices and goes nowhere else. */
     private static final String READ_SELF = "read-self";
 
+    /**
+     * A group chat's jid server. Groups are named this way on both sides of
+     * the LID split, so telling one apart costs no translation.
+     */
+    private static final String GROUP_SERVER = "g.us";
+
     /** Key for this hook's chat list, and for its scope setting. */
     public static final String FEATURE = "read_receipts";
     private static final String SCOPE_KEY = "read_receipts_scope";
@@ -74,18 +80,29 @@ public class ReadReceipts implements Hook {
      * One list covers both directions people ask for: {@code ONLY_LISTED} is a
      * blocklist and {@code ALL_EXCEPT_LISTED} an allowlist over the same set of
      * chats, so switching between them keeps the picks.
+     *
+     * {@code ALL_EXCEPT_GROUPS} needs no list at all: what tells a group from a
+     * one-to-one chat is the server in its jid, which every chat carries.
      */
     public enum Scope {
-        EVERYONE("Every chat", "Nobody sees your read receipts."),
-        ONLY_LISTED("Only the chats I pick", "Hidden from the chats below. Everyone else sees them as usual."),
-        ALL_EXCEPT_LISTED("Every chat except the ones I pick", "Hidden from everyone but the chats below.");
+        EVERYONE("Every chat", "Nobody sees your read receipts.",
+                "Applies to every chat"),
+        ALL_EXCEPT_GROUPS("Every chat except groups",
+                "Hidden in one-to-one chats. Groups still see them.",
+                "Applies to every chat except groups"),
+        ONLY_LISTED("Only the chats I pick", "Hidden from the chats below. Everyone else sees them as usual.",
+                "Applies to %s"),
+        ALL_EXCEPT_LISTED("Every chat except the ones I pick", "Hidden from everyone but the chats below.",
+                "Applies to every chat except %s");
 
         private final String title;
         private final String caption;
+        private final String summary;
 
-        Scope(String title, String caption) {
+        Scope(String title, String caption, String summary) {
             this.title = title;
             this.caption = caption;
+            this.summary = summary;
         }
 
         public String title() {
@@ -94,6 +111,16 @@ public class ReadReceipts implements Hook {
 
         public String caption() {
             return caption;
+        }
+
+        /** The settings row's one line; the scopes that read the list take the count. */
+        String summary() {
+            return summary;
+        }
+
+        /** Whether this scope reads the chat list, and so whether the picker offers one. */
+        public boolean picksChats() {
+            return this == ONLY_LISTED || this == ALL_EXCEPT_LISTED;
         }
     }
 
@@ -166,6 +193,13 @@ public class ReadReceipts implements Hook {
                     (picked ? "chat is picked" : "chat is not picked") + ", addressed by " + addressing);
         }
 
+        /** The scope that reads what kind of chat it is instead of any pick. */
+        static Decision forGroups(Scope scope, String server) {
+            boolean group = GROUP_SERVER.equals(server);
+            return new Decision(!group, scope,
+                    (group ? "chat is a group" : "chat is not a group") + ", addressed by " + server);
+        }
+
         @Override
         public String toString() {
             return "scope=" + scope + (chat == null ? "" : ", " + chat)
@@ -190,6 +224,12 @@ public class ReadReceipts implements Hook {
         if (raw == null) {
             return Decision.unidentified(scope);
         }
+        if (scope == Scope.ALL_EXCEPT_GROUPS) {
+            // Answered from the server alone: no pick is consulted, and none of
+            // the LID translation below applies, a group being @g.us to the
+            // receipt path and to the picker alike.
+            return Decision.forGroups(scope, server(raw));
+        }
         // The receipt path addresses an individual chat by LID and the picker
         // knows it by phone number, so the two name the same chat differently;
         // without this every individual pick misses and the scope reads it as
@@ -198,10 +238,15 @@ public class ReadReceipts implements Hook {
         return Decision.forChat(scope, PatchDb.isChatSelected(FEATURE, key), addressing(raw, key));
     }
 
+    /** The part of a jid that says what kind of chat it is. */
+    private static String server(String raw) {
+        int at = raw.lastIndexOf('@');
+        return at < 0 ? "no server" : raw.substring(at + 1);
+    }
+
     /** The chat's server, and whether a LID had to be translated to match a pick. */
     private static String addressing(String raw, String key) {
-        int at = raw.lastIndexOf('@');
-        String server = at < 0 ? "no server" : raw.substring(at + 1);
+        String server = server(raw);
         return key.equals(raw) ? server : server + " (matched by phone jid)";
     }
 
@@ -308,13 +353,11 @@ public class ReadReceipts implements Hook {
 
     public String configSummary() {
         Scope scope = scope();
-        if (scope == Scope.EVERYONE) {
-            return "Applies to every chat";
+        if (!scope.picksChats()) {
+            return scope.summary();
         }
         int count = PatchDb.selectedChats(FEATURE).size();
-        String chats = count == 1 ? "1 chat" : count + " chats";
-        return String.format(Locale.US, scope == Scope.ONLY_LISTED
-                ? "Applies to %s" : "Applies to every chat except %s", chats);
+        return String.format(Locale.US, scope.summary(), count == 1 ? "1 chat" : count + " chats");
     }
 
     public Class<?> configScreen() {

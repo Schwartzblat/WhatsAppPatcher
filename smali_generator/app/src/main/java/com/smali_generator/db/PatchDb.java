@@ -283,6 +283,36 @@ public final class PatchDb {
     }
 
     /**
+     * Unpicks every chat for {@code feature}, and says how many there were.
+     *
+     * The set is emptied rather than dropped from the map: {@link
+     * #selectedChats} hands out the live set, so anything still holding one
+     * has to see the same answer this does.
+     */
+    public static int clearChatSelection(String feature) {
+        if (feature == null) {
+            return 0;
+        }
+        Set<String> chats = chatSelection.get(feature);
+        int cleared = chats == null ? 0 : chats.size();
+        if (chats != null) {
+            chats.clear();
+        }
+        SQLiteDatabase database = db;
+        if (database == null) {
+            Log.e(TAG, "PatchDb: clearChatSelection before init, cleared in memory only: " + feature);
+            return cleared;
+        }
+        try {
+            database.delete("chat_selection", "feature = ?", new String[]{feature});
+            Log.i(TAG, "PatchDb: " + feature + ": " + cleared + " chat(s) unpicked");
+        } catch (Throwable t) {
+            Log.e(TAG, "PatchDb: clearChatSelection failed", t);
+        }
+        return cleared;
+    }
+
+    /**
      * Notified once a message has been marked deleted and is visible to
      * {@link #isDeleted}. Storage stays UI-agnostic: the listener exists so a
      * renderer can refresh itself, and this class neither knows nor cares what
