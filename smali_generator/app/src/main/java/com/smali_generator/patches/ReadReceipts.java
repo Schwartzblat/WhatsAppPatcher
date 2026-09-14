@@ -6,6 +6,7 @@ import com.arthooks.ArtHooks;
 
 import com.smali_generator.Hook;
 import com.smali_generator.HookCategory;
+import com.smali_generator.db.LidJids;
 import com.smali_generator.db.PatchDb;
 import com.smali_generator.ui.ChatPickerActivity;
 
@@ -155,9 +156,14 @@ public class ReadReceipts implements Hook {
             return new Decision(true, scope, "chat unidentified");
         }
 
-        static Decision forChat(Scope scope, boolean picked) {
+        /**
+         * {@code addressing} is the one fact that explains a pick that stopped
+         * matching, and it names a server rather than a chat: the servers are a
+         * handful of constants, so logging one identifies nobody.
+         */
+        static Decision forChat(Scope scope, boolean picked, String addressing) {
             return new Decision(scope == Scope.ONLY_LISTED ? picked : !picked, scope,
-                    picked ? "chat is picked" : "chat is not picked");
+                    (picked ? "chat is picked" : "chat is not picked") + ", addressed by " + addressing);
         }
 
         @Override
@@ -184,7 +190,19 @@ public class ReadReceipts implements Hook {
         if (raw == null) {
             return Decision.unidentified(scope);
         }
-        return Decision.forChat(scope, PatchDb.isChatSelected(FEATURE, raw));
+        // The receipt path addresses an individual chat by LID and the picker
+        // knows it by phone number, so the two name the same chat differently;
+        // without this every individual pick misses and the scope reads it as
+        // an unpicked chat. See LidJids.
+        String key = LidJids.phoneJid(raw);
+        return Decision.forChat(scope, PatchDb.isChatSelected(FEATURE, key), addressing(raw, key));
+    }
+
+    /** The chat's server, and whether a LID had to be translated to match a pick. */
+    private static String addressing(String raw, String key) {
+        int at = raw.lastIndexOf('@');
+        String server = at < 0 ? "no server" : raw.substring(at + 1);
+        return key.equals(raw) ? server : server + " (matched by phone jid)";
     }
 
     /**

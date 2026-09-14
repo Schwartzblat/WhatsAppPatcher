@@ -21,6 +21,7 @@ import android.widget.RadioButton;
 import android.widget.RadioGroup;
 import android.widget.TextView;
 
+import com.smali_generator.db.LidJids;
 import com.smali_generator.db.PatchDb;
 import com.smali_generator.db.WhatsAppChats;
 import com.smali_generator.patches.ReadReceipts;
@@ -66,6 +67,10 @@ public class ChatPickerActivity extends Activity {
             getActionBar().setDisplayHomeAsUpEnabled(true);
         }
         PatchDb.init(getApplicationContext());
+        // A chat first opened since this process started has a LID the receipt
+        // path will translate but the cached map has never seen, and picking it
+        // here would then do nothing until a restart.
+        LidJids.invalidate();
         loadChats();
         setContentView(buildContent());
         applyScope(ReadReceipts.scope());
