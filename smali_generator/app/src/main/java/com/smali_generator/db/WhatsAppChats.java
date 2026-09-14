@@ -9,8 +9,10 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 /**
  * The chats the user can pick from, read out of WhatsApp's own contact store.
@@ -67,6 +69,7 @@ public final class WhatsAppChats {
     /**
      * Every chat worth offering, in name order.
      *
+     * One entry per chat, however many contact rows WhatsApp holds for it.
      * Nameless rows are left out, and that is most of the table: it holds an
      * entry for every number seen in any group -- thousands of them -- and a
      * list of bare numbers is not something anyone can pick from. The same cut
@@ -87,10 +90,14 @@ public final class WhatsAppChats {
                 return chats;
             }
             database = SQLiteDatabase.openDatabase(file.getPath(), null, SQLiteDatabase.OPEN_READONLY);
+            // Ordered by _id so that which row wins a jid is the same on every
+            // open, rather than whatever SQLite happens to return first.
             Cursor cursor = database.rawQuery(
                     "SELECT jid, display_name FROM wa_contacts"
                             + " WHERE jid IS NOT NULL"
-                            + " AND display_name IS NOT NULL AND display_name <> ''", null);
+                            + " AND display_name IS NOT NULL AND display_name <> ''"
+                            + " ORDER BY _id", null);
+            Set<String> seen = new HashSet<>();
             try {
                 while (cursor.moveToNext()) {
                     String jid = cursor.getString(0);
@@ -99,6 +106,16 @@ public final class WhatsAppChats {
                     }
                     String name = cursor.getString(1);
                     if (name == null || name.isEmpty()) {
+                        continue;
+                    }
+                    if (!seen.add(jid)) {
+                        // One row per address-book source, not per contact: the
+                        // table is keyed on (jid, raw_contact_id) with nothing
+                        // unique about the jid, so a contact the phone holds
+                        // under several accounts -- each messaging app adds its
+                        // own, and WhatsApp's own rows carry a negative
+                        // raw_contact_id -- arrives once per source and would
+                        // otherwise be listed that many times.
                         continue;
                     }
                     chats.add(new Chat(jid, name, jid.endsWith(GROUP_SUFFIX)));
