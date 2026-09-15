@@ -78,7 +78,11 @@ public final class SenderJids {
                 return cached;
             }
         }
-        List<Long> ids = search(tokens, minDigits, minName, cap);
+        // Unmodifiable because the same instance is handed to every caller of
+        // this key until it ages out: search runs on WhatsApp's search worker
+        // while invalidate() runs from the UI thread, and one caller sorting
+        // or clearing what it got back would corrupt every later cache hit.
+        List<Long> ids = Collections.unmodifiableList(search(tokens, minDigits, minName, cap));
         synchronized (CACHE) {
             CACHE.put(key, ids);
         }
@@ -86,9 +90,13 @@ public final class SenderJids {
     }
 
     private static List<Long> search(List<String> tokens, int minDigits, int minName, int cap) {
-        List<Candidate> candidates = new ArrayList<>();
-        Set<Long> seen = new HashSet<>();
+        // best() is inside the try too: it is where an out-of-range cap (Task 5
+        // draws it from a fixed list today, but nothing here may assume that)
+        // would throw, and this runs on WhatsApp's own search thread, where the
+        // total-method rule applies as much as it does to the query above it.
         try {
+            List<Candidate> candidates = new ArrayList<>();
+            Set<Long> seen = new HashSet<>();
             JidTable.Snapshot jids = JidTable.snapshot();
             for (String token : tokens) {
                 String digits = SearchQuery.digitsOf(token);
@@ -100,11 +108,11 @@ public final class SenderJids {
                     byName(jids, token, candidates, seen);
                 }
             }
+            return best(candidates, cap);
         } catch (Throwable t) {
             Log.e(TAG, "SenderJids: resolving the query found no senders", t);
             return Collections.emptyList();
         }
-        return best(candidates, cap);
     }
 
     /** Forgets the contact names and every cached answer. */
@@ -287,7 +295,13 @@ public final class SenderJids {
         try {
             while (cursor.moveToNext()) {
                 String jid = cursor.getString(0);
-                if (jid == null || names.containsKey(jid)) {
+                // wa_contacts mixes group rows in with contacts. A matched group
+                // name would add the group's own jid as a "sender": the term
+                // orTerms emits is the bare fts_jid:<token>, unanchored to any
+                // one message, so that token alone would surface every message
+                // in the group. Keeping only phone jids here is what keeps
+                // byName's "a group is never a sender" true.
+                if (jid == null || !jid.endsWith(USER_SUFFIX) || names.containsKey(jid)) {
                     continue;
                 }
                 for (int column = 1; column <= wanted.size(); column++) {
