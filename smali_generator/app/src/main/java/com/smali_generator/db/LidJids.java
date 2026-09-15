@@ -15,18 +15,15 @@ package com.smali_generator.db;
  * they are {@code @g.us} on both sides -- which is why picking a group worked
  * and picking a person did nothing.
  *
- * {@code msgstore.db} carries the map in {@code jid_map}, one row per pair of
- * row ids into its {@code jid} table. That is a 72 MB database and this is the
- * only query this patch makes against it: 6k rows joined by primary key, never
- * the message store proper.
+ * The LID/phone pairs themselves are read by {@link JidTable}, which the
+ * sender search shares: both features want the same two tables out of
+ * {@code msgstore.db}, one of them keyed by string and the other by row id,
+ * so the read lives there once rather than twice in two places that could
+ * drift apart.
  *
  * Best effort like everything else that reads WhatsApp's own tables: a schema
  * that moved degrades to an empty map, which leaves every LID untranslated --
  * exactly the behaviour from before this class existed.
- *
- * The read itself lives in {@link JidTable}, which the sender search shares:
- * both features want these two tables, and one of them wants row ids rather
- * than strings.
  */
 public final class LidJids {
     private static final String LID_SERVER = "lid";
