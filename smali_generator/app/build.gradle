@@ -35,6 +35,7 @@ android {
 dependencies {
     implementation libs.arthooks
     implementation libs.androidx.annotation.jvm
+    testImplementation libs.junit
 }
 
 tasks.whenTaskAdded { task ->
