@@ -1,5 +1,6 @@
 package com.smali_generator.patches;
 
+import android.os.SystemClock;
 import android.util.Log;
 
 import com.arthooks.ArtHooks;
@@ -65,6 +66,15 @@ public class SenderSearch implements Hook {
     private static volatile int tokenOffset;
     private static volatile int tokenRadix;
 
+    /**
+     * Whether the one-shot proof-of-life line below has fired.
+     *
+     * Same pattern as {@code loggedTabs}/{@code loggedButton}/{@code loggedCalls} in
+     * {@code MetaAiButton}: the search worker calls this on every keystroke, so logging
+     * every call would be both noise and a place the typed query could leak into logcat.
+     */
+    private static volatile boolean loggedMatch;
+
     /** native on purpose: a body here would be inlined into the hook and the backup would
      * silently answer for the original. ArtHooks rewrites its entry point. */
     static native String match_backup(Object thiz, Object context, Object searchData, String expression);
@@ -85,22 +95,49 @@ public class SenderSearch implements Hook {
     }
 
     private static String senderTerms(String expression) {
+        // Captured before any early return: whichever branch this call takes
+        // is the one the proof-of-life line describes, so it must fire from
+        // all of them -- not only the one that reaches SenderJids.resolve.
+        boolean firstCall = !loggedMatch;
         if (expression == null || expression.isEmpty() || SearchQuery.isChatScoped(expression)) {
+            if (firstCall) {
+                logFirstMatch(0, SearchQuery.isChatScoped(expression), 0, 0);
+            }
             return "";
         }
         List<String> tokens = SearchQuery.tokensOf(expression);
         if (tokens.isEmpty()) {
+            if (firstCall) {
+                logFirstMatch(0, false, 0, 0);
+            }
             return "";
         }
+        // Timed only on the first call: the question this answers is "how
+        // long did the one-time table read cost", not a per-keystroke metric.
+        long start = firstCall ? SystemClock.elapsedRealtime() : 0;
         List<Long> rows = SenderJids.resolve(tokens,
                 PatchDb.getInt(MIN_DIGITS_KEY, DEFAULT_MIN_DIGITS),
                 PatchDb.getInt(MIN_NAME_KEY, DEFAULT_MIN_NAME),
                 PatchDb.getInt(MAX_SENDERS_KEY, DEFAULT_MAX_SENDERS));
+        if (firstCall) {
+            logFirstMatch(tokens.size(), false, rows.size(), SystemClock.elapsedRealtime() - start);
+        }
         if (rows.isEmpty()) {
             return "";
         }
-        Log.i(TAG, "SenderSearch: " + tokens + " named " + rows.size() + " jid row(s)");
         return SearchQuery.orTerms(rows, tokenOffset, tokenRadix);
+    }
+
+    /**
+     * Proves the funnel was actually reached, exactly once, without the typed
+     * query in it -- unlike the per-keystroke line this replaced, which
+     * printed the tokens themselves and is a privacy smell in a patch whose
+     * whole point is reading someone's message index.
+     */
+    private static void logFirstMatch(int tokenCount, boolean chatScoped, int rowCount, long resolveMs) {
+        loggedMatch = true;
+        Log.i(TAG, "SenderSearch: funnel reached, tokens=" + tokenCount + ", chatScoped=" + chatScoped
+                + ", resolved=" + rowCount + " jid row(s), first resolve took " + resolveMs + "ms");
     }
 
     public String id() {
@@ -141,6 +178,12 @@ public class SenderSearch implements Hook {
             Method original = SenderSearch.class.getDeclaredMethod("match_backup",
                     Object.class, Object.class, Object.class, String.class);
             boolean hooked = ArtHooks.hook_function(funnel, replacement, original);
+            if (!hooked) {
+                // hook_function returning false means search runs unmodified
+                // with no exception anywhere -- the same silence as success,
+                // so it needs its own line at error level to be found at all.
+                Log.e(TAG, "SenderSearch: hook_function returned false, search was left as it was");
+            }
 
             Log.i(TAG, "SenderSearch: hooked on " + owner.getName()
                     + ".{{MESSAGE_SEARCH_METHOD_NAME}}, tokens are base " + tokenRadix
