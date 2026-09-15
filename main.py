@@ -15,6 +15,7 @@ from artifactory_generator.settings_screen import SettingsScreenFinder
 from artifactory_generator.read_receipts import ReadReceiptsFinder
 from artifactory_generator.meta_ai_button import MetaAiButtonFinder, MetaAiCallsButtonFinder
 from artifactory_generator.meta_ai_tab import MetaAiTabFinder
+from artifactory_generator.message_search import MessageSearchFinder
 
 
 def get_args():
@@ -60,7 +61,8 @@ def main():
         ReadReceiptsFinder(args),
         MetaAiButtonFinder(args),
         MetaAiCallsButtonFinder(args),
-        MetaAiTabFinder(args)
+        MetaAiTabFinder(args),
+        MessageSearchFinder(args)
     ]
     with Stitch(
             apk_path=args.apk_path,
