@@ -16,6 +16,7 @@ import com.smali_generator.patches.FirebaseParams;
 import com.smali_generator.patches.MetaAiButton;
 import com.smali_generator.patches.PackageManagerHook;
 import com.smali_generator.patches.ReadReceipts;
+import com.smali_generator.patches.SenderSearch;
 import com.smali_generator.patches.SettingsEntryHook;
 import com.smali_generator.patches.WhatsAppPlus;
 import com.smali_generator.patches.ZipFileHook;
@@ -58,6 +59,7 @@ public class InitProvider extends ContentProvider {
             new DeletedMessageIndicator(),
             new ReadReceipts(),
             new MetaAiButton(),
+            new SenderSearch(),
             new SettingsEntryHook(),
     };
 
