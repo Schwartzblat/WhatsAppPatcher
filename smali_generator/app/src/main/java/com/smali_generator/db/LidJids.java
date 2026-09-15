@@ -1,17 +1,5 @@
 package com.smali_generator.db;
 
-import android.content.Context;
-import android.database.Cursor;
-import android.database.sqlite.SQLiteDatabase;
-import android.util.Log;
-
-import com.smali_generator.utils.Utils;
-
-import java.io.File;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-
 /**
  * Turns the LID a chat is addressed by into the phone jid a pick is keyed on.
  *
@@ -35,22 +23,14 @@ import java.util.Map;
  * Best effort like everything else that reads WhatsApp's own tables: a schema
  * that moved degrades to an empty map, which leaves every LID untranslated --
  * exactly the behaviour from before this class existed.
+ *
+ * The read itself lives in {@link JidTable}, which the sender search shares:
+ * both features want these two tables, and one of them wants row ids rather
+ * than strings.
  */
 public final class LidJids {
-    private static final String TAG = "PATCH";
-    private static final String MSGSTORE_DB = "msgstore.db";
-
     private static final String LID_SERVER = "lid";
     private static final String HOSTED_LID_SUFFIX = ".lid";
-
-    /**
-     * LID jid to phone jid, or null while unread.
-     *
-     * Loaded whole rather than queried per receipt: it is a few thousand short
-     * strings, and the alternative is SQLite on the path that decides a
-     * receipt.
-     */
-    private static volatile Map<String, String> phoneByLid;
 
     private LidJids() {
     }
@@ -67,11 +47,7 @@ public final class LidJids {
         if (raw == null || !isLid(raw)) {
             return raw;
         }
-        Map<String, String> map = phoneByLid;
-        if (map == null) {
-            map = load();
-        }
-        String phone = map.get(raw);
+        String phone = JidTable.snapshot().phoneByLid.get(raw);
         return phone == null ? raw : phone;
     }
 
@@ -84,7 +60,7 @@ public final class LidJids {
      * here, so the screen that calls this never waits on msgstore.
      */
     public static void invalidate() {
-        phoneByLid = null;
+        JidTable.invalidate();
     }
 
     /** {@code @lid}, and the {@code @hosted.lid} variant business chats use. */
@@ -95,59 +71,5 @@ public final class LidJids {
         }
         String server = raw.substring(at + 1);
         return server.equals(LID_SERVER) || server.endsWith(HOSTED_LID_SUFFIX);
-    }
-
-    private static synchronized Map<String, String> load() {
-        Map<String, String> map = phoneByLid;
-        if (map == null) {
-            map = read();
-            phoneByLid = map;
-        }
-        return map;
-    }
-
-    private static Map<String, String> read() {
-        Context context = Utils.getApplicationContext();
-        if (context == null) {
-            Log.e(TAG, "LidJids: no application context, LIDs will not be translated");
-            return Collections.emptyMap();
-        }
-        Map<String, String> map = new HashMap<>();
-        SQLiteDatabase database = null;
-        try {
-            File file = context.getDatabasePath(MSGSTORE_DB);
-            if (!file.exists()) {
-                Log.e(TAG, "LidJids: " + MSGSTORE_DB + " is not where it was expected");
-                return map;
-            }
-            database = SQLiteDatabase.openDatabase(file.getPath(), null, SQLiteDatabase.OPEN_READONLY);
-            Cursor cursor = database.rawQuery(
-                    "SELECT lid.raw_string, phone.raw_string FROM jid_map pair"
-                            + " JOIN jid lid ON lid._id = pair.lid_row_id"
-                            + " JOIN jid phone ON phone._id = pair.jid_row_id", null);
-            try {
-                while (cursor.moveToNext()) {
-                    String lid = cursor.getString(0);
-                    String phone = cursor.getString(1);
-                    if (lid != null && phone != null) {
-                        map.put(lid, phone);
-                    }
-                }
-            } finally {
-                cursor.close();
-            }
-            Log.i(TAG, "LidJids: " + map.size() + " LID(s) carry a phone jid");
-        } catch (Throwable t) {
-            Log.e(TAG, "LidJids: could not read " + MSGSTORE_DB + ", LIDs will not be translated", t);
-        } finally {
-            if (database != null) {
-                try {
-                    database.close();
-                } catch (Throwable t) {
-                    Log.e(TAG, "LidJids: close failed", t);
-                }
-            }
-        }
-        return map;
     }
 }
