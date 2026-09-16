@@ -6,29 +6,14 @@ from stitch.artifactory_generator.SimpleArtifactoryFinder import SimpleArtifacto
 class MessageSearchFinder(SimpleArtifactoryFinder):
     """Finds the one method every message search funnels through, and how it names a jid.
 
-    WhatsApp assembles the FTS MATCH expression in two different places -- the
-    global/chat-scoped builder and the FTS-v2 variant -- but both, and the
-    starred search and the per-chat result counts, end in the same method: the
-    one that appends the ``fts_namespace:`` terms to an expression it is handed
-    and returns the finished string. Hooking it is what lets a patch add terms
-    that land inside the content group, with the namespace scoping still ANDed
-    around the outside.
-
-    Nothing about that method's name survives a release, so it is taken by the
-    one literal it must contain and by its shape: two reference parameters, a
-    ``String`` third parameter, a ``String`` return. Other methods in the class
-    share that signature, which is why the literal is required in the body
-    rather than anywhere in the class.
-
-    The second half is the encoding. ``fts_jid`` does not hold jids; it holds
-    two space-separated tokens, each ``Long.toString(jidRowId + 10, 36)`` over
-    the row id of WhatsApp's own jid table. Both integers are read out of the
-    encoder rather than written down here: they are the app's constants, not
-    this patch's, and a build that changes either would otherwise produce
-    tokens that match nothing while everything still compiles and runs.
-
-    The offset is optional. A build that encodes with no offset at all has no
-    ``add-long``, and the finder reports 0 rather than declining to fire.
+    Both expression builders, the starred search and the per-chat counts end in the
+    method that appends ``fts_namespace:`` to an expression it is handed. Its name
+    survives no release, so it is taken by that literal in the body -- other methods
+    in the class share its shape. The integers behind an ``fts_jid`` token,
+    ``Long.toString(jidRowId + 10, 36)``, are read out of the encoder rather than
+    written down: they are the app's, and a build that changed either would tokenise
+    to nothing while still compiling. The offset is optional -- no ``add-long`` at
+    all reports 0 rather than declining to fire.
     """
 
     NAMESPACE_RE = re.compile(r'const-string(?:/jumbo)? [vp]\d+, "fts_namespace:"')

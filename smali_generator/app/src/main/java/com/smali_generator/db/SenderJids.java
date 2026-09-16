@@ -25,14 +25,10 @@ import java.util.Set;
  * This resolves the same thing from the two tables directly, which also picks
  * up people who were never saved as contacts.
  *
- * SQLite answers it now, over the same rows. A leading-wildcard LIKE still
- * scans the {@code jid} table -- no index can serve "contains" -- but it scans
- * it in C and keeps nothing, where the version this replaced read all 88,903
- * rows into Java maps and then needed a cache to make that affordable. The
- * cache cost a staleness window, a list shared between the search worker and
- * the UI thread, and a load on the read receipt path that has nothing to do
- * with this feature. Open, query, close: nothing survives the call, so there
- * is nothing here that can go stale.
+ * SQLite answers it, over the same rows. A leading-wildcard LIKE still scans the
+ * {@code jid} table -- no index can serve "contains" -- but it scans it in C and
+ * keeps nothing, so there is no cache to go stale, to share between the search
+ * worker and the UI thread, or to load on the read receipt path.
  *
  * Everything is best effort: a table that moved yields no senders, and a search
  * with no senders is the search the app already does.
