@@ -34,9 +34,16 @@ import java.util.List;
  * Three things keep it from being louder than it should be:
  *
  * <ul>
- * <li>an <b>in-chat search is left alone</b>. The terms go on with OR, at the
- *     top level, so adding them to a search confined to one conversation would
- *     pull in every other one;</li>
+ * <li>an <b>in-chat search is skipped</b> when the expression carries WhatsApp's
+ *     own chat-scope shape, the quoted phrase {@code fts_jid: "0 <token>"}: the
+ *     terms this hook adds go on with OR, at the top level, so appending them
+ *     under that shape would pull in every other conversation. This guard was
+ *     never observed to fire on 2.26.36.71 -- an in-chat search there logged
+ *     {@code chatScoped=false} and still stayed in its own chat, because
+ *     WhatsApp confines it in the SQL around the MATCH clause, outside the
+ *     expression text this hook edits. It stays anyway: this repo has already
+ *     been bitten once by assuming the one path a release happened to exercise
+ *     was the only path there was;</li>
  * <li>a <b>quoted query is left alone</b>, since it carries no content terms
  *     and is a request for an exact phrase;</li>
  * <li>failure appends <b>nothing</b>, which is the search the app already
@@ -51,8 +58,14 @@ public class SenderSearch implements Hook {
     public static final String MIN_NAME_KEY = "sender_search_min_name";
     public static final String MAX_SENDERS_KEY = "sender_search_max_senders";
 
-    /** Below four digits a query matches most of the jid table. */
-    public static final int DEFAULT_MIN_DIGITS = 4;
+    /**
+     * A device run saw a 4-digit query alone produce 126 candidates against the
+     * default 64-sender cap -- the default would silently truncate at its own
+     * minimum. 5 is still the length of this feature's own worked example
+     * ("74164"), so raising it cannot break the case it was built for; 3 and 4
+     * stay reachable from the config screen for anyone who wants them.
+     */
+    public static final int DEFAULT_MIN_DIGITS = 5;
     public static final int DEFAULT_MIN_NAME = 3;
     /** Bounds the expression: every sender is one more term FTS has to union. */
     public static final int DEFAULT_MAX_SENDERS = 64;
@@ -74,6 +87,18 @@ public class SenderSearch implements Hook {
      * every call would be both noise and a place the typed query could leak into logcat.
      */
     private static volatile boolean loggedMatch;
+
+    /**
+     * Whether the one-shot "actually found somebody" line below has fired.
+     *
+     * Independent of {@link #loggedMatch}: WhatsApp debounces around 1.5s, so
+     * the very first invocation typically carries a single character, below
+     * any minimum, and resolves nobody. Every {@link #loggedMatch} line
+     * captured on a real device therefore read {@code resolved=0}, which looks
+     * like failure even though later calls in the same search resolved rows --
+     * this is the line that proves otherwise, whichever call earns it.
+     */
+    private static volatile boolean loggedHit;
 
     /** native on purpose: a body here would be inlined into the hook and the backup would
      * silently answer for the original. ArtHooks rewrites its entry point. */
@@ -112,15 +137,22 @@ public class SenderSearch implements Hook {
             }
             return "";
         }
-        // Timed only on the first call: the question this answers is "how
-        // long did the one-time table read cost", not a per-keystroke metric.
-        long start = firstCall ? SystemClock.elapsedRealtime() : 0;
+        // Timed on any call that could still earn the "first hit" line below,
+        // not only the very first call: which invocation is the first to
+        // resolve a row is not known in advance, so every untimed candidate
+        // would be a resolve this hook cannot ever report the cost of.
+        boolean timeThisCall = firstCall || !loggedHit;
+        long start = timeThisCall ? SystemClock.elapsedRealtime() : 0;
         List<Long> rows = SenderJids.resolve(tokens,
                 PatchDb.getInt(MIN_DIGITS_KEY, DEFAULT_MIN_DIGITS),
                 PatchDb.getInt(MIN_NAME_KEY, DEFAULT_MIN_NAME),
                 PatchDb.getInt(MAX_SENDERS_KEY, DEFAULT_MAX_SENDERS));
+        long elapsed = timeThisCall ? SystemClock.elapsedRealtime() - start : 0;
         if (firstCall) {
-            logFirstMatch(tokens.size(), false, rows.size(), SystemClock.elapsedRealtime() - start);
+            logFirstMatch(tokens.size(), false, rows.size(), elapsed);
+        }
+        if (!rows.isEmpty() && !loggedHit) {
+            logFirstHit(tokens.size(), rows.size(), elapsed);
         }
         if (rows.isEmpty()) {
             return "";
@@ -133,11 +165,26 @@ public class SenderSearch implements Hook {
      * query in it -- unlike the per-keystroke line this replaced, which
      * printed the tokens themselves and is a privacy smell in a patch whose
      * whole point is reading someone's message index.
+     *
+     * Fires on the very first call regardless of outcome, so on its own it
+     * reads as failure on every debounced first keystroke; {@link
+     * #logFirstHit} is the line that says the feature actually did something.
      */
     private static void logFirstMatch(int tokenCount, boolean chatScoped, int rowCount, long resolveMs) {
         loggedMatch = true;
         Log.i(TAG, "SenderSearch: funnel reached, tokens=" + tokenCount + ", chatScoped=" + chatScoped
                 + ", resolved=" + rowCount + " jid row(s), first resolve took " + resolveMs + "ms");
+    }
+
+    /**
+     * Proves the funnel did more than run -- it actually named somebody --
+     * exactly once, on whichever call first resolves at least one row. Never
+     * the query text, for the same reason {@link #logFirstMatch} omits it.
+     */
+    private static void logFirstHit(int tokenCount, int rowCount, long resolveMs) {
+        loggedHit = true;
+        Log.i(TAG, "SenderSearch: funnel matched somebody, tokens=" + tokenCount
+                + ", resolved=" + rowCount + " jid row(s), resolve took " + resolveMs + "ms");
     }
 
     public String id() {
