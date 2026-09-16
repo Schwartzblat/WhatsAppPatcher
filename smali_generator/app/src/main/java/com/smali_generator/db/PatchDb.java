@@ -238,6 +238,24 @@ public final class PatchDb {
         }
     }
 
+    /**
+     * A named whole-number setting, or {@code fallback} when nothing has been
+     * stored or what was stored is not a number. Shares the table, and the
+     * caching, with {@link #setFlag}.
+     */
+    public static int getInt(String key, int fallback) {
+        String value = settings.get(key);
+        if (value == null) {
+            return fallback;
+        }
+        try {
+            return Integer.parseInt(value);
+        } catch (NumberFormatException e) {
+            Log.e(TAG, "PatchDb: " + key + " is not a number: " + value);
+            return fallback;
+        }
+    }
+
     /** Whether {@code jid} is one of the chats picked for {@code feature}. */
     public static boolean isChatSelected(String feature, String jid) {
         if (feature == null || jid == null) {
