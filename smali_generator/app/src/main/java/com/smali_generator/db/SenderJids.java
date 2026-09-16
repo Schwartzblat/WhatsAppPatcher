@@ -253,6 +253,16 @@ public final class SenderJids {
                 Log.e(TAG, "SenderJids: wa_contacts has no jid column, no name is known");
                 return names;
             }
+            // Probed for the same reason as the name columns, though nothing
+            // selects it: readNameRows orders by _id, so a table without it
+            // makes the query throw, the catch upstairs swallow it, and the
+            // whole name search plus byNumber's "has a contact name" rank
+            // signal go quiet behind one logcat line. Declining here is the
+            // same loud degradation a missing name column already gets.
+            if (!columns.contains("_id")) {
+                Log.e(TAG, "SenderJids: wa_contacts has no _id column, no name is known");
+                return names;
+            }
             // Both name columns, because a group member who was never saved has
             // only the name they set for themselves. Whichever is present is
             // used; a saved name wins over a push name.
