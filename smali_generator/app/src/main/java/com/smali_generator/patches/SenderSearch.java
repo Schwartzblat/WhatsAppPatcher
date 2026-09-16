@@ -14,6 +14,7 @@ import com.smali_generator.ui.SenderSearchActivity;
 
 import java.lang.reflect.Executable;
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.util.List;
 
 /**
@@ -225,6 +226,20 @@ public class SenderSearch implements Hook {
 
             Executable funnel = ArtHooks.find_function(owner,
                     "{{MESSAGE_SEARCH_METHOD_NAME}}", "{{MESSAGE_SEARCH_METHOD_SIG}}");
+            // match_hook's leading Object thiz is the receiver of an instance
+            // method. R8 turns an instance method whose receiver goes unused
+            // into a static one and leaves the parameter list -- and so the
+            // descriptor the finder matches on -- untouched, so a release that
+            // staticized the funnel would hook cleanly and shift every argument
+            // by one: the query would be read out of searchData and the app
+            // handed a String where it expects a context. Declining loudly is
+            // the only honest outcome; a wrong hook that logs success is the
+            // failure this whole patch is written to avoid.
+            if (Modifier.isStatic(funnel.getModifiers())) {
+                Log.e(TAG, "SenderSearch: the funnel is static on this build, its shape changed;"
+                        + " search was left as it was");
+                return;
+            }
             Method replacement = SenderSearch.class.getDeclaredMethod("match_hook",
                     Object.class, Object.class, Object.class, String.class);
             Method original = SenderSearch.class.getDeclaredMethod("match_backup",
