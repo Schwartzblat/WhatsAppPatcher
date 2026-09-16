@@ -31,11 +31,34 @@ public class SearchQueryTest {
     }
 
     @Test
+    public void aTermThatIsNothingButTheWildcardIsNotAToken() {
+        // The prefix marker is all that is left once the word is stripped, and
+        // an empty token would resolve every contact rather than none.
+        assertTrue(SearchQuery.tokensOf("content:*").isEmpty());
+        assertTrue(SearchQuery.tokensOf("content:**").isEmpty());
+        assertEquals(Collections.singletonList("dad"), SearchQuery.tokensOf("content:* content:dad*"));
+    }
+
+    @Test
+    public void onlyATrailingWildcardIsStripped() {
+        // Trailing is WhatsApp's own prefix marker; anywhere else the character
+        // is part of what the user typed and belongs in the token.
+        assertEquals(Collections.singletonList("da*d"), SearchQuery.tokensOf("content:da*d"));
+        assertEquals(Collections.singletonList("da*d"), SearchQuery.tokensOf("content:da*d*"));
+    }
+
+    @Test
     public void tellsChatScopingApartFromContactResolution() {
         // The quoted, space-after-colon form is written only when the search is
         // scoped to one chat. Appending an OR'd term there would leak other
         // chats into an in-chat search.
         assertTrue(SearchQuery.isChatScoped("content:a fts_jid: \"0 2s\" OR fts_jid: \"1 2s\""));
+        // The outgoing half of the same pair on its own still means scoped: it
+        // is the quoted, space-after-colon form that says WhatsApp confined the
+        // query, and which direction it names is beside the point. Reading the
+        // "0 " marker specifically would leave this expression unrecognised and
+        // an in-chat search widened to every conversation.
+        assertTrue(SearchQuery.isChatScoped("content:a fts_jid: \"1 2s\""));
         assertFalse(SearchQuery.isChatScoped("content:a OR fts_jid:2s"));
         assertFalse(SearchQuery.isChatScoped(null));
     }
@@ -43,6 +66,7 @@ public class SearchQueryTest {
     @Test
     public void readsAPhoneNumberThroughItsSeparators() {
         assertEquals("9726574164", SearchQuery.digitsOf("+972-65 74164"));
+        assertEquals("9726574164", SearchQuery.digitsOf("(972)6574164"));
         assertEquals("74164", SearchQuery.digitsOf("74164"));
         assertEquals("", SearchQuery.digitsOf("dad"));
         assertEquals("", SearchQuery.digitsOf("74164a"));
