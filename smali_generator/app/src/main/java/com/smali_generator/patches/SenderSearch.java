@@ -10,7 +10,6 @@ import com.smali_generator.HookCategory;
 import com.smali_generator.db.PatchDb;
 import com.smali_generator.db.SenderJids;
 import com.smali_generator.search.SearchQuery;
-import com.smali_generator.ui.SenderSearchActivity;
 
 import java.lang.reflect.Executable;
 import java.lang.reflect.Method;
@@ -64,8 +63,9 @@ public class SenderSearch implements Hook {
      * A device run saw a 4-digit query alone produce 126 candidates against the
      * default 64-sender cap -- the default would silently truncate at its own
      * minimum. 5 is still the length of this feature's own worked example
-     * ("74164"), so raising it cannot break the case it was built for; 3 and 4
-     * stay reachable from the config screen for anyone who wants them.
+     * ("74164"), so raising it cannot break the case it was built for. All three
+     * numbers are read through {@link PatchDb#getInt} rather than inlined, so a
+     * screen that sets them is a screen and nothing else -- there is none today.
      */
     public static final int DEFAULT_MIN_DIGITS = 5;
     public static final int DEFAULT_MIN_NAME = 3;
@@ -244,10 +244,6 @@ public class SenderSearch implements Hook {
         return "From " + PatchDb.getInt(MIN_DIGITS_KEY, DEFAULT_MIN_DIGITS) + " digits or "
                 + PatchDb.getInt(MIN_NAME_KEY, DEFAULT_MIN_NAME) + " letters, up to "
                 + PatchDb.getInt(MAX_SENDERS_KEY, DEFAULT_MAX_SENDERS) + " people";
-    }
-
-    public Class<?> configScreen() {
-        return SenderSearchActivity.class;
     }
 
     public void load() {

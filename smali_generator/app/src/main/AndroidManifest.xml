@@ -23,12 +23,6 @@
             android:label="Read receipts"
             android:theme="@android:style/Theme.DeviceDefault.DayNight" />
 
-        <activity
-            android:name="com.smali_generator.ui.SenderSearchActivity"
-            android:exported="false"
-            android:label="Find messages by sender"
-            android:theme="@android:style/Theme.DeviceDefault.DayNight" />
-
     </application>
 
 </manifest>

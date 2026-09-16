@@ -256,11 +256,6 @@ public final class PatchDb {
         }
     }
 
-    /** Stores a whole-number setting. */
-    public static void setInt(String key, int value) {
-        setString(key, Integer.toString(value));
-    }
-
     /** Whether {@code jid} is one of the chats picked for {@code feature}. */
     public static boolean isChatSelected(String feature, String jid) {
         if (feature == null || jid == null) {
