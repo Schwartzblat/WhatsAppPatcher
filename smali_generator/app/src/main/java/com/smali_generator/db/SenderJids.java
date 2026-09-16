@@ -10,15 +10,10 @@ import com.smali_generator.utils.Utils;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
-import java.util.Map;
 import java.util.Set;
 
 /**
@@ -30,306 +25,206 @@ import java.util.Set;
  * This resolves the same thing from the two tables directly, which also picks
  * up people who were never saved as contacts.
  *
+ * SQLite answers it now, over the same rows. A leading-wildcard LIKE still
+ * scans the {@code jid} table -- no index can serve "contains" -- but it scans
+ * it in C and keeps nothing, where the version this replaced read all 88,903
+ * rows into Java maps and then needed a cache to make that affordable. The
+ * cache cost a staleness window, a list shared between the search worker and
+ * the UI thread, and a load on the read receipt path that has nothing to do
+ * with this feature. Open, query, close: nothing survives the call, so there
+ * is nothing here that can go stale.
+ *
  * Everything is best effort: a table that moved yields no senders, and a search
  * with no senders is the search the app already does.
  */
 public final class SenderJids {
     private static final String TAG = "PATCH";
     private static final String WA_DB = "wa.db";
+    private static final String MSGSTORE_DB = "msgstore.db";
 
     /** Individual chats. A group is never a sender. */
     private static final String USER_SUFFIX = "@s.whatsapp.net";
-
-    /** jid to the name WhatsApp shows for it, or null while unread. */
-    private static volatile Map<String, String> namesByJid;
-
-    /**
-     * The last few answers, because a search runs on every keystroke.
-     *
-     * Bounded because typing one more character is a different query, so an
-     * unbounded map would grow for the life of the session. Synchronized
-     * rather than concurrent: it is tiny, and what it guards is a scan of
-     * every jid, which is the cost worth not paying twice.
-     */
-    private static final int CACHE_SIZE = 8;
-    private static final Map<String, List<Long>> CACHE =
-            new LinkedHashMap<String, List<Long>>(CACHE_SIZE, 0.75f, true) {
-                @Override
-                protected boolean removeEldestEntry(Map.Entry<String, List<Long>> eldest) {
-                    return size() > CACHE_SIZE;
-                }
-            };
 
     private SenderJids() {
     }
 
     /**
-     * The jid rows every token names, best first, at most {@code cap} of them.
+     * The jid rows every token names, best first, naming at most {@code cap} people.
      *
      * A token is a number if it is digits and separators only and long enough
      * to be selective; otherwise it is a name. Both routes end in the same
      * place: phone jid rows, expanded to the LID rows that are the same person.
      */
     public static List<Long> resolve(List<String> tokens, int minDigits, int minName, int cap) {
-        String key = tokens + "|" + minDigits + "/" + minName + "/" + cap;
-        synchronized (CACHE) {
-            List<Long> cached = CACHE.get(key);
-            if (cached != null) {
-                return cached;
-            }
-        }
-        // Unmodifiable because the same instance is handed to every caller of
-        // this key until it ages out: search runs on WhatsApp's search worker
-        // while invalidate() runs from the UI thread, and one caller sorting
-        // or clearing what it got back would corrupt every later cache hit.
-        List<Long> ids = Collections.unmodifiableList(search(tokens, minDigits, minName, cap));
-        synchronized (CACHE) {
-            CACHE.put(key, ids);
-        }
-        return ids;
-    }
-
-    private static List<Long> search(List<String> tokens, int minDigits, int minName, int cap) {
-        // best() is inside the try too: it is where an out-of-range cap (Task 5
-        // draws it from a fixed list today, but nothing here may assume that)
-        // would throw, and this runs on WhatsApp's own search thread, where the
-        // total-method rule applies as much as it does to the query above it.
         try {
-            List<Candidate> candidates = new ArrayList<>();
-            Set<Long> seen = new HashSet<>();
-            JidTable.Snapshot jids = JidTable.snapshot();
-            for (String token : tokens) {
-                String digits = SearchQuery.digitsOf(token);
-                if (!digits.isEmpty()) {
-                    if (digits.length() >= minDigits) {
-                        byNumber(jids, digits, candidates, seen);
-                    }
-                } else if (token.length() >= minName) {
-                    byName(jids, token, candidates, seen);
-                }
-            }
-            return best(candidates, cap);
+            return search(tokens, minDigits, minName, cap);
         } catch (Throwable t) {
+            // On WhatsApp's own search worker, inside a query the user is
+            // waiting on: "nobody" is always a valid answer, a throw is not.
             Log.e(TAG, "SenderJids: resolving the query found no senders", t);
             return Collections.emptyList();
         }
     }
 
-    /** Forgets the contact names and every cached answer. */
-    public static void invalidate() {
-        namesByJid = null;
-        synchronized (CACHE) {
-            CACHE.clear();
+    private static List<Long> search(List<String> tokens, int minDigits, int minName, int cap) {
+        // A cap of zero or less means nobody, and must never reach a LIMIT,
+        // where a negative one means no limit at all and would put every match
+        // on the device into a single MATCH expression.
+        if (tokens == null || cap <= 0) {
+            return Collections.emptyList();
         }
-        JidTable.invalidate();
-    }
-
-    /** One jid row, with enough to rank it against the others. */
-    private static final class Candidate {
-        final long id;
-        final int rank;
-
-        Candidate(long id, int rank) {
-            this.id = id;
-            this.rank = rank;
+        List<String> numbers = new ArrayList<>();
+        List<String> names = new ArrayList<>();
+        for (String token : tokens) {
+            String digits = SearchQuery.digitsOf(token);
+            if (!digits.isEmpty()) {
+                if (digits.length() >= minDigits) {
+                    numbers.add(digits);
+                }
+            } else if (token != null && token.length() >= minName) {
+                names.add(token);
+            }
         }
-    }
-
-    private static void byNumber(JidTable.Snapshot jids, String digits,
-                                 List<Candidate> candidates, Set<Long> seen) {
-        Map<String, String> names = names();
-        for (Map.Entry<Long, String> entry : jids.rawById.entrySet()) {
-            String raw = entry.getValue();
-            // Only phone jids: the digits of a LID are an internal id, and
-            // matching them would surface a person nobody searched for.
-            if (!raw.endsWith(USER_SUFFIX)) {
-                continue;
-            }
-            String user = raw.substring(0, raw.length() - USER_SUFFIX.length());
-            if (!user.contains(digits)) {
-                continue;
-            }
-            int rank = (user.endsWith(digits) ? 0 : 2) + (names.containsKey(raw) ? 0 : 1);
-            add(jids, entry.getKey(), rank, candidates, seen);
+        // Decided before anything opens: most keystrokes carry a word too short
+        // to be selective, and those must not open a 72 MB database to find out.
+        if (numbers.isEmpty() && names.isEmpty()) {
+            return Collections.emptyList();
         }
-    }
-
-    private static void byName(JidTable.Snapshot jids, String token,
-                               List<Candidate> candidates, Set<Long> seen) {
-        String needle = token.toLowerCase(Locale.getDefault());
-        for (Map.Entry<String, String> entry : names().entrySet()) {
-            String name = entry.getValue().toLowerCase(Locale.getDefault());
-            if (!name.contains(needle)) {
-                continue;
+        Set<String> named = names.isEmpty() ? Collections.<String>emptySet() : namedJids(names, cap);
+        SQLiteDatabase jids = null;
+        try {
+            jids = open(MSGSTORE_DB, "no sender is known");
+            if (jids == null) {
+                return Collections.emptyList();
             }
-            Long id = jids.idByRaw.get(entry.getKey());
-            if (id == null) {
-                continue;
+            // Insertion ordered, so the cap cuts the same rows on every
+            // keystroke rather than wherever a hash happened to put them.
+            Set<Long> matched = new LinkedHashSet<>();
+            for (String digits : numbers) {
+                byNumber(jids, digits, cap, matched);
             }
-            add(jids, id, name.startsWith(needle) ? 0 : 2, candidates, seen);
+            rowsOf(jids, named, matched);
+            if (matched.isEmpty()) {
+                return Collections.emptyList();
+            }
+            List<Long> ids = expand(jids, matched, cap);
+            Log.i(TAG, "SenderJids: " + matched.size() + " jid row(s) matched, cap " + cap
+                    + ", " + ids.size() + " named after linking");
+            return ids;
+        } finally {
+            close(jids);
         }
     }
 
-    /**
-     * Adds a row and every row that is the same person.
-     *
-     * The linked rows carry the same rank: which of a person's jids the index
-     * happened to name a message with is not something the user chose between.
-     */
-    private static void add(JidTable.Snapshot jids, long id, int rank,
-                            List<Candidate> candidates, Set<Long> seen) {
-        if (seen.add(id)) {
-            candidates.add(new Candidate(id, rank));
+    /** Rows whose number contains {@code digits}, the ones ending with it first. */
+    private static void byNumber(SQLiteDatabase jids, String digits, int cap, Set<Long> matched) {
+        // The suffix in the pattern is what keeps a LID out of a number match:
+        // its digits are an internal id nobody dialled, and matching them
+        // surfaces a person nobody searched for. It holds no digit itself, so
+        // the needle can only match inside the number.
+        //
+        // digitsOf() guarantees [0-9]*, so this is the one pattern here built
+        // without escaping: it cannot carry a % or a _.
+        String contains = "%" + digits + "%" + USER_SUFFIX;
+        String endsWith = "%" + digits + USER_SUFFIX;
+        int before = matched.size();
+        // The CASE is the rank: a number ending with what was typed beats one
+        // that merely contains it, and _id breaks the tie so the cut lands in
+        // the same place on every keystroke.
+        collect(jids.rawQuery("SELECT _id FROM jid WHERE raw_string LIKE ?"
+                + " ORDER BY CASE WHEN raw_string LIKE ? THEN 0 ELSE 1 END, _id"
+                + " LIMIT " + cap, new String[]{contains, endsWith}), matched);
+        int found = matched.size() - before;
+        if (found > 0) {
+            Log.i(TAG, "SenderJids: a number matched " + found + " jid row(s)");
         }
-        List<Long> linked = jids.linkedIds.get(id);
-        if (linked == null) {
+    }
+
+    /** The rows for jid strings the contact store named. */
+    private static void rowsOf(SQLiteDatabase jids, Set<String> named, Set<Long> matched) {
+        if (named.isEmpty()) {
             return;
         }
-        for (Long other : linked) {
-            if (seen.add(other)) {
-                candidates.add(new Candidate(other, rank));
-            }
+        // Bound, unlike the row ids in expand(): these are strings out of a
+        // table whose contents this code does not control.
+        StringBuilder sql = new StringBuilder("SELECT _id FROM jid WHERE raw_string IN (");
+        for (int i = 0; i < named.size(); i++) {
+            sql.append(i == 0 ? "?" : ",?");
         }
-    }
-
-    private static List<Long> best(List<Candidate> candidates, int cap) {
-        Collections.sort(candidates, new Comparator<Candidate>() {
-            @Override
-            public int compare(Candidate left, Candidate right) {
-                if (left.rank != right.rank) {
-                    return left.rank < right.rank ? -1 : 1;
-                }
-                // Row id last so the order is the same on every keystroke:
-                // a set that reshuffles would make the cap cut differently
-                // each time and the results flicker.
-                return Long.compare(left.id, right.id);
-            }
-        });
-        List<Long> ids = new ArrayList<>(Math.min(cap, candidates.size()));
-        for (Candidate candidate : candidates) {
-            if (ids.size() >= cap) {
-                Log.i(TAG, "SenderJids: " + candidates.size() + " jid(s) matched, using the first " + cap);
-                break;
-            }
-            ids.add(candidate.id);
-        }
-        return ids;
+        sql.append(") ORDER BY _id");
+        collect(jids.rawQuery(sql.toString(), named.toArray(new String[0])), matched);
     }
 
     /**
-     * Every jid WhatsApp has a name for, contacts and push names alike.
+     * The phone jids WhatsApp holds a name containing one of {@code names} for.
      *
-     * Read whole and cached: a query runs on a keystroke, and the alternative
-     * is SQLite on that path. Deduped by jid, because {@code wa_contacts} is
-     * keyed on {@code (jid, raw_contact_id)} with nothing unique about the jid
-     * -- a contact the phone holds under several accounts has a row per source.
+     * Its own try/catch, not the caller's: a {@code wa.db} that moved must
+     * still leave the number half of the search working, and that half never
+     * touches this database.
      */
-    private static Map<String, String> names() {
-        Map<String, String> cached = namesByJid;
-        if (cached == null) {
-            cached = readNames();
-            namesByJid = cached;
-        }
-        return cached;
-    }
-
-    private static synchronized Map<String, String> readNames() {
-        Map<String, String> names = new HashMap<>();
-        Context context = Utils.getApplicationContext();
-        if (context == null) {
-            Log.e(TAG, "SenderJids: no application context, no name is known");
-            return names;
-        }
-        SQLiteDatabase database = null;
+    private static Set<String> namedJids(List<String> names, int cap) {
+        Set<String> jids = new LinkedHashSet<>();
+        SQLiteDatabase contacts = null;
         try {
-            File file = context.getDatabasePath(WA_DB);
-            if (!file.exists()) {
-                Log.e(TAG, "SenderJids: " + WA_DB + " is not where it was expected");
-                return names;
+            contacts = open(WA_DB, "no name is known");
+            if (contacts == null) {
+                return jids;
             }
-            database = SQLiteDatabase.openDatabase(file.getPath(), null, SQLiteDatabase.OPEN_READONLY);
-            Set<String> columns = columnsOf(database);
-            if (!columns.contains("jid")) {
-                Log.e(TAG, "SenderJids: wa_contacts has no jid column, no name is known");
-                return names;
+            List<String> columns = nameColumns(contacts);
+            if (columns.isEmpty()) {
+                return jids;
             }
-            // Probed for the same reason as the name columns, though nothing
-            // selects it: readNameRows orders by _id, so a table without it
-            // makes the query throw, the catch upstairs swallow it, and the
-            // whole name search plus byNumber's "has a contact name" rank
-            // signal go quiet behind one logcat line. Declining here is the
-            // same loud degradation a missing name column already gets.
-            if (!columns.contains("_id")) {
-                Log.e(TAG, "SenderJids: wa_contacts has no _id column, no name is known");
-                return names;
+            StringBuilder like = new StringBuilder();
+            for (String column : columns) {
+                if (like.length() > 0) {
+                    like.append(" OR ");
+                }
+                // ESCAPE because a typed name can carry a % or a _, and an
+                // unescaped one silently widens the match: "a_b" would find
+                // "axb". The Java comparison this replaced never had to care.
+                like.append(column).append(" LIKE ? ESCAPE '\\'");
             }
-            // Both name columns, because a group member who was never saved has
-            // only the name they set for themselves. Whichever is present is
-            // used; a saved name wins over a push name.
-            List<String> wanted = new ArrayList<>();
-            if (columns.contains("display_name")) {
-                wanted.add("display_name");
+            // The jid LIKE is the group exclusion, and it is load-bearing:
+            // wa_contacts carries @g.us rows too, and the term this feature
+            // appends names a jid rather than any one message, so a single
+            // matched group name would drag in every message in that group.
+            //
+            // Grouped rather than DISTINCT: wa_contacts is keyed on
+            // (jid, raw_contact_id) with nothing unique about the jid, so a
+            // contact the phone holds under several accounts has a row per
+            // source, and MIN(_id) fixes which of them decides the order.
+            String sql = "SELECT jid, MIN(_id) AS first_row FROM wa_contacts"
+                    + " WHERE jid LIKE '%" + USER_SUFFIX + "' AND (" + like + ")"
+                    + " GROUP BY jid ORDER BY first_row LIMIT " + cap;
+            String[] args = new String[columns.size()];
+            for (String name : names) {
+                if (jids.size() >= cap) {
+                    break;
+                }
+                Arrays.fill(args, "%" + escaped(name) + "%");
+                collectJids(contacts.rawQuery(sql, args), jids);
             }
-            if (columns.contains("wa_name")) {
-                wanted.add("wa_name");
+            if (!jids.isEmpty()) {
+                Log.i(TAG, "SenderJids: a name matched " + jids.size() + " contact(s) from " + columns);
             }
-            if (wanted.isEmpty()) {
-                Log.e(TAG, "SenderJids: wa_contacts has neither name column, no name is known");
-                return names;
-            }
-            readNameRows(database, wanted, names);
-            Log.i(TAG, "SenderJids: " + names.size() + " named jid(s) from " + wanted);
         } catch (Throwable t) {
             Log.e(TAG, "SenderJids: could not read " + WA_DB + ", no name is known", t);
         } finally {
-            if (database != null) {
-                try {
-                    database.close();
-                } catch (Throwable t) {
-                    Log.e(TAG, "SenderJids: close failed", t);
-                }
-            }
+            close(contacts);
         }
-        return names;
+        return jids;
     }
 
-    private static void readNameRows(SQLiteDatabase database, List<String> wanted, Map<String, String> names) {
-        StringBuilder sql = new StringBuilder("SELECT jid");
-        for (String column : wanted) {
-            sql.append(", ").append(column);
-        }
-        // Ordered by _id so that which row wins a jid is the same on every
-        // open, rather than whatever SQLite happens to return first.
-        sql.append(" FROM wa_contacts WHERE jid IS NOT NULL ORDER BY _id");
-        Cursor cursor = database.rawQuery(sql.toString(), null);
-        try {
-            while (cursor.moveToNext()) {
-                String jid = cursor.getString(0);
-                // wa_contacts mixes group rows in with contacts. A matched group
-                // name would add the group's own jid as a "sender": the term
-                // orTerms emits is the bare fts_jid:<token>, unanchored to any
-                // one message, so that token alone would surface every message
-                // in the group. Keeping only phone jids here is what keeps
-                // byName's "a group is never a sender" true.
-                if (jid == null || !jid.endsWith(USER_SUFFIX) || names.containsKey(jid)) {
-                    continue;
-                }
-                for (int column = 1; column <= wanted.size(); column++) {
-                    String name = cursor.getString(column);
-                    if (name != null && !name.isEmpty()) {
-                        names.put(jid, name);
-                        break;
-                    }
-                }
-            }
-        } finally {
-            cursor.close();
-        }
-    }
-
-    private static Set<String> columnsOf(SQLiteDatabase database) {
+    /**
+     * The name columns to search, or empty with the reason already logged.
+     *
+     * Probed rather than assumed, so a release that renamed one degrades to no
+     * name search instead of throwing. {@code _id} is probed for the same
+     * reason though nothing selects it: the query orders by it.
+     */
+    private static List<String> nameColumns(SQLiteDatabase contacts) {
         Set<String> columns = new LinkedHashSet<>();
-        Cursor cursor = database.rawQuery("PRAGMA table_info(wa_contacts)", null);
+        Cursor cursor = contacts.rawQuery("PRAGMA table_info(wa_contacts)", null);
         try {
             int name = cursor.getColumnIndex("name");
             while (cursor.moveToNext()) {
@@ -341,6 +236,128 @@ public final class SenderJids {
         } finally {
             cursor.close();
         }
-        return columns;
+        List<String> wanted = new ArrayList<>();
+        if (!columns.contains("jid") || !columns.contains("_id")) {
+            Log.e(TAG, "SenderJids: wa_contacts has no jid or _id column, no name is known");
+            return wanted;
+        }
+        // Both, because a group member who was never saved as a contact has
+        // only the name they set for themselves.
+        if (columns.contains("display_name")) {
+            wanted.add("display_name");
+        }
+        if (columns.contains("wa_name")) {
+            wanted.add("wa_name");
+        }
+        if (wanted.isEmpty()) {
+            Log.e(TAG, "SenderJids: wa_contacts has neither name column, no name is known");
+        }
+        return wanted;
+    }
+
+    /**
+     * The first {@code cap} matches, plus the rows that are the same people.
+     *
+     * A group sender is addressed by LID while a contact is matched by their
+     * phone number, so naming one of a person's rows and not the other names
+     * none of their messages in groups. The expansion follows the cap rather
+     * than competing with it: the cap counts people, and a person's other jid
+     * rows are the same person.
+     */
+    private static List<Long> expand(SQLiteDatabase jids, Set<Long> matched, int cap) {
+        List<Long> ids = new ArrayList<>(Math.min(cap, matched.size()));
+        // Inlined rather than bound: these are row ids just read out of this
+        // same database, so there is nothing to escape, and binding each of
+        // them twice would bring the statement within reach of SQLite's limit
+        // on bound variables.
+        StringBuilder seeds = new StringBuilder();
+        for (Long id : matched) {
+            if (ids.size() >= cap) {
+                break;
+            }
+            ids.add(id);
+            if (seeds.length() > 0) {
+                seeds.append(',');
+            }
+            seeds.append(id.longValue());
+        }
+        Set<Long> seen = new LinkedHashSet<>(ids);
+        Cursor cursor = jids.rawQuery("SELECT lid_row_id, jid_row_id FROM jid_map"
+                + " WHERE jid_row_id IN (" + seeds + ") OR lid_row_id IN (" + seeds + ")", null);
+        try {
+            while (cursor.moveToNext()) {
+                // Both ends: which of them was the seed is not worth asking,
+                // since the seed is already in the set and the other is the
+                // partner this is here for.
+                for (int column = 0; column < 2; column++) {
+                    long id = cursor.getLong(column);
+                    if (seen.add(id)) {
+                        ids.add(id);
+                    }
+                }
+            }
+        } finally {
+            cursor.close();
+        }
+        return ids;
+    }
+
+    private static void collect(Cursor cursor, Set<Long> ids) {
+        try {
+            while (cursor.moveToNext()) {
+                ids.add(cursor.getLong(0));
+            }
+        } finally {
+            cursor.close();
+        }
+    }
+
+    private static void collectJids(Cursor cursor, Set<String> jids) {
+        try {
+            while (cursor.moveToNext()) {
+                jids.add(cursor.getString(0));
+            }
+        } finally {
+            cursor.close();
+        }
+    }
+
+    /** A LIKE needle out of text somebody typed. */
+    private static String escaped(String token) {
+        StringBuilder needle = new StringBuilder(token.length() + 4);
+        for (int i = 0; i < token.length(); i++) {
+            char c = token.charAt(i);
+            if (c == '%' || c == '_' || c == '\\') {
+                needle.append('\\');
+            }
+            needle.append(c);
+        }
+        return needle.toString();
+    }
+
+    /** The database, read only, or null with the reason already logged. */
+    private static SQLiteDatabase open(String name, String consequence) {
+        Context context = Utils.getApplicationContext();
+        if (context == null) {
+            Log.e(TAG, "SenderJids: no application context, " + consequence);
+            return null;
+        }
+        File file = context.getDatabasePath(name);
+        if (!file.exists()) {
+            Log.e(TAG, "SenderJids: " + name + " is not where it was expected");
+            return null;
+        }
+        return SQLiteDatabase.openDatabase(file.getPath(), null, SQLiteDatabase.OPEN_READONLY);
+    }
+
+    private static void close(SQLiteDatabase database) {
+        if (database == null) {
+            return;
+        }
+        try {
+            database.close();
+        } catch (Throwable t) {
+            Log.e(TAG, "SenderJids: close failed", t);
+        }
     }
 }
