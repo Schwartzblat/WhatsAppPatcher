@@ -240,12 +240,6 @@ public class SenderSearch implements Hook {
         return HookCategory.SEARCH;
     }
 
-    public String configSummary() {
-        return "From " + PatchDb.getInt(MIN_DIGITS_KEY, DEFAULT_MIN_DIGITS) + " digits or "
-                + PatchDb.getInt(MIN_NAME_KEY, DEFAULT_MIN_NAME) + " letters, up to "
-                + PatchDb.getInt(MAX_SENDERS_KEY, DEFAULT_MAX_SENDERS) + " people";
-    }
-
     public void load() {
         try {
             // Parsed rather than inlined as literals: an unsubstituted

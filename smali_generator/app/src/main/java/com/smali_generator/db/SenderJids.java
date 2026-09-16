@@ -45,6 +45,18 @@ public final class SenderJids {
     /** Individual chats. A group is never a sender. */
     private static final String USER_SUFFIX = "@s.whatsapp.net";
 
+    /**
+     * The most senders one search may name, whatever is asked for.
+     *
+     * Not a judgement about how wide the net should be: the jids a name matched
+     * become one bound parameter each in {@link #rowsOf}, up to 2 * cap - 1 of
+     * them, and SQLite refuses a statement carrying more than 999. Nothing
+     * writes {@code sender_search_max_senders} today, so only the default of 64
+     * ever arrives here -- the bound is what keeps a settings screen from
+     * reintroducing that throw without anyone remembering this arithmetic.
+     */
+    private static final int MAX_CAP = 256;
+
     private SenderJids() {
     }
 
@@ -66,13 +78,14 @@ public final class SenderJids {
         }
     }
 
-    private static List<Long> search(List<String> tokens, int minDigits, int minName, int cap) {
+    private static List<Long> search(List<String> tokens, int minDigits, int minName, int requested) {
         // A cap of zero or less means nobody, and must never reach a LIMIT,
         // where a negative one means no limit at all and would put every match
         // on the device into a single MATCH expression.
-        if (tokens == null || cap <= 0) {
+        if (tokens == null || requested <= 0) {
             return Collections.emptyList();
         }
+        int cap = Math.min(requested, MAX_CAP);
         List<String> numbers = new ArrayList<>();
         List<String> names = new ArrayList<>();
         for (String token : tokens) {
