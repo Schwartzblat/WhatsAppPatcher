@@ -93,16 +93,26 @@ public final class SearchQuery {
     }
 
     /**
-     * Terms that OR onto the end of an expression.
+     * Terms that OR onto the end of a finished expression, each repeating the
+     * scope that expression already carries.
      *
-     * They go at the end so the namespace terms the hooked method appends stay
-     * ANDed around the whole group: FTS3 has no parentheses to say that with,
-     * only left-to-right evaluation.
+     * The hooked method returns {@code expression + " " + namespaceTerms}: its
+     * own terms are appended, not prepended, verified in the smali of three
+     * releases. In FTS3/4 AND binds tighter than OR, so an expression of the
+     * form {@code a ns OR b ns} parses as {@code (a AND ns) OR (b AND ns)} --
+     * every OR'd group keeps the scope -- while {@code a ns OR b} parses as
+     * {@code a OR (b AND ns)}, which quietly strips the scope off what the
+     * user typed. Repeating the suffix per term is what keeps this patch from
+     * changing the meaning of a query it did not add anything to.
+     *
+     * An empty suffix yields the bare {@code OR fts_jid:<token>} form, which is
+     * the whole expression when the hooked method contributes no terms.
      */
-    public static String orTerms(List<Long> jidRowIds, int offset, int radix) {
+    public static String orTerms(List<Long> jidRowIds, int offset, int radix, String suffix) {
+        String scope = suffix == null ? "" : suffix;
         StringBuilder terms = new StringBuilder();
         for (Long jidRowId : jidRowIds) {
-            terms.append(" OR fts_jid:").append(token(jidRowId, offset, radix));
+            terms.append(" OR fts_jid:").append(token(jidRowId, offset, radix)).append(scope);
         }
         return terms.toString();
     }

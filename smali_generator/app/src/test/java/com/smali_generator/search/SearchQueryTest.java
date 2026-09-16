@@ -59,7 +59,19 @@ public class SearchQueryTest {
 
     @Test
     public void assemblesTermsThatOrOntoTheEndOfAnExpression() {
-        assertEquals(" OR fts_jid:b OR fts_jid:c", SearchQuery.orTerms(Arrays.asList(1L, 2L), 10, 36));
-        assertEquals("", SearchQuery.orTerms(Collections.<Long>emptyList(), 10, 36));
+        assertEquals(" OR fts_jid:b OR fts_jid:c", SearchQuery.orTerms(Arrays.asList(1L, 2L), 10, 36, ""));
+        assertEquals("", SearchQuery.orTerms(Collections.<Long>emptyList(), 10, 36, ""));
+        assertEquals("", SearchQuery.orTerms(Collections.<Long>emptyList(), 10, 36, " fts_namespace:fi"));
+    }
+
+    @Test
+    public void everyTermRepeatsTheScopeTheExpressionAlreadyCarries() {
+        // AND binds tighter than OR, so the suffix has to sit on each OR'd
+        // group. Without the repetition this reads
+        // "content:dad OR (fts_jid:b AND fts_namespace:fi)" and the word the
+        // user actually typed escapes the namespace the app scoped it to.
+        assertEquals(" OR fts_jid:b fts_namespace:fi OR fts_jid:c fts_namespace:fi",
+                SearchQuery.orTerms(Arrays.asList(1L, 2L), 10, 36, " fts_namespace:fi"));
+        assertEquals(" OR fts_jid:b", SearchQuery.orTerms(Collections.singletonList(1L), 10, 36, null));
     }
 }

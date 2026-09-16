@@ -107,21 +107,56 @@ public class SenderSearch implements Hook {
     static native String match_backup(Object thiz, Object context, Object searchData, String expression);
 
     static String match_hook(Object thiz, Object context, Object searchData, String expression) {
-        String extended = expression;
+        // The backup runs on the expression exactly as WhatsApp built it, and
+        // exactly once. Its answer is both the query the app would have run and
+        // the only place the scope terms it appends can be read from -- there is
+        // no accessor for them, and they have to be repeated onto every term
+        // this hook adds. Extending the expression before the call instead would
+        // leave those terms ANDed onto the last added term alone.
+        //
+        // Outside the try on purpose: the funnel throws IllegalStateException on
+        // a query that is entirely NOTs, and that throw belongs to the app. On
+        // the unmodified expression it lands exactly where it would unpatched.
+        String finished = match_backup(thiz, context, searchData, expression);
         try {
-            String terms = senderTerms(expression);
+            // Not a shape the funnel has ever returned, but concatenating onto
+            // it would hand SQLite the four characters "null" as a search term.
+            if (finished == null) {
+                return null;
+            }
+            String terms = senderTerms(expression, suffixOf(expression, finished));
             if (!terms.isEmpty()) {
-                extended = expression + terms;
+                return finished + terms;
             }
         } catch (Throwable t) {
             // A throw here lands in the middle of building a query the user is
-            // waiting on. The unmodified expression is always a valid answer.
+            // waiting on. What the app itself built is always a valid answer.
             Log.e(TAG, "SenderSearch: the query was left as WhatsApp built it", t);
         }
-        return match_backup(thiz, context, searchData, extended);
+        return finished;
     }
 
-    private static String senderTerms(String expression) {
+    /**
+     * What the hooked method appended to {@code expression}, or "".
+     *
+     * On every release read so far that is {@code " " + namespaceTerms}, which
+     * each added term has to repeat to stay scoped -- see {@link
+     * SearchQuery#orTerms}. The empty answer is a deliberate fallback, not an
+     * oversight: a build that rewrites the expression instead of appending to
+     * it, or that appends nothing, leaves nothing safe to repeat, and the bare
+     * terms are then exactly what this hook shipped before it repeated
+     * anything. Guessing a suffix out of a string this code did not recognise
+     * would be the one way to corrupt a query it means to leave alone.
+     */
+    private static String suffixOf(String expression, String finished) {
+        if (expression == null || finished == null
+                || !finished.startsWith(expression) || finished.length() == expression.length()) {
+            return "";
+        }
+        return finished.substring(expression.length());
+    }
+
+    private static String senderTerms(String expression, String suffix) {
         // Captured before any early return: whichever branch this call takes
         // is the one the proof-of-life line describes, so it must fire from
         // all of them -- not only the one that reaches SenderJids.resolve.
@@ -159,7 +194,7 @@ public class SenderSearch implements Hook {
         if (rows.isEmpty()) {
             return "";
         }
-        return SearchQuery.orTerms(rows, tokenOffset, tokenRadix);
+        return SearchQuery.orTerms(rows, tokenOffset, tokenRadix, suffix);
     }
 
     /**
