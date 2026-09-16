@@ -10,6 +10,7 @@ import com.smali_generator.HookCategory;
 import com.smali_generator.db.PatchDb;
 import com.smali_generator.db.SenderJids;
 import com.smali_generator.search.SearchQuery;
+import com.smali_generator.ui.SenderSearchActivity;
 
 import java.lang.reflect.Executable;
 import java.lang.reflect.Method;
@@ -207,6 +208,10 @@ public class SenderSearch implements Hook {
         return "From " + PatchDb.getInt(MIN_DIGITS_KEY, DEFAULT_MIN_DIGITS) + " digits or "
                 + PatchDb.getInt(MIN_NAME_KEY, DEFAULT_MIN_NAME) + " letters, up to "
                 + PatchDb.getInt(MAX_SENDERS_KEY, DEFAULT_MAX_SENDERS) + " people";
+    }
+
+    public Class<?> configScreen() {
+        return SenderSearchActivity.class;
     }
 
     public void load() {
