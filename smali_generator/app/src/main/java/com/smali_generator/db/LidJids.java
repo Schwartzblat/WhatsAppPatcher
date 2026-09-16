@@ -15,11 +15,14 @@ package com.smali_generator.db;
  * they are {@code @g.us} on both sides -- which is why picking a group worked
  * and picking a person did nothing.
  *
- * The LID/phone pairs themselves are read by {@link JidTable}, which the
- * sender search shares: both features want the same two tables out of
- * {@code msgstore.db}, one of them keyed by string and the other by row id,
- * so the read lives there once rather than twice in two places that could
- * drift apart.
+ * The pairs themselves are read by {@link JidTable}, which the sender search
+ * shares -- both features want the same two tables out of {@code msgstore.db},
+ * so the knowledge of how to read them lives there once rather than twice in
+ * two places that could drift apart. Only the knowledge, though: this asks for
+ * {@link JidTable#phoneByLid()}, the cheap tier, which is the one
+ * {@code jid_map} join this class always did and nothing more. Deciding a read
+ * receipt must not pull in the whole jid table on behalf of a search feature
+ * the user may never have switched on.
  *
  * Best effort like everything else that reads WhatsApp's own tables: a schema
  * that moved degrades to an empty map, which leaves every LID untranslated --
@@ -44,7 +47,7 @@ public final class LidJids {
         if (raw == null || !isLid(raw)) {
             return raw;
         }
-        String phone = JidTable.snapshot().phoneByLid.get(raw);
+        String phone = JidTable.phoneByLid().get(raw);
         return phone == null ? raw : phone;
     }
 

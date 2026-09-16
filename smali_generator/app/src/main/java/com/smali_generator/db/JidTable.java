@@ -17,36 +17,50 @@ import java.util.Map;
 /**
  * WhatsApp's jid table, and the LID/phone pairs that join rows of it.
  *
- * Two features need this data and they need it differently: translating a LID
- * to a phone jid wants strings, and naming a jid the way the search index does
- * wants row ids. Both come out of the same two tables, so they are read once
- * here rather than twice in two places that could drift apart.
+ * Two features need this data and they need it differently, and the difference
+ * is what this class is split along:
+ *
+ * <ul>
+ * <li>translating a LID to a phone jid wants <b>strings for the pairs only</b>.
+ *     That is {@link #phoneByLid()}: one join over {@code jid_map}, a few
+ *     thousand short rows, and it is on the path that decides a read receipt;</li>
+ * <li>naming a jid the way the search index does wants <b>row ids for every
+ *     jid</b>. That is {@link #snapshot()}: the whole {@code jid} table, 88,903
+ *     rows and ~220 ms on the device this was measured on, held for the life of
+ *     the process.</li>
+ * </ul>
+ *
+ * The two tiers are read and cached independently, and each is read only when
+ * something asks for it. That is the point of the split: the receipt path
+ * predates the sender search and must not start paying for it, and a user who
+ * never enables the search must never load the big tier at all.
  *
  * {@code msgstore.db} is 72 MB and these are the only queries this patch makes
- * against it: a few thousand short rows from {@code jid}, and the row-id pairs
- * from {@code jid_map}. The message store proper stays shut.
+ * against it. The message store proper stays shut.
  *
  * Best effort like everything else that reads WhatsApp's own tables. A schema
- * that moved degrades to an empty snapshot, which leaves every caller behaving
- * as it did before this class existed.
+ * that moved degrades to an empty answer, which leaves every caller behaving as
+ * it did before this class existed.
  */
 public final class JidTable {
     private static final String TAG = "PATCH";
     private static final String MSGSTORE_DB = "msgstore.db";
 
+    /** The cheap tier: LID jid string to phone jid string, or null while unread. */
+    private static volatile Map<String, String> phoneByLid;
+
+    /** The full tier: every row of {@code jid}, by id and by string, or null while unread. */
     private static volatile Snapshot snapshot;
 
     private JidTable() {
     }
 
-    /** Everything read out of the two tables, as one immutable object. */
+    /** Everything the full tier reads, as one immutable object. */
     public static final class Snapshot {
         /** Row id to raw jid string, for every row of {@code jid}. */
         public final Map<Long, String> rawById;
         /** The reverse, for looking a jid up by the string a contact row holds. */
         public final Map<String, Long> idByRaw;
-        /** LID jid string to phone jid string, which is what {@link LidJids} answers from. */
-        public final Map<String, String> phoneByLid;
         /**
          * Row id to the row ids it is paired with, in both directions.
          *
@@ -56,79 +70,151 @@ public final class JidTable {
          */
         public final Map<Long, List<Long>> linkedIds;
 
-        Snapshot(Map<Long, String> rawById, Map<String, Long> idByRaw,
-                 Map<String, String> phoneByLid, Map<Long, List<Long>> linkedIds) {
+        Snapshot(Map<Long, String> rawById, Map<String, Long> idByRaw, Map<Long, List<Long>> linkedIds) {
             this.rawById = Collections.unmodifiableMap(rawById);
             this.idByRaw = Collections.unmodifiableMap(idByRaw);
-            this.phoneByLid = Collections.unmodifiableMap(phoneByLid);
             this.linkedIds = Collections.unmodifiableMap(linkedIds);
         }
     }
 
-    /** The tables, read on first use. Never null. */
+    /**
+     * The LID/phone pairs, read on first use. Never null.
+     *
+     * Deliberately not served out of {@link #snapshot()}, though the data is a
+     * subset of it: this is what a read receipt calls, and answering it would
+     * otherwise mean reading the whole jid table on the receipt path for the
+     * benefit of a feature the user may never have switched on.
+     */
+    public static Map<String, String> phoneByLid() {
+        Map<String, String> current = phoneByLid;
+        if (current == null) {
+            current = loadPairs();
+        }
+        return current;
+    }
+
+    /** The whole jid table, read on first use. Never null. */
     public static Snapshot snapshot() {
         Snapshot current = snapshot;
         if (current == null) {
-            current = load();
+            current = loadSnapshot();
         }
         return current;
     }
 
     /**
-     * Forgets the snapshot so the next caller rereads it.
+     * Forgets both tiers so the next caller of each rereads it.
      *
      * A contact that got its LID after this process started -- a chat opened
      * for the first time today -- would otherwise be invisible to anything
      * keyed on it until the next restart. The reread is left to whoever asks
-     * next, so the screen that calls this never waits on msgstore.
+     * next, so the screen that calls this never waits on msgstore, and a tier
+     * nobody asks for again is never reread at all.
      */
     public static void invalidate() {
+        phoneByLid = null;
         snapshot = null;
     }
 
-    private static synchronized Snapshot load() {
+    private static synchronized Map<String, String> loadPairs() {
+        Map<String, String> current = phoneByLid;
+        if (current == null) {
+            current = readPairs();
+            phoneByLid = current;
+        }
+        return current;
+    }
+
+    private static synchronized Snapshot loadSnapshot() {
         Snapshot current = snapshot;
         if (current == null) {
-            current = read();
+            current = readSnapshot();
             snapshot = current;
         }
         return current;
     }
 
-    private static Snapshot read() {
-        Map<Long, String> rawById = new HashMap<>();
-        Map<String, Long> idByRaw = new HashMap<>();
-        Map<String, String> phoneByLid = new HashMap<>();
-        Map<Long, List<Long>> linkedIds = new HashMap<>();
-
-        Context context = Utils.getApplicationContext();
-        if (context == null) {
-            Log.e(TAG, "JidTable: no application context, no jid is known");
-            return new Snapshot(rawById, idByRaw, phoneByLid, linkedIds);
-        }
+    private static Map<String, String> readPairs() {
+        Map<String, String> pairs = new HashMap<>();
         SQLiteDatabase database = null;
         try {
-            File file = context.getDatabasePath(MSGSTORE_DB);
-            if (!file.exists()) {
-                Log.e(TAG, "JidTable: " + MSGSTORE_DB + " is not where it was expected");
-                return new Snapshot(rawById, idByRaw, phoneByLid, linkedIds);
+            database = open("LIDs will not be translated");
+            if (database == null) {
+                return Collections.unmodifiableMap(pairs);
             }
-            database = SQLiteDatabase.openDatabase(file.getPath(), null, SQLiteDatabase.OPEN_READONLY);
+            // Joined in SQL rather than in this process: without the full tier
+            // in memory there is nothing here to join against, and the join is
+            // by primary key over the few thousand rows jid_map actually has.
+            Cursor cursor = database.rawQuery(
+                    "SELECT lid.raw_string, phone.raw_string FROM jid_map pair"
+                            + " JOIN jid lid ON lid._id = pair.lid_row_id"
+                            + " JOIN jid phone ON phone._id = pair.jid_row_id", null);
+            try {
+                while (cursor.moveToNext()) {
+                    String lid = cursor.getString(0);
+                    String phone = cursor.getString(1);
+                    if (lid != null && phone != null) {
+                        pairs.put(lid, phone);
+                    }
+                }
+            } finally {
+                cursor.close();
+            }
+            Log.i(TAG, "JidTable: " + pairs.size() + " LID(s) carry a phone jid");
+        } catch (Throwable t) {
+            Log.e(TAG, "JidTable: could not read " + MSGSTORE_DB + ", LIDs will not be translated", t);
+        } finally {
+            close(database);
+        }
+        return Collections.unmodifiableMap(pairs);
+    }
+
+    private static Snapshot readSnapshot() {
+        Map<Long, String> rawById = new HashMap<>();
+        Map<String, Long> idByRaw = new HashMap<>();
+        Map<Long, List<Long>> linkedIds = new HashMap<>();
+
+        SQLiteDatabase database = null;
+        try {
+            database = open("no jid is known");
+            if (database == null) {
+                return new Snapshot(rawById, idByRaw, linkedIds);
+            }
             readJids(database, rawById, idByRaw);
-            readPairs(database, rawById, phoneByLid, linkedIds);
-            Log.i(TAG, "JidTable: " + rawById.size() + " jid(s), " + phoneByLid.size() + " LID pair(s)");
+            readLinks(database, linkedIds);
+            Log.i(TAG, "JidTable: " + rawById.size() + " jid(s), " + linkedIds.size() + " linked row(s)");
         } catch (Throwable t) {
             Log.e(TAG, "JidTable: could not read " + MSGSTORE_DB + ", no jid is known", t);
         } finally {
-            if (database != null) {
-                try {
-                    database.close();
-                } catch (Throwable t) {
-                    Log.e(TAG, "JidTable: close failed", t);
-                }
-            }
+            close(database);
         }
-        return new Snapshot(rawById, idByRaw, phoneByLid, linkedIds);
+        return new Snapshot(rawById, idByRaw, linkedIds);
+    }
+
+    /** The database, or null with the reason already logged. */
+    private static SQLiteDatabase open(String consequence) {
+        Context context = Utils.getApplicationContext();
+        if (context == null) {
+            Log.e(TAG, "JidTable: no application context, " + consequence);
+            return null;
+        }
+        File file = context.getDatabasePath(MSGSTORE_DB);
+        if (!file.exists()) {
+            Log.e(TAG, "JidTable: " + MSGSTORE_DB + " is not where it was expected");
+            return null;
+        }
+        return SQLiteDatabase.openDatabase(file.getPath(), null, SQLiteDatabase.OPEN_READONLY);
+    }
+
+    private static void close(SQLiteDatabase database) {
+        if (database == null) {
+            return;
+        }
+        try {
+            database.close();
+        } catch (Throwable t) {
+            Log.e(TAG, "JidTable: close failed", t);
+        }
     }
 
     private static void readJids(SQLiteDatabase database, Map<Long, String> rawById, Map<String, Long> idByRaw) {
@@ -151,10 +237,9 @@ public final class JidTable {
         }
     }
 
-    private static void readPairs(SQLiteDatabase database, Map<Long, String> rawById,
-                                  Map<String, String> phoneByLid, Map<Long, List<Long>> linkedIds) {
-        // Joined by row id in this process rather than in SQL: the strings are
-        // already in memory from readJids, so jid_map needs no join at all.
+    private static void readLinks(SQLiteDatabase database, Map<Long, List<Long>> linkedIds) {
+        // Row ids only: the full tier already holds every string, so this half
+        // of jid_map needs no join.
         Cursor cursor = database.rawQuery("SELECT lid_row_id, jid_row_id FROM jid_map", null);
         try {
             while (cursor.moveToNext()) {
@@ -162,11 +247,6 @@ public final class JidTable {
                 long phoneId = cursor.getLong(1);
                 link(linkedIds, lidId, phoneId);
                 link(linkedIds, phoneId, lidId);
-                String lid = rawById.get(lidId);
-                String phone = rawById.get(phoneId);
-                if (lid != null && phone != null) {
-                    phoneByLid.put(lid, phone);
-                }
             }
         } finally {
             cursor.close();
