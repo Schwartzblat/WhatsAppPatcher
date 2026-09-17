@@ -23,6 +23,12 @@
             android:label="Read receipts"
             android:theme="@android:style/Theme.DeviceDefault.DayNight" />
 
+        <activity
+            android:name="com.smali_generator.ui.AbPropsActivity"
+            android:exported="false"
+            android:label="A/B properties"
+            android:theme="@android:style/Theme.DeviceDefault.DayNight" />
+
     </application>
 
 </manifest>

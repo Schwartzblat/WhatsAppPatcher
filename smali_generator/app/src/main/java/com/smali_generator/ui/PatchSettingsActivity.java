@@ -1,13 +1,10 @@
 package com.smali_generator.ui;
 
 import android.app.Activity;
-import android.app.AlarmManager;
-import android.app.PendingIntent;
 import android.content.Intent;
 import android.graphics.Insets;
 import android.graphics.Typeface;
 import android.os.Bundle;
-import android.os.Process;
 import android.util.Log;
 import android.util.TypedValue;
 import android.view.Gravity;
@@ -21,6 +18,7 @@ import android.widget.ScrollView;
 import android.widget.Switch;
 import android.widget.TextView;
 
+import com.smali_generator.BootHealth;
 import com.smali_generator.Hook;
 import com.smali_generator.HookCategory;
 import com.smali_generator.InitProvider;
@@ -46,12 +44,6 @@ public class PatchSettingsActivity extends Activity {
 
     private static final int SIDE_PADDING_DP = 20;
     private static final int ROW_PADDING_DP = 14;
-
-    /**
-     * Long enough for this process to be gone before the alarm fires, short
-     * enough that the app is back before the launcher finishes animating.
-     */
-    private static final long RESTART_DELAY_MS = 300;
 
     private TextView pendingNotice;
 
@@ -97,6 +89,11 @@ public class PatchSettingsActivity extends Activity {
         int side = dp(SIDE_PADDING_DP);
         content.setPadding(side, side, side, side);
 
+        View safeMode = safeModeNotice();
+        if (safeMode != null) {
+            content.addView(safeMode);
+        }
+
         pendingNotice = new TextView(this);
         pendingNotice.setText("Restart WhatsApp to apply the change.");
         pendingNotice.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f);
@@ -126,6 +123,53 @@ public class PatchSettingsActivity extends Activity {
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         insetBelowSystemBars(scroller);
         return scroller;
+    }
+
+    /**
+     * Says that the patch has stood aside, and offers the way back.
+     *
+     * Only the hooks the patched app cannot run without are loaded in this
+     * state -- which is why this screen is still reachable to say so. The
+     * switches below it read the flags they always did, so they will not match
+     * what is actually running until the patch is let back in; the notice says
+     * that rather than the screen silently lying.
+     */
+    private View safeModeNotice() {
+        if (!BootHealth.inSafeMode()) {
+            return null;
+        }
+        LinearLayout block = new LinearLayout(this);
+        block.setOrientation(LinearLayout.VERTICAL);
+        block.setPadding(0, 0, 0, dp(12));
+
+        TextView text = new TextView(this);
+        text.setText("Safe mode. WhatsApp failed to start twice, so only the hooks it needs to run "
+                + "at all were loaded — the switches below are not in force. Nothing has been lost.");
+        text.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f);
+        text.setTextColor(Palette.ACCENT);
+        block.addView(text);
+
+        Button leave = new Button(this);
+        leave.setText("Turn the other hooks back on");
+        leave.setAllCaps(false);
+        leave.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f);
+        leave.setTypeface(Typeface.DEFAULT_BOLD);
+        leave.setTextColor(Palette.ACCENT);
+        leave.setStateListAnimator(null);
+        leave.setBackground(Palette.rowRipple(this));
+        leave.setMinWidth(0);
+        leave.setMinimumWidth(0);
+        leave.setMinHeight(0);
+        leave.setMinimumHeight(dp(40));
+        leave.setPadding(0, dp(6), dp(12), dp(6));
+        leave.setGravity(Gravity.CENTER_VERTICAL | Gravity.START);
+        leave.setOnClickListener(view -> {
+            BootHealth.leaveSafeMode();
+            restartPending = true;
+            setContentView(buildContent());
+        });
+        block.addView(leave);
+        return block;
     }
 
     private List<Hook> hooksIn(HookCategory category) {
@@ -249,20 +293,7 @@ public class PatchSettingsActivity extends Activity {
     }
 
     private View restartButton() {
-        Button button = new Button(this);
-        button.setText("Restart WhatsApp");
-        button.setAllCaps(false);
-        button.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f);
-        button.setTypeface(Typeface.DEFAULT_BOLD);
-        button.setLetterSpacing(0.01f);
-        button.setTextColor(Palette.ON_ACCENT);
-        // The framework button draws its own grey nine-patch and lifts on
-        // press; both have to go before a flat pill looks like anything.
-        button.setStateListAnimator(null);
-        button.setBackground(Palette.pill(this));
-        button.setPadding(dp(24), dp(14), dp(24), dp(14));
-        button.setMinimumHeight(dp(52));
-        button.setOnClickListener(view -> restart());
+        Button button = Restart.button(this, "Restart WhatsApp");
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         params.topMargin = dp(24);
@@ -302,34 +333,6 @@ public class PatchSettingsActivity extends Activity {
             view.setPadding(bars.left, bars.top, bars.right, bars.bottom);
             return insets;
         });
-    }
-
-    /**
-     * Kills the process, having first asked the system to launch WhatsApp
-     * again shortly afterwards.
-     *
-     * The alarm is best effort: if scheduling it fails the process still dies,
-     * which is the part that actually applies the change, and the user reopens
-     * WhatsApp themselves.
-     */
-    private void restart() {
-        try {
-            Intent launch = getPackageManager().getLaunchIntentForPackage(getPackageName());
-            if (launch != null) {
-                launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
-                PendingIntent pending = PendingIntent.getActivity(this, 0, launch,
-                        PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_CANCEL_CURRENT);
-                AlarmManager alarms = getSystemService(AlarmManager.class);
-                if (alarms != null) {
-                    alarms.set(AlarmManager.RTC,
-                            System.currentTimeMillis() + RESTART_DELAY_MS, pending);
-                }
-            }
-        } catch (Throwable t) {
-            Log.e(TAG, "PatchSettingsActivity: could not schedule the relaunch", t);
-        }
-        finishAffinity();
-        Process.killProcess(Process.myPid());
     }
 
     private int dp(int dp) {

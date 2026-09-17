@@ -92,6 +92,21 @@ public final class Palette {
         return new RippleDrawable(ColorStateList.valueOf(alpha(ON_ACCENT, 0x33)), shape, null);
     }
 
+    /**
+     * The pill a filter chip is drawn as, filled when it is the one in use.
+     *
+     * Outlined rather than solid when it is not: a row of solid chips reads as
+     * a row of buttons, and only one of them is a state.
+     */
+    public static Drawable chip(Context context, boolean selected) {
+        GradientDrawable shape = new GradientDrawable();
+        shape.setShape(GradientDrawable.RECTANGLE);
+        shape.setCornerRadius(dp(context, 16));
+        shape.setColor(selected ? alpha(ACCENT, 0x33) : 0x00000000);
+        shape.setStroke(Math.max(1, dp(context, 1)), selected ? ACCENT : alpha(NEUTRAL, 0x80));
+        return new RippleDrawable(ColorStateList.valueOf(alpha(ACCENT, 0x33)), shape, null);
+    }
+
     /** The press highlight used by rows that open something. */
     public static Drawable rowRipple(Context context) {
         return new RippleDrawable(ColorStateList.valueOf(alpha(ACCENT, 0x33)), null, null);

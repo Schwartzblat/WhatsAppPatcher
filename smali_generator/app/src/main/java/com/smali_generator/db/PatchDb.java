@@ -25,7 +25,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class PatchDb {
     private static final String TAG = "PATCH";
     private static final String DB_NAME = "patch_metadata.db";
-    private static final int SCHEMA_VERSION = 3;
+    private static final int SCHEMA_VERSION = 5;
 
     /** Message ids known to have been deleted. Read on every row bind. */
     private static final Set<String> deletedIds = ConcurrentHashMap.newKeySet();
@@ -121,6 +121,34 @@ public final class PatchDb {
                         + "feature TEXT NOT NULL,"
                         + "jid TEXT NOT NULL,"
                         + "PRIMARY KEY (feature, jid))");
+            }
+            if (version < 4) {
+                // The value's type travels with it so that the overrides can be
+                // typed before anything has been read out of the app: the table
+                // that would say what type a property is only becomes reachable
+                // once the app has asked for its first property.
+                database.execSQL("CREATE TABLE IF NOT EXISTS ab_props ("
+                        + "id INTEGER NOT NULL PRIMARY KEY,"
+                        + "type TEXT NOT NULL,"
+                        + "value TEXT NOT NULL)");
+                // What the app's own accessors last answered, so that "the app
+                // has read this one" survives the restart an override needs to
+                // take hold everywhere.
+                database.execSQL("CREATE TABLE IF NOT EXISTS ab_props_seen ("
+                        + "id INTEGER NOT NULL PRIMARY KEY,"
+                        + "type TEXT NOT NULL,"
+                        + "value TEXT NOT NULL)");
+            }
+            if (version < 5) {
+                // held_back: the override is remembered but not installed,
+                // which is what a failed start leaves behind. Held back rather
+                // than deleted because the check that sets it is a single
+                // strike and will occasionally misfire -- an override wiped by
+                // a misfire would be a worse failure than the one this avoids.
+                database.execSQL("ALTER TABLE ab_props ADD COLUMN held_back INTEGER NOT NULL DEFAULT 0");
+                // once: consumed the moment it is installed, so it applies to
+                // the run being watched and no later one.
+                database.execSQL("ALTER TABLE ab_props ADD COLUMN once INTEGER NOT NULL DEFAULT 0");
             }
             database.setVersion(SCHEMA_VERSION);
         }
@@ -256,6 +284,12 @@ public final class PatchDb {
         }
     }
 
+    /** Stores a whole-number setting. Shares the table, and the caching, with
+     *  {@link #setFlag}. */
+    public static void setInt(String key, int value) {
+        setString(key, Integer.toString(value));
+    }
+
     /** Whether {@code jid} is one of the chats picked for {@code feature}. */
     public static boolean isChatSelected(String feature, String jid) {
         if (feature == null || jid == null) {
@@ -328,6 +362,184 @@ public final class PatchDb {
             Log.e(TAG, "PatchDb: clearChatSelection failed", t);
         }
         return cleared;
+    }
+
+    /** Hands over one stored A/B property, so that storage never has to know
+     *  what one is. */
+    public interface AbPropVisitor {
+        void visit(int id, String type, String value);
+    }
+
+    /** The same, for the override table, which carries two flags as well. */
+    public interface AbPropOverrideVisitor {
+        void visit(int id, String type, String value, boolean heldBack, boolean once);
+    }
+
+    /** A source of A/B property rows, for {@link #saveAbPropsSeen}. */
+    public interface AbPropRows {
+        void forEach(AbPropVisitor visitor);
+    }
+
+    /**
+     * Every stored A/B property override.
+     *
+     * Neither of the two ab_props tables is warmed at init, which is the one
+     * place this class departs from doing so. The overrides are read once by
+     * the hook that needs them, on its own load, and held there for the
+     * accessor path; the seen table is read once when the screen opens and is
+     * never on a hot path. Warming either here would cost every launch,
+     * including the launches where the feature is switched off.
+     */
+    public static void forEachAbProp(AbPropOverrideVisitor visitor) {
+        SQLiteDatabase database = db;
+        if (database == null || visitor == null) {
+            return;
+        }
+        try {
+            Cursor cursor = database.rawQuery(
+                    "SELECT id, type, value, held_back, once FROM ab_props", null);
+            try {
+                while (cursor.moveToNext()) {
+                    String type = cursor.getString(1);
+                    String value = cursor.getString(2);
+                    if (type != null && value != null) {
+                        visitor.visit(cursor.getInt(0), type, value,
+                                cursor.getInt(3) != 0, cursor.getInt(4) != 0);
+                    }
+                }
+            } finally {
+                cursor.close();
+            }
+        } catch (Throwable t) {
+            Log.e(TAG, "PatchDb: could not read ab_props", t);
+        }
+    }
+
+    /** Every A/B property the app has been seen to read, from earlier runs. */
+    public static void forEachAbPropSeen(AbPropVisitor visitor) {
+        readAbProps("ab_props_seen", visitor);
+    }
+
+    private static void readAbProps(String table, AbPropVisitor visitor) {
+        SQLiteDatabase database = db;
+        if (database == null || visitor == null) {
+            return;
+        }
+        try {
+            Cursor cursor = database.rawQuery("SELECT id, type, value FROM " + table, null);
+            try {
+                while (cursor.moveToNext()) {
+                    String type = cursor.getString(1);
+                    String value = cursor.getString(2);
+                    if (type != null && value != null) {
+                        visitor.visit(cursor.getInt(0), type, value);
+                    }
+                }
+            } finally {
+                cursor.close();
+            }
+        } catch (Throwable t) {
+            Log.e(TAG, "PatchDb: could not read " + table, t);
+        }
+    }
+
+    /** Stores an override, or removes it when {@code value} is null. */
+    public static void putAbProp(int id, String type, String value, boolean once) {
+        SQLiteDatabase database = db;
+        if (database == null) {
+            Log.e(TAG, "PatchDb: putAbProp before init, kept in memory only: " + id);
+            return;
+        }
+        try {
+            if (value == null || type == null) {
+                database.delete("ab_props", "id = ?", new String[]{Integer.toString(id)});
+                Log.i(TAG, "PatchDb: ab prop " + id + " no longer overridden");
+                return;
+            }
+            ContentValues values = new ContentValues();
+            values.put("id", id);
+            values.put("type", type);
+            values.put("value", value);
+            // Setting one by hand is also how a held-back override is put back
+            // to work, so this always clears the flag rather than preserving it.
+            values.put("held_back", 0);
+            values.put("once", once ? 1 : 0);
+            database.insertWithOnConflict("ab_props", null, values, SQLiteDatabase.CONFLICT_REPLACE);
+            Log.i(TAG, "PatchDb: ab prop " + id + " = " + value + (once ? " (for one launch)" : ""));
+        } catch (Throwable t) {
+            Log.e(TAG, "PatchDb: putAbProp failed", t);
+        }
+    }
+
+    /**
+     * Holds every override back, or puts every held-back one to work.
+     *
+     * Held back rather than deleted: this is called by a single-strike check
+     * that will sometimes misfire, and an override list wiped by a misfire
+     * would be a worse failure than the one the check exists to prevent.
+     */
+    public static void setAbPropsHeldBack(boolean heldBack) {
+        SQLiteDatabase database = db;
+        if (database == null) {
+            Log.e(TAG, "PatchDb: setAbPropsHeldBack before init, in memory only");
+            return;
+        }
+        try {
+            ContentValues values = new ContentValues();
+            values.put("held_back", heldBack ? 1 : 0);
+            int rows = database.update("ab_props", values, "held_back = ?",
+                    new String[]{heldBack ? "0" : "1"});
+            Log.i(TAG, "PatchDb: " + rows + " ab prop override(s) "
+                    + (heldBack ? "held back" : "put back to work"));
+        } catch (Throwable t) {
+            Log.e(TAG, "PatchDb: setAbPropsHeldBack failed", t);
+        }
+    }
+
+    /** Drops every override. The caller has already asked. */
+    public static void clearAbProps() {
+        SQLiteDatabase database = db;
+        if (database == null) {
+            Log.e(TAG, "PatchDb: clearAbProps before init, cleared in memory only");
+            return;
+        }
+        try {
+            database.delete("ab_props", null, null);
+            Log.i(TAG, "PatchDb: ab prop overrides cleared");
+        } catch (Throwable t) {
+            Log.e(TAG, "PatchDb: clearAbProps failed", t);
+        }
+    }
+
+    /**
+     * Writes what the app has been seen to read, in one transaction.
+     *
+     * There are a few thousand of these, so a transaction per row would turn a
+     * screen opening into a visible pause.
+     */
+    public static void saveAbPropsSeen(AbPropRows rows) {
+        SQLiteDatabase database = db;
+        if (database == null || rows == null) {
+            return;
+        }
+        try {
+            database.beginTransaction();
+            try {
+                rows.forEach((id, type, value) -> {
+                    ContentValues values = new ContentValues();
+                    values.put("id", id);
+                    values.put("type", type);
+                    values.put("value", value);
+                    database.insertWithOnConflict("ab_props_seen", null, values,
+                            SQLiteDatabase.CONFLICT_REPLACE);
+                });
+                database.setTransactionSuccessful();
+            } finally {
+                database.endTransaction();
+            }
+        } catch (Throwable t) {
+            Log.e(TAG, "PatchDb: saveAbPropsSeen failed", t);
+        }
     }
 
     /**

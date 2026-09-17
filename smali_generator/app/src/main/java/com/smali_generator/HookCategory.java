@@ -16,6 +16,7 @@ public enum HookCategory {
     SEARCH("Search", "How search works."),
     INTERFACE("Interface", "What's on screen."),
     UNLOCKS("Unlocks", "Features the app charges for."),
+    DEVELOPER("Developer", "For taking the app apart."),
     OTHER("Other", ""),
     MANDATORY("Mandatory", "Always on. The patched app needs these.");
 

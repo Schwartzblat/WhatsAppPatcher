@@ -8,7 +8,9 @@ import android.util.Log;
 
 import androidx.annotation.NonNull;
 
+import com.smali_generator.abprops.AbPropStore;
 import com.smali_generator.db.PatchDb;
+import com.smali_generator.patches.AbProps;
 import com.smali_generator.patches.ActivityHook;
 import com.smali_generator.patches.ContactSearchDuplicates;
 import com.smali_generator.patches.DecryptProtobuf;
@@ -51,6 +53,9 @@ public class InitProvider extends ContentProvider {
      * why it is public: a hook added here shows up there with no other change.
      */
     public static final Hook[] hooks = {
+            // First, so that the property reads the rest of startup makes are
+            // seen. It is off unless switched on, and costs nothing when it is.
+            new AbProps(),
             new DecryptProtobuf(),
             new PackageManagerHook(),
             new ZipFileHook(),
@@ -75,6 +80,19 @@ public class InitProvider extends ContentProvider {
         Log.i("PATCH", "Patch loaded!");
         PatchDb.init(Utils.getApplicationContext());
 
+        // Before the wrappers and before any hook: this counts the launch as
+        // failed until it proves otherwise, so a start that dies inside one of
+        // them is a start this notices.
+        BootHealth.Mode mode = BootHealth.begin();
+        if (mode != BootHealth.Mode.NORMAL) {
+            // Before the store is read rather than after, so the overrides are
+            // never briefly installed on a launch that is meant to go without
+            // them. Held back on both rungs: in safe mode the hook that installs
+            // them does not load anyway, but the settings screen reads the same
+            // store and has to show what the app is actually seeing.
+            AbPropStore.holdBackAll();
+        }
+
         for (Class<?> wrapper : wrappers) {
             try {
                 wrapper.getDeclaredMethod("init").invoke(null);
@@ -85,6 +103,13 @@ public class InitProvider extends ContentProvider {
 
         for (Hook hook : hooks) {
             try {
+                // Safe mode keeps only what the patched app cannot run without
+                // -- which includes the settings row, so there is still a way
+                // in to turn it back off.
+                if (mode == BootHealth.Mode.SAFE && hook.toggleable()) {
+                    Log.i("PATCH", "Safe mode: " + hook.getClass().getSimpleName() + " not loaded");
+                    continue;
+                }
                 // Read here rather than inside the hook: a hook that is off is
                 // never installed at all, so it costs nothing for the life of
                 // the process. That is also why a switch needs a restart.
