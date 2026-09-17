@@ -340,11 +340,11 @@ public class ReadReceipts implements Hook {
     }
 
     public String title() {
-        return "Hide when you've read a message";
+        return "Hide my blue ticks";
     }
 
     public String description() {
-        return "Nobody sees your blue ticks, or the blue microphone on voice notes. You still see theirs.";
+        return "Voice notes too. You still see theirs.";
     }
 
     public HookCategory category() {

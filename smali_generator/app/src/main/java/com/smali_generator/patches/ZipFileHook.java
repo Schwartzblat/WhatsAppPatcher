@@ -27,11 +27,7 @@ public class ZipFileHook implements Hook {
     }
 
     public String title() {
-        return "File check";
-    }
-
-    public String description() {
-        return "Shows the app its original files when it checks itself for changes.";
+        return "Passes WhatsApp's file check";
     }
 
     public boolean toggleable() {

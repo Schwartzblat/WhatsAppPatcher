@@ -25,11 +25,11 @@ public class FirebaseParams implements Hook {
     }
 
     public String title() {
-        return "Google services";
+        return "Push notifications";
     }
 
     public String description() {
-        return "Keeps the app's connection to Google working after patching.";
+        return "Keeps Google delivering them.";
     }
 
     public boolean toggleable() {

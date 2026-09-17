@@ -153,11 +153,7 @@ public class PackageManagerHook implements Hook {
     }
 
     public String title() {
-        return "App identity";
-    }
-
-    public String description() {
-        return "Tells the app it is still the copy WhatsApp published.";
+        return "Passes WhatsApp's signature check";
     }
 
     public boolean toggleable() {

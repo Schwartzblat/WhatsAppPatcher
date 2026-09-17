@@ -59,7 +59,7 @@ public class SettingsEntryHook implements Hook {
     }
 
     public String description() {
-        return "Adds the Patcher row to WhatsApp's own settings.";
+        return "The row that opens this screen.";
     }
 
     public boolean toggleable() {

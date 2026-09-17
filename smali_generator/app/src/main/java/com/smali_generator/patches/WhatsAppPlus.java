@@ -20,11 +20,7 @@ public class WhatsAppPlus implements Hook {
     }
 
     public String title() {
-        return "Premium features";
-    }
-
-    public String description() {
-        return "Unlocks the features WhatsApp charges for.";
+        return "WhatsApp Premium";
     }
 
     public HookCategory category() {

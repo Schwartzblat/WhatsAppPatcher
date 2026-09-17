@@ -11,13 +11,13 @@ package com.smali_generator;
  * {@link Hook#category()} -- the screen needs no change.
  */
 public enum HookCategory {
-    PRIVACY("Privacy", "What others see, and what the app keeps from you."),
+    PRIVACY("Privacy", "What others can see about you."),
     MESSAGES("Messages", "How messages are shown."),
-    SEARCH("Search", "How the app finds things."),
-    INTERFACE("Interface", "What the app puts on its own screens."),
+    SEARCH("Search", "How search works."),
+    INTERFACE("Interface", "What's on screen."),
     UNLOCKS("Unlocks", "Features the app charges for."),
     OTHER("Other", ""),
-    MANDATORY("Mandatory", "Needed for the patched app to run. These cannot be turned off.");
+    MANDATORY("Mandatory", "Always on. The patched app needs these.");
 
     private final String title;
     private final String caption;

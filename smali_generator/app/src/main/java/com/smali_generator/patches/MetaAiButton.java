@@ -137,11 +137,11 @@ public class MetaAiButton implements Hook {
     }
 
     public String title() {
-        return "Remove Meta AI from the home screen";
+        return "Remove Meta AI";
     }
 
     public String description() {
-        return "Takes the Meta AI tab out of the bottom bar, and the Meta AI button off the chats and calls screens.";
+        return "Hides its tab and its buttons.";
     }
 
     public HookCategory category() {

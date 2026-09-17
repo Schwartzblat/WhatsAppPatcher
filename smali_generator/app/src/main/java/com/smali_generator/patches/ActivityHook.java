@@ -36,11 +36,11 @@ public class ActivityHook implements Hook {
     }
 
     public String title() {
-        return "Screenshots and screen recording";
+        return "Allow screenshots";
     }
 
     public String description() {
-        return "Lets you capture the screens the app normally blocks.";
+        return "Capture any screen, including profile pictures.";
     }
 
     public HookCategory category() {

@@ -179,12 +179,11 @@ public class ContactSearchDuplicates implements Hook {
     }
 
     public String title() {
-        return "Show each contact once in search";
+        return "No duplicate contacts in search";
     }
 
     public String description() {
-        return "WhatsApp keeps several contact rows for the same person and lists one result per row. "
-                + "This shows each person once.";
+        return "Each person appears once.";
     }
 
     public HookCategory category() {

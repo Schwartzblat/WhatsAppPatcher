@@ -150,11 +150,11 @@ public class SenderSearch implements Hook {
     }
 
     public String title() {
-        return "Find messages by who sent them";
+        return "Search by sender";
     }
 
     public String description() {
-        return "Searching part of a number, or a name, also finds every message that person sent in any chat.";
+        return "A name or number finds everything they sent.";
     }
 
     public HookCategory category() {
