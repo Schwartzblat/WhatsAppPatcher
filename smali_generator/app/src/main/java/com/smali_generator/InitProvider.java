@@ -10,6 +10,7 @@ import androidx.annotation.NonNull;
 
 import com.smali_generator.db.PatchDb;
 import com.smali_generator.patches.ActivityHook;
+import com.smali_generator.patches.ContactSearchDuplicates;
 import com.smali_generator.patches.DecryptProtobuf;
 import com.smali_generator.patches.DeletedMessageIndicator;
 import com.smali_generator.patches.FirebaseParams;
@@ -60,6 +61,7 @@ public class InitProvider extends ContentProvider {
             new ReadReceipts(),
             new MetaAiButton(),
             new SenderSearch(),
+            new ContactSearchDuplicates(),
             new SettingsEntryHook(),
     };
 
