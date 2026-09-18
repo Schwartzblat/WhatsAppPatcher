@@ -18,6 +18,7 @@ from artifactory_generator.meta_ai_tab import MetaAiTabFinder
 from artifactory_generator.message_search import MessageSearchFinder
 from artifactory_generator.contact_search import ContactSearchFinder, ContactAccessorsFinder
 from artifactory_generator.ab_props import AbPropsFinder
+from artifactory_generator.mention_everyone import MentionEveryoneFinder
 
 
 def get_args():
@@ -67,7 +68,8 @@ def main():
         MessageSearchFinder(args),
         ContactSearchFinder(args),
         ContactAccessorsFinder(args),
-        AbPropsFinder(args)
+        AbPropsFinder(args),
+        MentionEveryoneFinder(args)
     ]
     with Stitch(
             apk_path=args.apk_path,

@@ -16,6 +16,7 @@ import com.smali_generator.patches.ContactSearchDuplicates;
 import com.smali_generator.patches.DecryptProtobuf;
 import com.smali_generator.patches.DeletedMessageIndicator;
 import com.smali_generator.patches.FirebaseParams;
+import com.smali_generator.patches.MentionEveryone;
 import com.smali_generator.patches.MetaAiButton;
 import com.smali_generator.patches.PackageManagerHook;
 import com.smali_generator.patches.ReadReceipts;
@@ -67,6 +68,7 @@ public class InitProvider extends ContentProvider {
             new MetaAiButton(),
             new SenderSearch(),
             new ContactSearchDuplicates(),
+            new MentionEveryone(),
             new SettingsEntryHook(),
     };
 

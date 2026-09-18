@@ -15,6 +15,7 @@ WhatsApp patcher is a program that patches WhatsApp apk.
 |        Option to save view once media         |      ✔      |
 |          Profile Picture Screenshot           |      ✔      |
 |            Unlock premium features            |      ✔      |
+|          Tag a group with @everyone           |      ✔      |
 | Settings screen to switch features on and off |      ✔      |
 
 There is support for apks, apkm and xapk files.
