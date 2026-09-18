@@ -32,6 +32,7 @@ import android.widget.Toast;
 import com.smali_generator.abprops.AbProp;
 import com.smali_generator.abprops.AbPropStore;
 import com.smali_generator.abprops.AbPropTable;
+import com.smali_generator.abprops.Hunt;
 import com.smali_generator.db.PatchDb;
 
 import java.util.ArrayList;
@@ -73,6 +74,7 @@ public class AbPropsActivity extends Activity {
     /** Menu item ids. Any distinct constants do; nothing else looks them up. */
     private static final int MENU_RESET = 1;
     private static final int MENU_SELECT = 2;
+    private static final int MENU_HUNT = 3;
 
     /** What the list is narrowed to. The counts are the point of the labels:
      *  they say how much of the haystack each one takes away. */
@@ -109,6 +111,10 @@ public class AbPropsActivity extends Activity {
     /** Types the list is narrowed to. Empty means all of them. */
     private final EnumSet<AbProp.Type> types = EnumSet.noneOf(AbProp.Type.class);
 
+    private View huntBanner;
+    private TextView huntText;
+    private Button huntYes;
+    private Button huntNo;
     private View heldBackBanner;
     private TextView heldBackText;
     private LinearLayout chipRow;
@@ -201,6 +207,9 @@ public class AbPropsActivity extends Activity {
                 .setEnabled(AbPropStore.storedCount() > 0);
         popup.getMenu().add(Menu.NONE, MENU_SELECT, 1,
                 selecting ? "Stop selecting" : "Select multiple");
+        popup.getMenu().add(Menu.NONE, MENU_HUNT, 2,
+                Hunt.isActive() ? "Stop the feature hunt" : "Feature hunt\u2026")
+                .setEnabled(Hunt.isActive() || !huntCandidates().isEmpty());
         popup.setOnMenuItemClickListener(item -> {
             if (item.getItemId() == MENU_RESET) {
                 confirmClearAll();
@@ -208,6 +217,14 @@ public class AbPropsActivity extends Activity {
             }
             if (item.getItemId() == MENU_SELECT) {
                 setSelecting(!selecting);
+                return true;
+            }
+            if (item.getItemId() == MENU_HUNT) {
+                if (Hunt.isActive()) {
+                    confirmStopHunt();
+                } else {
+                    startHunt();
+                }
                 return true;
             }
             return false;
@@ -281,6 +298,7 @@ public class AbPropsActivity extends Activity {
         header.setOrientation(LinearLayout.VERTICAL);
         int side = dp(SIDE_PADDING_DP);
         header.setPadding(side, dp(12), side, 0);
+        header.addView(huntBanner());
         header.addView(heldBackBanner());
         header.addView(notice());
         header.addView(chips());
@@ -297,6 +315,183 @@ public class AbPropsActivity extends Activity {
         root.addView(bottomBar());
         insetBelowSystemBars(root);
         return root;
+    }
+
+    /**
+     * A hunt in progress: where it has got to, and the judgement it is waiting
+     * for.
+     *
+     * The two buttons carry the whole loop. While a trial is unjudged they read
+     * Worked and Broken; when the queue runs dry they read Keep and Discard,
+     * because the safe set is the thing a hunt is for and it would otherwise
+     * evaporate with the hunt that found it.
+     */
+    private View huntBanner() {
+        LinearLayout block = new LinearLayout(this);
+        block.setOrientation(LinearLayout.VERTICAL);
+        block.setPadding(0, 0, 0, dp(10));
+
+        huntText = new TextView(this);
+        huntText.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f);
+        huntText.setTextColor(Palette.ACCENT);
+        block.addView(huntText);
+
+        LinearLayout buttons = new LinearLayout(this);
+        buttons.setOrientation(LinearLayout.HORIZONTAL);
+        huntYes = flatButton("", view -> { });
+        huntNo = flatButton("", view -> { });
+        buttons.addView(huntYes);
+        buttons.addView(huntNo);
+        block.addView(buttons);
+
+        huntBanner = block;
+        block.setVisibility(View.GONE);
+        return block;
+    }
+
+    private void refreshHuntBanner() {
+        if (!Hunt.isActive()) {
+            huntBanner.setVisibility(View.GONE);
+            return;
+        }
+        huntBanner.setVisibility(View.VISIBLE);
+        if (Hunt.isDone()) {
+            huntText.setText("Feature hunt finished. " + Hunt.safeCount()
+                    + " can be on together; " + Hunt.badCount() + " break the app.");
+            setHuntButtons("Keep them on", view -> endHunt(true),
+                    "Discard", view -> endHunt(false));
+            return;
+        }
+        String where = "Trial " + (Hunt.trial() + 1) + " · " + Hunt.enabledCount()
+                + " on · " + Hunt.safeCount() + " cleared · "
+                + Hunt.suspectCount() + " suspect";
+        if (Hunt.awaitingVerdict()) {
+            huntText.setText(where + ". Use the app, then say how it went.");
+            setHuntButtons("Worked", view -> judge(true), "Broken", view -> judge(false));
+        } else {
+            // Judged already: the next trial is only real once the app has been
+            // through startup with it, because the app caches what it is told.
+            huntText.setText(where + " is ready. Restart to run it.");
+            setHuntButtons(null, null, null, null);
+        }
+    }
+
+    private void setHuntButtons(String yes, View.OnClickListener onYes,
+                                String no, View.OnClickListener onNo) {
+        huntYes.setVisibility(yes == null ? View.GONE : View.VISIBLE);
+        huntNo.setVisibility(no == null ? View.GONE : View.VISIBLE);
+        if (yes != null) {
+            huntYes.setText(yes);
+            huntYes.setOnClickListener(onYes);
+        }
+        if (no != null) {
+            huntNo.setText(no);
+            huntNo.setOnClickListener(onNo);
+        }
+    }
+
+    private void judge(boolean worked) {
+        Hunt.verdict(worked);
+        applyFilter();
+    }
+
+    private void endHunt(boolean keep) {
+        Hunt.stop(keep);
+        applyFilter();
+    }
+
+    /**
+     * The properties a hunt would turn on: booleans the app has been seen to
+     * read whose value is currently false.
+     *
+     * Read, because a property no code path asks about cannot do anything
+     * whatever it is set to. False, because turning a true one off disables a
+     * check rather than enabling a feature -- the opposite of what a hunt is
+     * for. On the test account that is roughly 550 of 15,687.
+     */
+    private List<Integer> huntCandidates() {
+        List<Integer> candidates = new ArrayList<>();
+        for (AbProp prop : all) {
+            if (prop.type != AbProp.Type.BOOL) {
+                continue;
+            }
+            Object live = seen.get(prop.id);
+            if (Boolean.FALSE.equals(live)) {
+                candidates.add(prop.id);
+            }
+        }
+        return candidates;
+    }
+
+    private void startHunt() {
+        List<Integer> candidates = huntCandidates();
+        if (candidates.isEmpty()) {
+            Toast.makeText(this, "Nothing to hunt yet — use the app first so it reads "
+                    + "some properties", Toast.LENGTH_LONG).show();
+            return;
+        }
+        LinearLayout frame = dialogFrame();
+        TextView explain = new TextView(this);
+        explain.setText(candidates.size() + " boolean properties are off and in use. The first "
+                + "trial turns on all of them; whatever survives is kept on and the rest is "
+                + "halved, until every one has been judged. You can stop at any point and keep "
+                + "what has been cleared.\n\nBack up msgstore.db first: a half-finished feature "
+                + "can write data that turning the flag off again will not undo.");
+        explain.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f);
+        explain.setTextColor(Palette.secondaryText(this));
+        frame.addView(explain);
+
+        TextView label = new TextView(this);
+        label.setText("Give up after this many crashes in a row");
+        label.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f);
+        label.setTextColor(Palette.secondaryText(this));
+        label.setPadding(0, dp(14), 0, 0);
+        frame.addView(label);
+
+        EditText abort = new EditText(this);
+        abort.setText(String.valueOf(Hunt.DEFAULT_ABORT_AFTER));
+        abort.setInputType(InputType.TYPE_CLASS_NUMBER);
+        abort.setSingleLine(true);
+        abort.setTextColor(Palette.primaryText(this));
+        abort.setBackgroundTintList(
+                android.content.res.ColorStateList.valueOf(Palette.ACCENT));
+        frame.addView(abort);
+
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle("Feature hunt")
+                .setView(frame)
+                .setNegativeButton("Cancel", null)
+                .setPositiveButton("Start", (ignored, which) -> {
+                    int after = Hunt.DEFAULT_ABORT_AFTER;
+                    try {
+                        after = Integer.parseInt(abort.getText().toString().trim());
+                    } catch (NumberFormatException e) {
+                        // Left at the default; the field is a number field, so
+                        // this is an empty one rather than a typo.
+                        after = Hunt.DEFAULT_ABORT_AFTER;
+                    }
+                    Hunt.start(candidates, after);
+                    applyFilter();
+                    Toast.makeText(this, "Restart to run the first trial",
+                            Toast.LENGTH_LONG).show();
+                })
+                .create();
+        dialog.show();
+        paintDialog(dialog);
+    }
+
+    private void confirmStopHunt() {
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle("Stop the hunt?")
+                .setMessage(Hunt.safeCount() + " propert(ies) have been cleared as safe so far. "
+                        + "Keeping them turns them into ordinary overrides you can undo one at "
+                        + "a time.")
+                .setNegativeButton("Cancel", null)
+                .setNeutralButton("Stop and discard", (ignored, which) -> endHunt(false))
+                .setPositiveButton("Stop and keep", (ignored, which) -> endHunt(true))
+                .create();
+        dialog.show();
+        paintDialog(dialog);
     }
 
     /**
@@ -683,6 +878,7 @@ public class AbPropsActivity extends Activity {
         adapter.notifyDataSetChanged();
         paintChips();
         refreshHeldBackBanner();
+        refreshHuntBanner();
 
         int overridden = AbPropStore.count();
         countLine.setText(visible.size() + " shown · "
@@ -929,6 +1125,9 @@ public class AbPropsActivity extends Activity {
                         : override.served
                         ? "forced " + override.text + " · the app has read it"
                         : "forced " + override.text + " · not read yet");
+                status.setVisibility(View.VISIBLE);
+            } else if (AbPropStore.huntEnabled(prop.id)) {
+                status.setText("on for this hunt trial");
                 status.setVisibility(View.VISIBLE);
             } else if (live != null && prop.defaultValue != null && !live.equals(prop.defaultValue)) {
                 status.setText("changed from the shipped default");

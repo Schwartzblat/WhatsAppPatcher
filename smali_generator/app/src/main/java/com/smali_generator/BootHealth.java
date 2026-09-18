@@ -5,6 +5,7 @@ import android.app.ApplicationExitInfo;
 import android.content.Context;
 import android.util.Log;
 
+import com.smali_generator.abprops.Hunt;
 import com.smali_generator.db.PatchDb;
 import com.smali_generator.utils.Utils;
 
@@ -64,6 +65,12 @@ public final class BootHealth {
     /** How many bad exits in a row before the patch stands aside entirely. */
     private static final int SAFE_MODE_AFTER = 2;
 
+    /**
+     * Whether the run before this one ended badly, for anything that wants the
+     * same answer this does. Worked out once, in {@link #begin}.
+     */
+    private static volatile boolean lastRunCrashed;
+
     /** What this launch should do about it. */
     public enum Mode {
         /** Nothing is wrong. */
@@ -94,6 +101,17 @@ public final class BootHealth {
             }
 
             int badExits = countBadExits();
+            lastRunCrashed = badExits > 0;
+
+            // A hunt crashes the app on purpose, so the ladder would climb
+            // itself into safe mode within two trials and take the hunt's own
+            // hook down with it. The hunt judges its own crashes; this only
+            // reports them.
+            if (Hunt.isActive()) {
+                PatchDb.setInt(STRIKES_KEY, 0);
+                return Mode.NORMAL;
+            }
+
             int strikes = badExits == 0 ? 0 : PatchDb.getInt(STRIKES_KEY, 0) + badExits;
             PatchDb.setInt(STRIKES_KEY, strikes);
 
@@ -214,6 +232,11 @@ public final class BootHealth {
 
     private static void writeLong(String key, long value) {
         PatchDb.setString(key, Long.toString(value));
+    }
+
+    /** Set by {@link #begin}, so callers see the same verdict it acted on. */
+    public static boolean lastRunCrashed() {
+        return lastRunCrashed;
     }
 
     public static boolean inSafeMode() {

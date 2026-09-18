@@ -75,6 +75,17 @@ public final class AbPropStore {
      */
     private static volatile SparseArray<Override> installed;
 
+    /**
+     * What a feature hunt has switched on, layered under the overrides set by
+     * hand.
+     *
+     * Kept apart from them on purpose: a hunt turns hundreds of properties on
+     * and off across dozens of launches, and none of that belongs in the table
+     * of things the user chose. Ending a hunt drops this field and leaves no
+     * trace.
+     */
+    private static volatile SparseArray<Override> hunted;
+
     /** What each accessor last answered of its own accord. */
     private static final Map<Integer, Object> observed = new ConcurrentHashMap<>();
 
@@ -145,7 +156,36 @@ public final class AbPropStore {
      */
     public static Override override(int id) {
         SparseArray<Override> current = installed;
-        return current == null ? null : current.get(id);
+        if (current != null) {
+            Override own = current.get(id);
+            if (own != null) {
+                // What the user set themselves wins: a hunt must never quietly
+                // undo a property they chose to hold.
+                return own;
+            }
+        }
+        SparseArray<Override> hunt = hunted;
+        return hunt == null ? null : hunt.get(id);
+    }
+
+    /**
+     * Switches on exactly {@code ids} for a hunt trial, and nothing else.
+     *
+     * Replaced whole rather than edited, for the same reason the overrides
+     * are: the accessor path reads it without a lock.
+     */
+    public static void setHuntEnabled(java.util.Collection<Integer> ids) {
+        if (ids == null || ids.isEmpty()) {
+            hunted = null;
+            return;
+        }
+        SparseArray<Override> next = new SparseArray<>(ids.size());
+        for (Integer id : ids) {
+            if (id != null) {
+                next.put(id, new Override(AbProp.Type.BOOL, "true", false, false));
+            }
+        }
+        hunted = next.size() == 0 ? null : next;
     }
 
     /**
@@ -168,6 +208,13 @@ public final class AbPropStore {
         if (previous == null || !previous.equals(value)) {
             observed.put(key, value);
         }
+    }
+
+    /** Whether a hunt trial has this property switched on, for the screen to
+     *  say so without claiming the user chose it. */
+    public static boolean huntEnabled(int id) {
+        SparseArray<Override> hunt = hunted;
+        return hunt != null && hunt.get(id) != null;
     }
 
     /** The app's properties object, or null if nothing has read a property yet

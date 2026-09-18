@@ -9,6 +9,7 @@ import android.util.Log;
 import androidx.annotation.NonNull;
 
 import com.smali_generator.abprops.AbPropStore;
+import com.smali_generator.abprops.Hunt;
 import com.smali_generator.db.PatchDb;
 import com.smali_generator.patches.AbProps;
 import com.smali_generator.patches.ActivityHook;
@@ -92,6 +93,10 @@ public class InitProvider extends ContentProvider {
             // store and has to show what the app is actually seeing.
             AbPropStore.holdBackAll();
         }
+
+        // After BootHealth, which is where the crash verdict a trial needs is
+        // worked out, and before any hook reads a property.
+        Hunt.begin();
 
         for (Class<?> wrapper : wrappers) {
             try {
