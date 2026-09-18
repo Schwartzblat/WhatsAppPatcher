@@ -25,7 +25,17 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class PatchDb {
     private static final String TAG = "PATCH";
     private static final String DB_NAME = "patch_metadata.db";
-    private static final int SCHEMA_VERSION = 5;
+    /**
+     * 7, not 5, although nothing here creates a v6 or v7 table.
+     *
+     * A presence-watch feature shipped those two versions to a test device and
+     * was then dropped. Its tables are gone from this build, but the file on
+     * that device still says 7, and {@link #migrate} refuses a schema newer
+     * than this constant -- it would disable storage outright and take every
+     * other feature's settings with it. Standing at 7 keeps that file readable.
+     * Do not reuse 6 or 7 for anything else.
+     */
+    private static final int SCHEMA_VERSION = 7;
 
     /** Message ids known to have been deleted. Read on every row bind. */
     private static final Set<String> deletedIds = ConcurrentHashMap.newKeySet();
