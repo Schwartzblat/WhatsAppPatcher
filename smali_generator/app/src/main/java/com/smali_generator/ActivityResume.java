@@ -46,33 +46,43 @@ public final class ActivityResume {
     /**
      * Subscribes, installing the hook the first time anyone does.
      *
-     * A failure to install is logged and swallowed: a feature that never hears
-     * about a resume loses its row, which is the same outcome as the screen
-     * having changed shape, and neither is worth taking the host app down for.
+     * Returns whether the dispatcher is installed once this call returns --
+     * the post-call state of the hook, not just the outcome of this one
+     * attempt, so a second subscriber arriving after an earlier one already
+     * succeeded gets {@code true} without paying for another install. A
+     * caller that gets {@code false} has still been added to
+     * {@link #listeners} -- a later successful call installs the hook for
+     * everyone already registered -- but nothing will call it until then, so
+     * a caller logging its own "listening" line should gate it on this
+     * return value rather than assume the call always worked.
+     *
+     * A failure to install is logged here and not thrown: a feature that never
+     * hears about a resume loses its row, which is the same outcome as the
+     * screen having changed shape, and neither is worth taking the host app
+     * down for.
      */
-    public static synchronized void addListener(Listener listener) {
-        if (listener == null) {
-            return;
+    public static synchronized boolean addListener(Listener listener) {
+        if (listener != null) {
+            listeners.add(listener);
         }
-        listeners.add(listener);
-        if (installed) {
-            return;
-        }
-        try {
-            Method original = Activity.class.getDeclaredMethod("onResume");
-            Method replacement = ActivityResume.class.getDeclaredMethod(
-                    "on_resume_hook", Object.class);
-            Method backup = ActivityResume.class.getDeclaredMethod(
-                    "on_resume_backup", Object.class);
-            if (!ArtHooks.hook_function(original, replacement, backup)) {
-                Log.e(TAG, "ActivityResume: hook_function refused Activity.onResume");
-                return;
+        if (!installed) {
+            try {
+                Method original = Activity.class.getDeclaredMethod("onResume");
+                Method replacement = ActivityResume.class.getDeclaredMethod(
+                        "on_resume_hook", Object.class);
+                Method backup = ActivityResume.class.getDeclaredMethod(
+                        "on_resume_backup", Object.class);
+                if (!ArtHooks.hook_function(original, replacement, backup)) {
+                    Log.e(TAG, "ActivityResume: hook_function refused Activity.onResume");
+                } else {
+                    installed = true;
+                    Log.i(TAG, "ActivityResume: hooked Activity.onResume");
+                }
+            } catch (Throwable t) {
+                Log.e(TAG, "ActivityResume: could not hook Activity.onResume", t);
             }
-            installed = true;
-            Log.i(TAG, "ActivityResume: hooked Activity.onResume");
-        } catch (Throwable t) {
-            Log.e(TAG, "ActivityResume: could not hook Activity.onResume", t);
         }
+        return installed;
     }
 
     /**

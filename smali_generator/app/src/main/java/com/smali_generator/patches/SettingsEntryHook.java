@@ -53,9 +53,15 @@ public class SettingsEntryHook implements Hook {
 
     public void load() {
         try {
-            ActivityResume.addListener(SettingsEntryHook::onResumed);
-            Log.i(TAG, "SettingsEntryHook: listening for resumes, settings screen is "
-                    + SETTINGS_ACTIVITY);
+            if (ActivityResume.addListener(SettingsEntryHook::onResumed)) {
+                Log.i(TAG, "SettingsEntryHook: listening for resumes, settings screen is "
+                        + SETTINGS_ACTIVITY);
+            } else {
+                // ActivityResume already logged why; this line is what makes the
+                // absence show up under this hook's own name in `logcat -s PATCH`.
+                Log.e(TAG, "SettingsEntryHook: ActivityResume did not install, "
+                        + "the settings row will not appear");
+            }
         } catch (Throwable t) {
             Log.e(TAG, "SettingsEntryHook: load failed", t);
         }
