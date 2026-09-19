@@ -55,6 +55,16 @@ public class GroupStatsActivity extends Activity {
      */
     private final java.util.Set<GroupStatsReader.Section> reached = new java.util.HashSet<>();
 
+    /**
+     * The newest snapshot, kept so a tap on "show all" can redraw without
+     * waiting for the reader to report another section -- by the time
+     * anybody taps, it usually never will.
+     */
+    private GroupStatsReader.Snapshot latest;
+
+    private boolean allParticipants;
+    private boolean allFavourites;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -119,33 +129,39 @@ public class GroupStatsActivity extends Activity {
                 "group-stats").start();
     }
 
+    private void draw(GroupStatsReader.Section section, GroupStatsReader.Snapshot snapshot) {
+        reached.add(section);
+        latest = snapshot;
+        render();
+    }
+
     /**
      * Rebuilds the whole screen from the latest snapshot rather than
      * appending once per section. A snapshot is a complete copy of
      * everything the reader has accumulated so far, not a diff, so a later
      * one -- carrying a name resolved after this ran once, or a
-     * reaction-only participant Task 8 discovers after PARTICIPANTS already
-     * reported -- is simply redrawn in full. The screen is small and this
-     * runs at most a handful of times per open, so the rebuild costs nothing
-     * worth guarding against.
+     * reaction-only participant found after PARTICIPANTS already reported --
+     * is simply redrawn in full. That is also what lets a "show all" tap
+     * redraw through the same path. The screen is small and this runs at most
+     * a handful of times per open, so the rebuild costs nothing worth
+     * guarding against.
      */
-    private void draw(GroupStatsReader.Section section, GroupStatsReader.Snapshot snapshot) {
-        reached.add(section);
+    private void render() {
+        if (latest == null) {
+            return;
+        }
         content.removeAllViews();
         if (reached.contains(GroupStatsReader.Section.SUMMARY)) {
-            drawSummary(snapshot);
+            drawSummary(latest);
         }
         if (reached.contains(GroupStatsReader.Section.PARTICIPANTS)) {
-            drawParticipants(snapshot);
+            drawParticipants(latest);
         }
         if (reached.contains(GroupStatsReader.Section.WHEN)) {
-            drawWhen(snapshot);
-        }
-        if (reached.contains(GroupStatsReader.Section.WHAT)) {
-            drawWhat(snapshot);
+            drawWhen(latest);
         }
         if (reached.contains(GroupStatsReader.Section.EMOJI)) {
-            drawEmoji(snapshot);
+            drawEmoji(latest);
         }
     }
 
@@ -168,11 +184,40 @@ public class GroupStatsActivity extends Activity {
                 + when(snapshot.firstTimestamp) + " – " + when(snapshot.lastTimestamp)));
         List<GroupStatsReader.Snapshot.Participant> all = snapshot.participants;
         long top = all.isEmpty() ? 0 : all.get(0).messages;
-        for (GroupStatsReader.Snapshot.Participant who : all) {
+        int shown = allParticipants ? all.size() : Math.min(TOP_PARTICIPANTS, all.size());
+        for (int i = 0; i < shown; i++) {
+            GroupStatsReader.Snapshot.Participant who = all.get(i);
             content.addView(bar(who.name, who.messages,
                     snapshot.totalMessages == 0 ? 0 : who.messages * 100f / snapshot.totalMessages,
                     top == 0 ? 0f : (float) who.messages / top));
         }
+        if (all.size() > TOP_PARTICIPANTS) {
+            content.addView(more(all.size(), allParticipants, () -> {
+                allParticipants = !allParticipants;
+                render();
+            }));
+        }
+    }
+
+    /** How many of a group's members a screenful can honestly show at once. */
+    private static final int TOP_PARTICIPANTS = 10;
+
+    /**
+     * The tap that unfolds a truncated list, or folds it back.
+     *
+     * A link rather than a row: it acts on the list above it, and a button
+     * drawn like the bars would read as another participant.
+     */
+    private View more(int total, boolean expanded, Runnable onClick) {
+        TextView view = new TextView(this);
+        view.setText(expanded ? "Show top " + TOP_PARTICIPANTS : "Show all " + total);
+        view.setTextColor(Palette.ACCENT);
+        view.setTypeface(view.getTypeface(), android.graphics.Typeface.BOLD);
+        view.setPadding(0, Palette.dp(this, 10), 0, Palette.dp(this, 10));
+        view.setClickable(true);
+        view.setBackground(Palette.rowRipple(this));
+        view.setOnClickListener(v -> onClick.run());
+        return view;
     }
 
     private String when(long millis) {
@@ -215,50 +260,6 @@ public class GroupStatsActivity extends Activity {
         return top;
     }
 
-    private void drawWhat(GroupStatsReader.Snapshot snapshot) {
-        content.addView(heading("What"));
-        if (snapshot.failed.contains(GroupStatsReader.Section.WHAT.name())) {
-            content.addView(note("Unavailable."));
-            return;
-        }
-        long images = 0;
-        long videos = 0;
-        long audio = 0;
-        long documents = 0;
-        long stickers = 0;
-        long other = 0;
-        for (GroupStatsReader.Snapshot.Participant who : snapshot.participants) {
-            images += who.images;
-            videos += who.videos;
-            audio += who.audio;
-            documents += who.documents;
-            stickers += who.stickers;
-            other += who.otherMedia;
-        }
-        long media = images + videos + audio + documents + stickers + other;
-        if (media == 0) {
-            content.addView(note("No media in this group."));
-            return;
-        }
-        content.addView(bar("Photos", images, 0f, (float) images / media));
-        content.addView(bar("Videos", videos, 0f, (float) videos / media));
-        content.addView(bar("Audio", audio, 0f, (float) audio / media));
-        content.addView(bar("Stickers", stickers, 0f, (float) stickers / media));
-        content.addView(bar("Documents", documents, 0f, (float) documents / media));
-        if (other > 0) {
-            content.addView(bar("Other", other, 0f, (float) other / media));
-        }
-        content.addView(note("Top media senders"));
-        for (GroupStatsReader.Snapshot.Participant who : snapshot.participants) {
-            long theirs = who.images + who.videos + who.audio
-                    + who.documents + who.stickers + who.otherMedia;
-            if (theirs == 0) {
-                continue;
-            }
-            content.addView(bar(who.name, theirs, 0f, (float) theirs / media));
-        }
-    }
-
     private static final int TOP_EMOJI = 8;
 
     private void drawEmoji(GroupStatsReader.Snapshot snapshot) {
@@ -282,14 +283,28 @@ public class GroupStatsActivity extends Activity {
         // Snapshot's own sort -- so this reads as "in that same order",
         // not a ranking of favourites.
         content.addView(note("Each person's favourite"));
+        // The same member list as "Who talks most", so it is truncated the
+        // same way; only the people who ever typed an emoji are in it.
+        List<String> favourites = new java.util.ArrayList<>();
         for (GroupStatsReader.Snapshot.Participant who : snapshot.participants) {
             List<java.util.Map.Entry<String, Long>> best =
                     GroupStatsReader.top(who.textEmoji, 1);
             if (best.isEmpty()) {
                 continue;
             }
-            content.addView(note(who.name + " — " + best.get(0).getKey()
-                    + " × " + best.get(0).getValue()));
+            favourites.add(who.name + " — " + best.get(0).getKey()
+                    + " × " + best.get(0).getValue());
+        }
+        int shown = allFavourites ? favourites.size()
+                : Math.min(TOP_PARTICIPANTS, favourites.size());
+        for (int i = 0; i < shown; i++) {
+            content.addView(note(favourites.get(i)));
+        }
+        if (favourites.size() > TOP_PARTICIPANTS) {
+            content.addView(more(favourites.size(), allFavourites, () -> {
+                allFavourites = !allFavourites;
+                render();
+            }));
         }
     }
 

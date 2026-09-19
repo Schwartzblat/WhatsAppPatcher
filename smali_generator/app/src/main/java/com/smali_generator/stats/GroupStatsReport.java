@@ -25,12 +25,6 @@ public final class GroupStatsReport {
         public String name;
 
         public long messages;
-        public long images;
-        public long videos;
-        public long audio;
-        public long documents;
-        public long stickers;
-        public long otherMedia;
 
         public final Map<String, Long> textEmoji = new HashMap<>();
         public final Map<String, Long> reactionEmoji = new HashMap<>();

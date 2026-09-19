@@ -5,6 +5,7 @@ import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.util.Log;
 
+import com.smali_generator.db.LidJids;
 import com.smali_generator.db.ParticipantNames;
 
 import java.io.File;
@@ -37,7 +38,7 @@ public final class GroupStatsReader {
     private static final String MSGSTORE_DB = "msgstore.db";
 
     /** Reported in this order; EMOJI is last because it is the expensive one. */
-    public enum Section { SUMMARY, PARTICIPANTS, WHEN, WHAT, EMOJI }
+    public enum Section { SUMMARY, PARTICIPANTS, WHEN, EMOJI }
 
     /** Called on the reader's thread as each section completes. */
     public interface Progress {
@@ -49,8 +50,8 @@ public final class GroupStatsReader {
      * main thread to read.
      *
      * GroupStatsReport is the reader thread's own accumulator and keeps being
-     * written after a section reports -- nameThem() runs a second time once
-     * Task 8's reaction query exists, discovering and naming participants
+     * written after a section reports -- nameThem() runs a second time for
+     * the reaction query, discovering and naming participants
      * after PARTICIPANTS has already been handed off once. Copying instead of
      * synchronizing means the main thread can never observe a field the
      * reader is still writing, and a later section's copy is simply a newer,
@@ -90,12 +91,6 @@ public final class GroupStatsReader {
             public final boolean isMe;
             public final String name;
             public final long messages;
-            public final long images;
-            public final long videos;
-            public final long audio;
-            public final long documents;
-            public final long stickers;
-            public final long otherMedia;
             public final Map<String, Long> textEmoji;
             public final Map<String, Long> reactionEmoji;
 
@@ -104,12 +99,6 @@ public final class GroupStatsReader {
                 isMe = who.isMe;
                 name = who.name;
                 messages = who.messages;
-                images = who.images;
-                videos = who.videos;
-                audio = who.audio;
-                documents = who.documents;
-                stickers = who.stickers;
-                otherMedia = who.otherMedia;
                 textEmoji = Collections.unmodifiableMap(new HashMap<>(who.textEmoji));
                 reactionEmoji = Collections.unmodifiableMap(new HashMap<>(who.reactionEmoji));
             }
@@ -143,8 +132,6 @@ public final class GroupStatsReader {
             section(Section.PARTICIPANTS, report, progress);
             readWhen(database, chatRowId, report);
             section(Section.WHEN, report, progress);
-            readWhat(database, chatRowId, report);
-            section(Section.WHAT, report, progress);
             readEmoji(database, chatRowId, report);
             // Again: a reaction can come from someone who never sent a message
             // here, and that participant did not exist when naming first ran.
@@ -285,67 +272,6 @@ public final class GroupStatsReader {
     }
 
     /**
-     * The media mix, classified by mime type.
-     *
-     * Not by message_type: that is a table of undocumented magic numbers which
-     * drifts between releases, and a wrong constant misfiles messages silently.
-     * A mime type describes itself, and message_media is the row that exists
-     * precisely when a message carried a file.
-     *
-     * The one thing mime cannot tell us is a voice note from a shared audio
-     * file -- both are audio/* -- so the screen says "audio" rather than
-     * inventing a distinction it cannot make.
-     *
-     * COUNT(DISTINCT m._id), not COUNT(*): message_media has no unique index
-     * on message_row_id, so the join is not guaranteed one row per message,
-     * and this counts messages of a given type rather than media rows.
-     */
-    private static void readWhat(SQLiteDatabase database, long chatRowId,
-                                 GroupStatsReport report) {
-        try {
-            Cursor cursor = database.rawQuery(
-                    "SELECT m.from_me, IFNULL(j.raw_string, '') AS sender,"
-                            + " IFNULL(mm.mime_type, '') AS mime, COUNT(DISTINCT m._id) AS n"
-                            + " FROM available_message_view m"
-                            + " JOIN message_media mm ON mm.message_row_id = m._id"
-                            + " LEFT JOIN message_system ms ON ms.message_row_id = m._id"
-                            + " LEFT JOIN jid j ON j._id = m.sender_jid_row_id"
-                            + " WHERE m.chat_row_id = ? AND ms.message_row_id IS NULL"
-                            + " GROUP BY m.from_me, sender, mime",
-                    new String[]{String.valueOf(chatRowId)});
-            try {
-                while (cursor.moveToNext()) {
-                    boolean isMe = cursor.getInt(0) == 1;
-                    String sender = cursor.getString(1);
-                    String mime = cursor.getString(2);
-                    long count = cursor.getLong(3);
-                    // Same three-way split as readParticipants: a from_me=0 row
-                    // with no resolvable sender is still someone else's media,
-                    // and folding it into ME would silently credit "You" with
-                    // media you did not send. readParticipants already logs the
-                    // unresolved count for this chat, so this just has to land
-                    // honestly on UNKNOWN rather than log it again.
-                    String key;
-                    if (isMe) {
-                        key = GroupStatsReport.ME;
-                    } else if (sender == null || sender.isEmpty()) {
-                        key = GroupStatsReport.UNKNOWN;
-                    } else {
-                        key = sender;
-                    }
-                    GroupStatsReport.Participant who = report.participant(key, isMe);
-                    add(who, mime == null ? "" : mime, count);
-                }
-            } finally {
-                cursor.close();
-            }
-        } catch (Throwable t) {
-            Log.e(TAG, "GroupStatsReader: media mix failed", t);
-            report.failed.add(Section.WHAT.name());
-        }
-    }
-
-    /**
      * Emoji typed, and emoji reacted with.
      *
      * Listed separately because they are different acts: reaching for a symbol
@@ -450,24 +376,6 @@ public final class GroupStatsReader {
         return all.size() > limit ? all.subList(0, limit) : all;
     }
 
-    private static void add(GroupStatsReport.Participant who, String mime, long count) {
-        // Stickers are webp images, and checking that first is what keeps them
-        // out of the photo count.
-        if (mime.equals("image/webp")) {
-            who.stickers += count;
-        } else if (mime.startsWith("image/")) {
-            who.images += count;
-        } else if (mime.startsWith("video/")) {
-            who.videos += count;
-        } else if (mime.startsWith("audio/")) {
-            who.audio += count;
-        } else if (mime.startsWith("application/") || mime.startsWith("text/")) {
-            who.documents += count;
-        } else {
-            who.otherMedia += count;
-        }
-    }
-
     /**
      * Puts a name to every sender not yet named.
      *
@@ -494,14 +402,20 @@ public final class GroupStatsReader {
                     continue;
                 }
                 String name = names.get(who.key);
-                who.name = name != null ? name : digitsOf(who.key);
+                who.name = name != null ? name : digitsOf(LidJids.phoneJid(who.key));
             }
         } catch (Throwable t) {
             Log.e(TAG, "GroupStatsReader: naming failed, senders stay as digits", t);
         }
     }
 
-    /** The digits of a jid, for a sender the contact store has nothing on. */
+    /**
+     * The digits of a jid, for a sender the contact store has nothing on.
+     *
+     * Called on the phone jid rather than the raw one: a LID's digits are
+     * an internal identifier that means nothing to anybody, where a phone
+     * number at least identifies the person to whoever recognises it.
+     */
     private static String digitsOf(String jid) {
         int at = jid.indexOf('@');
         return at > 0 ? jid.substring(0, at) : jid;
