@@ -141,7 +141,9 @@ public final class GroupStatsReader {
             readParticipants(database, chatRowId, report);
             nameThem(context, report);
             section(Section.PARTICIPANTS, report, progress);
-            // Tasks 6-8 add WHEN, WHAT and EMOJI here, in that order.
+            readWhen(database, chatRowId, report);
+            section(Section.WHEN, report, progress);
+            // Tasks 7-8 add WHAT and EMOJI here, in that order.
         } catch (Throwable t) {
             Log.e(TAG, "GroupStatsReader: could not read " + MSGSTORE_DB, t);
             allFailed(report, progress);
@@ -232,6 +234,47 @@ public final class GroupStatsReader {
         } catch (Throwable t) {
             Log.e(TAG, "GroupStatsReader: participant counts failed", t);
             report.failed.add(Section.PARTICIPANTS.name());
+        }
+    }
+
+    /**
+     * The clock and the week, in local time.
+     *
+     * strftime is given seconds, so the stored milliseconds are divided;
+     * 'localtime' is what makes "the group talks at night" mean the user's
+     * night rather than UTC's.
+     */
+    private static void readWhen(SQLiteDatabase database, long chatRowId,
+                                 GroupStatsReport report) {
+        try {
+            Cursor cursor = database.rawQuery(
+                    "SELECT CAST(strftime('%H', m.timestamp/1000, 'unixepoch', 'localtime') AS INTEGER) AS hour,"
+                            + " CAST(strftime('%w', m.timestamp/1000, 'unixepoch', 'localtime') AS INTEGER) AS wday,"
+                            + " COUNT(*) AS n"
+                            + " FROM available_message_view m"
+                            + " LEFT JOIN message_system ms ON ms.message_row_id = m._id"
+                            + " WHERE m.chat_row_id = ? AND ms.message_row_id IS NULL"
+                            + " AND m.timestamp > 0"
+                            + " GROUP BY hour, wday",
+                    new String[]{String.valueOf(chatRowId)});
+            try {
+                while (cursor.moveToNext()) {
+                    int hour = cursor.getInt(0);
+                    int wday = cursor.getInt(1);
+                    long count = cursor.getLong(2);
+                    if (hour >= 0 && hour < 24) {
+                        report.byHour[hour] += count;
+                    }
+                    if (wday >= 0 && wday < 7) {
+                        report.byWeekday[wday] += count;
+                    }
+                }
+            } finally {
+                cursor.close();
+            }
+        } catch (Throwable t) {
+            Log.e(TAG, "GroupStatsReader: activity over time failed", t);
+            report.failed.add(Section.WHEN.name());
         }
     }
 

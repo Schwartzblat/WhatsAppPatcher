@@ -138,6 +138,9 @@ public class GroupStatsActivity extends Activity {
         if (reached.contains(GroupStatsReader.Section.PARTICIPANTS)) {
             drawParticipants(snapshot);
         }
+        if (reached.contains(GroupStatsReader.Section.WHEN)) {
+            drawWhen(snapshot);
+        }
     }
 
     private void drawSummary(GroupStatsReader.Snapshot snapshot) {
@@ -170,6 +173,42 @@ public class GroupStatsActivity extends Activity {
         return millis <= 0 ? "?" : DateFormat.getDateFormat(this).format(new java.util.Date(millis));
     }
 
+    private static final String[] WEEKDAYS = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
+
+    private void drawWhen(GroupStatsReader.Snapshot snapshot) {
+        content.addView(heading("When"));
+        if (snapshot.failed.contains(GroupStatsReader.Section.WHEN.name())) {
+            content.addView(note("Unavailable."));
+            return;
+        }
+        content.addView(note("By hour of day"));
+        long peak = max(snapshot.byHour);
+        for (int hour = 0; hour < 24; hour++) {
+            if (snapshot.byHour[hour] == 0) {
+                continue;
+            }
+            content.addView(bar(String.format(java.util.Locale.getDefault(), "%02d:00", hour),
+                    snapshot.byHour[hour], 0f,
+                    peak == 0 ? 0f : (float) snapshot.byHour[hour] / peak));
+        }
+        content.addView(note("By day of week"));
+        long busiest = max(snapshot.byWeekday);
+        for (int day = 0; day < 7; day++) {
+            content.addView(bar(WEEKDAYS[day], snapshot.byWeekday[day], 0f,
+                    busiest == 0 ? 0f : (float) snapshot.byWeekday[day] / busiest));
+        }
+    }
+
+    private static long max(long[] values) {
+        long top = 0;
+        for (long value : values) {
+            if (value > top) {
+                top = value;
+            }
+        }
+        return top;
+    }
+
     private TextView heading(String text) {
         TextView view = new TextView(this);
         view.setText(text);
@@ -186,8 +225,9 @@ public class GroupStatsActivity extends Activity {
         row.setPadding(0, Palette.dp(this, 6), 0, Palette.dp(this, 6));
 
         TextView label = new TextView(this);
-        label.setText(String.format(java.util.Locale.getDefault(),
-                "%s — %d (%.1f%%)", name, count, percent));
+        label.setText(percent > 0f
+                ? String.format(java.util.Locale.getDefault(), "%s — %d (%.1f%%)", name, count, percent)
+                : String.format(java.util.Locale.getDefault(), "%s — %d", name, count));
         label.setTextColor(Palette.primaryText(this));
         row.addView(label);
 
