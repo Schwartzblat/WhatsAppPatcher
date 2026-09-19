@@ -143,7 +143,9 @@ public final class GroupStatsReader {
             section(Section.PARTICIPANTS, report, progress);
             readWhen(database, chatRowId, report);
             section(Section.WHEN, report, progress);
-            // Tasks 7-8 add WHAT and EMOJI here, in that order.
+            readWhat(database, chatRowId, report);
+            section(Section.WHAT, report, progress);
+            // Task 8 adds EMOJI here.
         } catch (Throwable t) {
             Log.e(TAG, "GroupStatsReader: could not read " + MSGSTORE_DB, t);
             allFailed(report, progress);
@@ -275,6 +277,85 @@ public final class GroupStatsReader {
         } catch (Throwable t) {
             Log.e(TAG, "GroupStatsReader: activity over time failed", t);
             report.failed.add(Section.WHEN.name());
+        }
+    }
+
+    /**
+     * The media mix, classified by mime type.
+     *
+     * Not by message_type: that is a table of undocumented magic numbers which
+     * drifts between releases, and a wrong constant misfiles messages silently.
+     * A mime type describes itself, and message_media is the row that exists
+     * precisely when a message carried a file.
+     *
+     * The one thing mime cannot tell us is a voice note from a shared audio
+     * file -- both are audio/* -- so the screen says "audio" rather than
+     * inventing a distinction it cannot make.
+     *
+     * COUNT(DISTINCT m._id), not COUNT(*): message_media has no unique index
+     * on message_row_id, so the join is not guaranteed one row per message,
+     * and this counts messages of a given type rather than media rows.
+     */
+    private static void readWhat(SQLiteDatabase database, long chatRowId,
+                                 GroupStatsReport report) {
+        try {
+            Cursor cursor = database.rawQuery(
+                    "SELECT m.from_me, IFNULL(j.raw_string, '') AS sender,"
+                            + " IFNULL(mm.mime_type, '') AS mime, COUNT(DISTINCT m._id) AS n"
+                            + " FROM available_message_view m"
+                            + " JOIN message_media mm ON mm.message_row_id = m._id"
+                            + " LEFT JOIN message_system ms ON ms.message_row_id = m._id"
+                            + " LEFT JOIN jid j ON j._id = m.sender_jid_row_id"
+                            + " WHERE m.chat_row_id = ? AND ms.message_row_id IS NULL"
+                            + " GROUP BY m.from_me, sender, mime",
+                    new String[]{String.valueOf(chatRowId)});
+            try {
+                while (cursor.moveToNext()) {
+                    boolean isMe = cursor.getInt(0) == 1;
+                    String sender = cursor.getString(1);
+                    String mime = cursor.getString(2);
+                    long count = cursor.getLong(3);
+                    // Same three-way split as readParticipants: a from_me=0 row
+                    // with no resolvable sender is still someone else's media,
+                    // and folding it into ME would silently credit "You" with
+                    // media you did not send. readParticipants already logs the
+                    // unresolved count for this chat, so this just has to land
+                    // honestly on UNKNOWN rather than log it again.
+                    String key;
+                    if (isMe) {
+                        key = GroupStatsReport.ME;
+                    } else if (sender == null || sender.isEmpty()) {
+                        key = GroupStatsReport.UNKNOWN;
+                    } else {
+                        key = sender;
+                    }
+                    GroupStatsReport.Participant who = report.participant(key, isMe);
+                    add(who, mime == null ? "" : mime, count);
+                }
+            } finally {
+                cursor.close();
+            }
+        } catch (Throwable t) {
+            Log.e(TAG, "GroupStatsReader: media mix failed", t);
+            report.failed.add(Section.WHAT.name());
+        }
+    }
+
+    private static void add(GroupStatsReport.Participant who, String mime, long count) {
+        // Stickers are webp images, and checking that first is what keeps them
+        // out of the photo count.
+        if (mime.equals("image/webp")) {
+            who.stickers += count;
+        } else if (mime.startsWith("image/")) {
+            who.images += count;
+        } else if (mime.startsWith("video/")) {
+            who.videos += count;
+        } else if (mime.startsWith("audio/")) {
+            who.audio += count;
+        } else if (mime.startsWith("application/") || mime.startsWith("text/")) {
+            who.documents += count;
+        } else {
+            who.otherMedia += count;
         }
     }
 

@@ -141,6 +141,9 @@ public class GroupStatsActivity extends Activity {
         if (reached.contains(GroupStatsReader.Section.WHEN)) {
             drawWhen(snapshot);
         }
+        if (reached.contains(GroupStatsReader.Section.WHAT)) {
+            drawWhat(snapshot);
+        }
     }
 
     private void drawSummary(GroupStatsReader.Snapshot snapshot) {
@@ -207,6 +210,50 @@ public class GroupStatsActivity extends Activity {
             }
         }
         return top;
+    }
+
+    private void drawWhat(GroupStatsReader.Snapshot snapshot) {
+        content.addView(heading("What"));
+        if (snapshot.failed.contains(GroupStatsReader.Section.WHAT.name())) {
+            content.addView(note("Unavailable."));
+            return;
+        }
+        long images = 0;
+        long videos = 0;
+        long audio = 0;
+        long documents = 0;
+        long stickers = 0;
+        long other = 0;
+        for (GroupStatsReader.Snapshot.Participant who : snapshot.participants) {
+            images += who.images;
+            videos += who.videos;
+            audio += who.audio;
+            documents += who.documents;
+            stickers += who.stickers;
+            other += who.otherMedia;
+        }
+        long media = images + videos + audio + documents + stickers + other;
+        if (media == 0) {
+            content.addView(note("No media in this group."));
+            return;
+        }
+        content.addView(bar("Photos", images, 0f, (float) images / media));
+        content.addView(bar("Videos", videos, 0f, (float) videos / media));
+        content.addView(bar("Audio", audio, 0f, (float) audio / media));
+        content.addView(bar("Stickers", stickers, 0f, (float) stickers / media));
+        content.addView(bar("Documents", documents, 0f, (float) documents / media));
+        if (other > 0) {
+            content.addView(bar("Other", other, 0f, (float) other / media));
+        }
+        content.addView(note("Top media senders"));
+        for (GroupStatsReader.Snapshot.Participant who : snapshot.participants) {
+            long theirs = who.images + who.videos + who.audio
+                    + who.documents + who.stickers + who.otherMedia;
+            if (theirs == 0) {
+                continue;
+            }
+            content.addView(bar(who.name, theirs, 0f, (float) theirs / media));
+        }
     }
 
     private TextView heading(String text) {
