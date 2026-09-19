@@ -7,12 +7,16 @@ import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.text.format.DateFormat;
+import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowInsets;
+import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -65,6 +69,11 @@ public class GroupStatsActivity extends Activity {
     private boolean allParticipants;
     private boolean allFavourites;
 
+    private EditText searchBox;
+
+    /** Lower-cased once here rather than per row on every keystroke. */
+    private String query = "";
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -91,17 +100,66 @@ public class GroupStatsActivity extends Activity {
     }
 
     private View buildContent() {
+        LinearLayout root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        int side = Palette.dp(this, SIDE_PADDING_DP);
+
+        // The field sits outside the scroller because every keystroke rebuilds
+        // the scroller's contents; rebuilt with them, it would lose focus and
+        // take the keyboard down on the first letter typed.
+        LinearLayout header = new LinearLayout(this);
+        header.setOrientation(LinearLayout.VERTICAL);
+        header.setPadding(side, Palette.dp(this, 12), side, 0);
+        searchBox = searchBox();
+        header.addView(searchBox);
+        root.addView(header);
+
         ScrollView scroller = new ScrollView(this);
         content = new LinearLayout(this);
         content.setOrientation(LinearLayout.VERTICAL);
-        int side = Palette.dp(this, SIDE_PADDING_DP);
         content.setPadding(side, side, side, side);
         scroller.addView(content);
-        // Inset the scroller, not content -- content's own padding is the
-        // screen's margin, this is what keeps the first section from drawing
-        // under WhatsApp's own action bar, same as ChatPickerActivity's root.
-        insetBelowSystemBars(scroller);
-        return scroller;
+        root.addView(scroller, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
+
+        // Inset the root, not content -- content's own padding is the screen's
+        // margin, this is what keeps the search field from drawing under
+        // WhatsApp's own action bar, same as ChatPickerActivity's root.
+        insetBelowSystemBars(root);
+        return root;
+    }
+
+    private EditText searchBox() {
+        EditText search = new EditText(this);
+        search.setHint("Search participants");
+        search.setSingleLine(true);
+        search.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f);
+        search.setTextColor(Palette.primaryText(this));
+        search.setHintTextColor(Palette.secondaryText(this));
+        search.setBackgroundTintList(
+                android.content.res.ColorStateList.valueOf(Palette.ACCENT));
+        search.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence text, int start, int count, int after) {
+            }
+
+            @Override
+            public void onTextChanged(CharSequence text, int start, int before, int count) {
+                query = text.toString().trim().toLowerCase(java.util.Locale.getDefault());
+                render();
+            }
+
+            @Override
+            public void afterTextChanged(Editable editable) {
+            }
+        });
+        return search;
+    }
+
+    /** Whether a row survives the search field; everything does when it is empty. */
+    private boolean matches(String label) {
+        return query.isEmpty()
+                || label.toLowerCase(java.util.Locale.getDefault()).contains(query);
     }
 
     private void insetBelowSystemBars(View content) {
@@ -183,16 +241,32 @@ public class GroupStatsActivity extends Activity {
         content.addView(note(snapshot.totalMessages + " messages, "
                 + when(snapshot.firstTimestamp) + " – " + when(snapshot.lastTimestamp)));
         List<GroupStatsReader.Snapshot.Participant> all = snapshot.participants;
+        // Scaled to the loudest person in the group, not the loudest match, so
+        // a bar means the same thing whether or not a search is running.
         long top = all.isEmpty() ? 0 : all.get(0).messages;
-        int shown = allParticipants ? all.size() : Math.min(TOP_PARTICIPANTS, all.size());
+        List<GroupStatsReader.Snapshot.Participant> hits = new java.util.ArrayList<>();
+        for (GroupStatsReader.Snapshot.Participant who : all) {
+            if (matches(who.name)) {
+                hits.add(who);
+            }
+        }
+        if (hits.isEmpty()) {
+            content.addView(note("Nobody here matches that."));
+            return;
+        }
+        // A search shows every match: having asked for a person by name, being
+        // told there are ten of them and a button is no answer.
+        boolean searching = !query.isEmpty();
+        int shown = searching || allParticipants
+                ? hits.size() : Math.min(TOP_PARTICIPANTS, hits.size());
         for (int i = 0; i < shown; i++) {
-            GroupStatsReader.Snapshot.Participant who = all.get(i);
+            GroupStatsReader.Snapshot.Participant who = hits.get(i);
             content.addView(bar(who.name, who.messages,
                     snapshot.totalMessages == 0 ? 0 : who.messages * 100f / snapshot.totalMessages,
                     top == 0 ? 0f : (float) who.messages / top));
         }
-        if (all.size() > TOP_PARTICIPANTS) {
-            content.addView(more(all.size(), allParticipants, () -> {
+        if (!searching && hits.size() > TOP_PARTICIPANTS) {
+            content.addView(more(hits.size(), allParticipants, () -> {
                 allParticipants = !allParticipants;
                 render();
             }));
@@ -292,15 +366,23 @@ public class GroupStatsActivity extends Activity {
             if (best.isEmpty()) {
                 continue;
             }
+            if (!matches(who.name)) {
+                continue;
+            }
             favourites.add(who.name + " — " + best.get(0).getKey()
                     + " × " + best.get(0).getValue());
         }
-        int shown = allFavourites ? favourites.size()
-                : Math.min(TOP_PARTICIPANTS, favourites.size());
+        if (favourites.isEmpty()) {
+            content.addView(note("None."));
+            return;
+        }
+        boolean searching = !query.isEmpty();
+        int shown = searching || allFavourites
+                ? favourites.size() : Math.min(TOP_PARTICIPANTS, favourites.size());
         for (int i = 0; i < shown; i++) {
             content.addView(note(favourites.get(i)));
         }
-        if (favourites.size() > TOP_PARTICIPANTS) {
+        if (!searching && favourites.size() > TOP_PARTICIPANTS) {
             content.addView(more(favourites.size(), allFavourites, () -> {
                 allFavourites = !allFavourites;
                 render();

@@ -377,7 +377,7 @@ public final class GroupStatsReader {
     }
 
     /**
-     * Puts a name to every sender not yet named.
+     * Labels every sender not yet labelled, as "number-name".
      *
      * Called again after the reaction query, because someone can react in a
      * group without ever having sent a message in it -- that participant is
@@ -401,8 +401,13 @@ public final class GroupStatsReader {
                 if (who.isMe || !who.name.equals(who.key)) {
                     continue;
                 }
+                String phone = digitsOf(LidJids.phoneJid(who.key));
                 String name = names.get(who.key);
-                who.name = name != null ? name : digitsOf(LidJids.phoneJid(who.key));
+                // "number-name", not one or the other: the name is whatever
+                // the person calls themselves and two people in a group of
+                // hundreds can easily choose the same one, where the number
+                // is the thing that actually identifies them.
+                who.name = name != null ? phone + "-" + name : phone;
             }
         } catch (Throwable t) {
             Log.e(TAG, "GroupStatsReader: naming failed, senders stay as digits", t);
