@@ -78,7 +78,6 @@ public class GroupStatsActivity extends Activity {
     private GroupStatsReader.Snapshot latest;
 
     private boolean allParticipants;
-    private boolean allFavourites;
 
     private EditText searchBox;
 
@@ -533,42 +532,10 @@ public class GroupStatsActivity extends Activity {
         addTally(typed);
         content.addView(note("Most reacted with"));
         addTally(reacted);
-
-        // snapshot.participants is already most-talkative-first -- the
-        // Snapshot's own sort -- so this reads as "in that same order",
-        // not a ranking of favourites.
-        content.addView(note("Each person's favourite"));
-        // The same member list as "Who talks most", so it is truncated the
-        // same way; only the people who ever typed an emoji are in it.
-        List<String> favourites = new java.util.ArrayList<>();
-        for (GroupStatsReader.Snapshot.Participant who : snapshot.participants) {
-            List<java.util.Map.Entry<String, Long>> best =
-                    GroupStatsReader.top(who.textEmoji, 1);
-            if (best.isEmpty()) {
-                continue;
-            }
-            if (!matches(who.name)) {
-                continue;
-            }
-            favourites.add(who.name + " — " + best.get(0).getKey()
-                    + " × " + best.get(0).getValue());
-        }
-        if (favourites.isEmpty()) {
-            content.addView(note("None."));
-            return;
-        }
-        boolean searching = !query.isEmpty();
-        int shown = searching || allFavourites
-                ? favourites.size() : Math.min(TOP_PARTICIPANTS, favourites.size());
-        for (int i = 0; i < shown; i++) {
-            content.addView(note(favourites.get(i)));
-        }
-        if (!searching && favourites.size() > TOP_PARTICIPANTS) {
-            content.addView(more(favourites.size(), allFavourites, () -> {
-                allFavourites = !allFavourites;
-                render();
-            }));
-        }
+        // One person's own favourite lives on their card, reached by tapping
+        // them under "Who talks most". Listed here as well it was the same
+        // several hundred rows a second time, under a heading that promised a
+        // ranking and delivered the talkativeness order again.
     }
 
     private void addTally(java.util.Map<String, Long> tally) {
@@ -609,7 +576,7 @@ public class GroupStatsActivity extends Activity {
         return view;
     }
 
-    private static final int ROW_AVATAR_DP = 36;
+    private static final int ROW_AVATAR_DP = 40;
     private static final int CARD_AVATAR_DP = 56;
 
     /**
@@ -633,6 +600,9 @@ public class GroupStatsActivity extends Activity {
         row.setClickable(true);
         row.setBackground(Palette.rowRipple(this));
         row.setOnClickListener(view -> showPerson(who));
+        // On top of the bar's own padding: a row is a photo, a name and a bar,
+        // and at the bar's spacing alone the photos very nearly touch.
+        row.setPadding(0, Palette.dp(this, 8), 0, Palette.dp(this, 8));
         row.addView(avatar(who, ROW_AVATAR_DP));
         row.addView(bar(who.name, who.messages, percent, fraction),
                 new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
@@ -816,6 +786,11 @@ public class GroupStatsActivity extends Activity {
 
         LinearLayout trackRow = new LinearLayout(this);
         trackRow.setOrientation(LinearLayout.HORIZONTAL);
+        // A bar drawn hard against its own label reads as underlining it.
+        LinearLayout.LayoutParams below = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        below.topMargin = Palette.dp(this, 5);
+        trackRow.setLayoutParams(below);
         trackRow.addView(track);
         View spacer = new View(this);
         LinearLayout.LayoutParams spacerParams = new LinearLayout.LayoutParams(
