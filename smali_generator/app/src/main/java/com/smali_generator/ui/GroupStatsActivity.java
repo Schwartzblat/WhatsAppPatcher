@@ -300,28 +300,106 @@ public class GroupStatsActivity extends Activity {
 
     private static final String[] WEEKDAYS = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
 
+    /** How tall a chart's tallest column is drawn. */
+    private static final int CHART_HEIGHT_DP = 120;
+
+    /** Labelling all 24 hours puts the labels on top of each other. */
+    private static final int HOUR_LABEL_EVERY = 6;
+
     private void drawWhen(GroupStatsReader.Snapshot snapshot) {
         content.addView(heading("When"));
         if (snapshot.failed.contains(GroupStatsReader.Section.WHEN.name())) {
             content.addView(note("Unavailable."));
             return;
         }
+        String[] hours = new String[24];
+        for (int hour = 0; hour < hours.length; hour++) {
+            hours[hour] = String.format(java.util.Locale.getDefault(), "%02d", hour);
+        }
         content.addView(note("By hour of day"));
-        long peak = max(snapshot.byHour);
-        for (int hour = 0; hour < 24; hour++) {
-            if (snapshot.byHour[hour] == 0) {
-                continue;
-            }
-            content.addView(bar(String.format(java.util.Locale.getDefault(), "%02d:00", hour),
-                    snapshot.byHour[hour], 0f,
-                    peak == 0 ? 0f : (float) snapshot.byHour[hour] / peak));
-        }
+        drawChart(hours, snapshot.byHour, HOUR_LABEL_EVERY, "at ", ":00");
         content.addView(note("By day of week"));
-        long busiest = max(snapshot.byWeekday);
-        for (int day = 0; day < 7; day++) {
-            content.addView(bar(WEEKDAYS[day], snapshot.byWeekday[day], 0f,
-                    busiest == 0 ? 0f : (float) snapshot.byWeekday[day] / busiest));
+        drawChart(WEEKDAYS, snapshot.byWeekday, 1, "on ", "");
+    }
+
+    private void drawChart(String[] labels, long[] values, int labelEvery,
+                           String preposition, String labelSuffix) {
+        long peak = max(values);
+        if (peak == 0) {
+            content.addView(note("Nothing to show."));
+            return;
         }
+        LinearLayout chart = new LinearLayout(this);
+        chart.setOrientation(LinearLayout.HORIZONTAL);
+        chart.setPadding(0, Palette.dp(this, 8), 0, 0);
+        for (int i = 0; i < values.length; i++) {
+            chart.addView(column(labels[i], values[i], peak, i % labelEvery == 0));
+        }
+        content.addView(chart);
+        int busiest = 0;
+        for (int i = 0; i < values.length; i++) {
+            if (values[i] > values[busiest]) {
+                busiest = i;
+            }
+        }
+        // The axis is labelled every sixth hour, so "19" there is a tick;
+        // spelled out here it has to read as a time.
+        content.addView(note("Busiest " + preposition + labels[busiest] + labelSuffix
+                + " — " + peak + " messages"));
+    }
+
+    /**
+     * One column of a chart: a bar growing up from a shared baseline, with a
+     * label under it.
+     *
+     * The spacer above the bar is what puts the baseline at the bottom --
+     * weights divide the column's fixed height, so the bar's share of it is
+     * its share of the peak, and every column stays the same width whatever
+     * it holds.
+     */
+    private View column(String label, long value, long peak, boolean showLabel) {
+        LinearLayout stack = new LinearLayout(this);
+        stack.setOrientation(LinearLayout.VERTICAL);
+        stack.setLayoutParams(new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, Palette.dp(this, CHART_HEIGHT_DP)));
+
+        float fraction = (float) value / peak;
+        View spacer = new View(this);
+        spacer.setLayoutParams(new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f - fraction));
+        stack.addView(spacer);
+
+        View fill = new View(this);
+        fill.setBackground(barFill());
+        LinearLayout.LayoutParams bar = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, 0,
+                // A floor, so an hour with one message is not an empty column
+                // -- but only once there is something to show, because a zero
+                // has to read as a gap in the day.
+                value == 0 ? 0f : Math.max(fraction, 0.03f));
+        int gap = Palette.dp(this, 1);
+        bar.setMargins(gap, 0, gap, 0);
+        fill.setLayoutParams(bar);
+        stack.addView(fill);
+
+        // Each column takes an equal share of the chart's width, whatever the
+        // label under it measures.
+        LinearLayout holder = new LinearLayout(this);
+        holder.setOrientation(LinearLayout.VERTICAL);
+        holder.setLayoutParams(new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        holder.addView(stack);
+
+        TextView caption = new TextView(this);
+        // Always added, labelled or not, so every column is the same height
+        // and the bars share one baseline.
+        caption.setText(showLabel ? label : "");
+        caption.setTextSize(TypedValue.COMPLEX_UNIT_SP, 9f);
+        caption.setTextColor(Palette.secondaryText(this));
+        caption.setGravity(Gravity.CENTER_HORIZONTAL);
+        caption.setPadding(0, Palette.dp(this, 4), 0, 0);
+        holder.addView(caption);
+        return holder;
     }
 
     private static long max(long[] values) {
@@ -410,6 +488,15 @@ public class GroupStatsActivity extends Activity {
         }
     }
 
+    /** The one green every bar on this screen is drawn in. */
+    private GradientDrawable barFill() {
+        GradientDrawable fill = new GradientDrawable();
+        fill.setColor(Palette.isNight(this) ? Color.parseColor("#4B8F6B")
+                : Color.parseColor("#25D366"));
+        fill.setCornerRadius(Palette.dp(this, 3));
+        return fill;
+    }
+
     private TextView heading(String text) {
         TextView view = new TextView(this);
         view.setText(text);
@@ -433,11 +520,7 @@ public class GroupStatsActivity extends Activity {
         row.addView(label);
 
         View track = new View(this);
-        GradientDrawable fill = new GradientDrawable();
-        fill.setColor(Palette.isNight(this) ? Color.parseColor("#4B8F6B")
-                : Color.parseColor("#25D366"));
-        fill.setCornerRadius(Palette.dp(this, 3));
-        track.setBackground(fill);
+        track.setBackground(barFill());
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
                 0, Palette.dp(this, 6));
         params.weight = Math.max(fraction, 0.02f);
