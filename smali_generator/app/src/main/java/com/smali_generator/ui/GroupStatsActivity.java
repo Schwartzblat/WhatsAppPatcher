@@ -17,6 +17,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowInsets;
 import android.widget.EditText;
+import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -306,6 +307,9 @@ public class GroupStatsActivity extends Activity {
     /** Labelling all 24 hours puts the labels on top of each other. */
     private static final int HOUR_LABEL_EVERY = 6;
 
+    /** Width of the message-count axis down the left of a chart. */
+    private static final int AXIS_WIDTH_DP = 34;
+
     private void drawWhen(GroupStatsReader.Snapshot snapshot) {
         content.addView(heading("When"));
         if (snapshot.failed.contains(GroupStatsReader.Section.WHEN.name())) {
@@ -329,12 +333,31 @@ public class GroupStatsActivity extends Activity {
             content.addView(note("Nothing to show."));
             return;
         }
+        // Bars are measured against the axis ceiling, not against the tallest
+        // bar: a bar's height is then a number of messages a reader can read
+        // off the axis, rather than a share of whatever the busiest hour
+        // happened to be.
+        long[] axis = axis(peak);
+        long ceiling = axis[0];
+        int ticks = (int) axis[1];
+
         LinearLayout chart = new LinearLayout(this);
         chart.setOrientation(LinearLayout.HORIZONTAL);
         chart.setPadding(0, Palette.dp(this, 8), 0, 0);
+        chart.addView(axisLabels(ceiling, ticks));
+
+        LinearLayout columns = new LinearLayout(this);
+        columns.setOrientation(LinearLayout.HORIZONTAL);
         for (int i = 0; i < values.length; i++) {
-            chart.addView(column(labels[i], values[i], peak, i % labelEvery == 0));
+            columns.addView(column(labels[i], values[i], ceiling, i % labelEvery == 0));
         }
+        // The gridlines go behind the columns rather than beside them, so a
+        // bar can be read against the line it reaches.
+        FrameLayout plot = new FrameLayout(this);
+        plot.addView(gridlines(ticks));
+        plot.addView(columns);
+        chart.addView(plot, new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
         content.addView(chart);
         int busiest = 0;
         for (int i = 0; i < values.length; i++) {
@@ -349,6 +372,75 @@ public class GroupStatsActivity extends Activity {
     }
 
     /**
+     * A round ceiling at or above the peak, and how many steps reach it, so
+     * the axis is labelled in whole numbers.
+     *
+     * Returned as {ceiling, ticks}: three to six steps of 1, 2, 5 or 10 times
+     * a power of ten is what keeps 326 reading as 0-400 in hundreds rather
+     * than 0-326 in eighty-one-and-a-halves.
+     */
+    private static long[] axis(long peak) {
+        long magnitude = 1;
+        while (magnitude * 10 <= Math.max(1, peak)) {
+            magnitude *= 10;
+        }
+        long[] steps = {magnitude / 2, magnitude, magnitude * 2, magnitude * 5, magnitude * 10};
+        for (long step : steps) {
+            if (step <= 0) {
+                continue;
+            }
+            long ticks = (peak + step - 1) / step;
+            if (ticks >= 3 && ticks <= 6) {
+                return new long[]{step * ticks, ticks};
+            }
+        }
+        // A peak too small to divide -- one or two messages all day.
+        return new long[]{peak, 1};
+    }
+
+    /** The message counts down the left of a chart, one per gridline. */
+    private View axisLabels(long ceiling, int ticks) {
+        LinearLayout axis = new LinearLayout(this);
+        axis.setOrientation(LinearLayout.VERTICAL);
+        axis.setLayoutParams(new LinearLayout.LayoutParams(
+                Palette.dp(this, AXIS_WIDTH_DP), Palette.dp(this, CHART_HEIGHT_DP)));
+        for (int i = 0; i < ticks; i++) {
+            TextView tick = new TextView(this);
+            // Top-aligned in its slot, which is where that slot's gridline is.
+            tick.setText(String.valueOf(ceiling * (ticks - i) / ticks));
+            tick.setTextSize(TypedValue.COMPLEX_UNIT_SP, 9f);
+            tick.setTextColor(Palette.secondaryText(this));
+            tick.setGravity(Gravity.END | Gravity.TOP);
+            tick.setPadding(0, 0, Palette.dp(this, 4), 0);
+            tick.setLayoutParams(new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
+            axis.addView(tick);
+        }
+        return axis;
+    }
+
+    /** One faint rule per axis label, at the height that label names. */
+    private View gridlines(int ticks) {
+        LinearLayout lines = new LinearLayout(this);
+        lines.setOrientation(LinearLayout.VERTICAL);
+        lines.setLayoutParams(new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, Palette.dp(this, CHART_HEIGHT_DP)));
+        for (int i = 0; i < ticks; i++) {
+            LinearLayout slot = new LinearLayout(this);
+            slot.setOrientation(LinearLayout.VERTICAL);
+            slot.setLayoutParams(new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
+            View rule = new View(this);
+            rule.setBackgroundColor(Palette.alpha(Palette.secondaryText(this), 60));
+            rule.setLayoutParams(new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, Math.max(1, Palette.dp(this, 1) / 2)));
+            slot.addView(rule);
+            lines.addView(slot);
+        }
+        return lines;
+    }
+
+    /**
      * One column of a chart: a bar growing up from a shared baseline, with a
      * label under it.
      *
@@ -357,13 +449,13 @@ public class GroupStatsActivity extends Activity {
      * its share of the peak, and every column stays the same width whatever
      * it holds.
      */
-    private View column(String label, long value, long peak, boolean showLabel) {
+    private View column(String label, long value, long ceiling, boolean showLabel) {
         LinearLayout stack = new LinearLayout(this);
         stack.setOrientation(LinearLayout.VERTICAL);
         stack.setLayoutParams(new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, Palette.dp(this, CHART_HEIGHT_DP)));
 
-        float fraction = (float) value / peak;
+        float fraction = (float) value / ceiling;
         View spacer = new View(this);
         spacer.setLayoutParams(new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f - fraction));
