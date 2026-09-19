@@ -22,6 +22,13 @@ from artifactory_generator.mention_everyone import MentionEveryoneFinder
 from artifactory_generator.group_info import GroupInfoFinder
 
 
+# Stitch writes this into the target's manifest as the provider's android:name,
+# and the paywall module generates a class of that name from PAYWALL_PROVIDER_CLASS.
+# Both are derived from this one constant so they cannot drift: a manifest naming
+# a class that is not in the dex installs fine and dies at launch.
+PAYWALL_PROVIDER = 'com.paywall.InitProviderPaywallWhatsApp'
+
+
 def get_args():
     parser = argparse.ArgumentParser(description='')
     parser.add_argument('-p', '--apk-path', dest='apk_path', help='APK path', required=True)
@@ -51,8 +58,8 @@ def main():
                        'com.smali_generator.InitProvider')
     ]
     if args.paywall is not None:
-        external_modules.append(ExternalModule(Path(args.paywall),
-                                               'invoke-static {}, Lcom/paywall/Paywall;->on_load()V'))
+        extra_artifacts.setdefault('PAYWALL_PROVIDER_CLASS', PAYWALL_PROVIDER.rsplit('.', 1)[1])
+        external_modules.append(ExternalModule(Path(args.paywall), PAYWALL_PROVIDER))
     artifactory_list = [
         FMessage(args),
         DexCopier(args),
