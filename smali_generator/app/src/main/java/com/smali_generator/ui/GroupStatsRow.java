@@ -206,8 +206,10 @@ public final class GroupStatsRow {
                 return false;
             }
             // Styled off the row it will sit under, so it inherits whatever
-            // theme, font scale and dark mode are in force -- the module's
-            // resource table is not WhatsApp's, so there is nothing to inflate.
+            // theme, font scale and dark mode are in force. Copying a real
+            // neighbour is the only way to get that: WhatsApp's own row layout
+            // is not something this can inflate, and a layout of ours would
+            // carry our theme rather than the one this screen is drawn in.
             View template = lastVisibleRow(card);
             int inset = insetOf(template);
             if (inset <= 0) {
@@ -355,18 +357,20 @@ public final class GroupStatsRow {
     }
 
     private static View buildRow(Activity activity, View template, int inset, String gid) {
-        TextView title = InjectedRow.firstTextView(template);
-        TextView subtitle = title == null ? null : InjectedRow.secondTextView(template, title);
+        // The patcher's green rather than the card's own icon colour: this row
+        // is not one of WhatsApp's, and the rest of the patcher's UI says so in
+        // the same green.
         return InjectedRow.build(activity, ROW_TITLE, ROW_SUBTITLE,
-                title, subtitle, inset,
+                template, Icons.statistics(activity, Palette.ACCENT), inset,
                 InjectedRow.dp(activity, VERTICAL_PADDING_DP),
                 ROW_TAG, () -> open(activity, gid));
     }
 
     /**
      * Where a row's own text starts, measured off it rather than assumed:
-     * WhatsApp has changed this margin, and these rows carry an icon this one
-     * does not, so the number has to come from a real neighbour.
+     * WhatsApp has changed this margin, and it is the width of the icon column
+     * this row now draws into as well, so the number has to come from a real
+     * neighbour.
      *
      * Returns -1 when the row cannot answer -- not laid out yet, or no label
      * in it -- and an implausible offset counts as no answer.

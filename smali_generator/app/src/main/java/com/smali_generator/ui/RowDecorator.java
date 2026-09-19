@@ -231,9 +231,12 @@ public final class RowDecorator {
     }
 
     /**
-     * The icon, built in code -- stitch injects dex and lib/ only, so no
-     * drawable resource of ours ever reaches the APK. Swap the body to change
-     * the icon; android.R.drawable.ic_menu_delete is the tintable alternative.
+     * The icon, built in code -- the module's resource table is not merged
+     * into WhatsApp's, so a drawable of ours cannot be referenced the ordinary
+     * way. (stitch does inject the module's assets, and will ship its res/ as
+     * a loadable asset APK; neither is used here.) Swap the body to change the
+     * icon; android.R.drawable.ic_menu_delete is the tintable alternative, and
+     * ui/Icons is the way in for artwork of our own.
      * Note a colour emoji is drawn by the system font in its own colours, so
      * it does not take the timestamp's text colour.
      */
