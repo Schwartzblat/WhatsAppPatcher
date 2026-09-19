@@ -29,6 +29,12 @@
             android:label="A/B properties"
             android:theme="@android:style/Theme.DeviceDefault.DayNight" />
 
+        <activity
+            android:name="com.smali_generator.ui.GroupStatsActivity"
+            android:exported="false"
+            android:label="Statistics"
+            android:theme="@android:style/Theme.DeviceDefault.DayNight" />
+
     </application>
 
 </manifest>
