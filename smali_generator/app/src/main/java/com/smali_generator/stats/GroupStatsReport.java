@@ -26,6 +26,12 @@ public final class GroupStatsReport {
 
         public long messages;
 
+        /** Their earliest message here, which is as near a join date as a departed member has. */
+        public long firstMessage;
+
+        /** When WhatsApp recorded them being added, or 0 -- only current members carry one. */
+        public long joined;
+
         public final Map<String, Long> textEmoji = new HashMap<>();
         public final Map<String, Long> reactionEmoji = new HashMap<>();
 

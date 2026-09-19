@@ -91,6 +91,8 @@ public final class GroupStatsReader {
             public final boolean isMe;
             public final String name;
             public final long messages;
+            public final long firstMessage;
+            public final long joined;
             public final Map<String, Long> textEmoji;
             public final Map<String, Long> reactionEmoji;
 
@@ -99,6 +101,8 @@ public final class GroupStatsReader {
                 isMe = who.isMe;
                 name = who.name;
                 messages = who.messages;
+                firstMessage = who.firstMessage;
+                joined = who.joined;
                 textEmoji = Collections.unmodifiableMap(new HashMap<>(who.textEmoji));
                 reactionEmoji = Collections.unmodifiableMap(new HashMap<>(who.reactionEmoji));
             }
@@ -120,14 +124,16 @@ public final class GroupStatsReader {
                 return;
             }
             database = SQLiteDatabase.openDatabase(file.getPath(), null, SQLiteDatabase.OPEN_READONLY);
-            long chatRowId = chatRowId(database, gid, report);
-            if (chatRowId < 0) {
+            long[] chat = chat(database, gid, report);
+            if (chat == null) {
                 Log.e(TAG, "GroupStatsReader: no chat row for " + gid);
                 allFailed(report, progress);
                 return;
             }
+            long chatRowId = chat[0];
             section(Section.SUMMARY, report, progress);
             readParticipants(database, chatRowId, report);
+            readJoined(database, chat[1], report);
             nameThem(context, report);
             section(Section.PARTICIPANTS, report, progress);
             readWhen(database, chatRowId, report);
@@ -145,17 +151,23 @@ public final class GroupStatsReader {
         }
     }
 
-    private static long chatRowId(SQLiteDatabase database, String gid, GroupStatsReport report) {
+    /**
+     * The chat's row id and the group jid's row id, or null if there is no such chat.
+     *
+     * Both, because the message tables are keyed on the chat and the membership
+     * table on the jid, and one query answers for both.
+     */
+    private static long[] chat(SQLiteDatabase database, String gid, GroupStatsReport report) {
         Cursor cursor = database.rawQuery(
-                "SELECT c._id, c.subject FROM chat c"
+                "SELECT c._id, c.jid_row_id, c.subject FROM chat c"
                         + " JOIN jid j ON j._id = c.jid_row_id"
                         + " WHERE j.raw_string = ?", new String[]{gid});
         try {
             if (!cursor.moveToNext()) {
-                return -1;
+                return null;
             }
-            report.subject = cursor.getString(1);
-            return cursor.getLong(0);
+            report.subject = cursor.getString(2);
+            return new long[]{cursor.getLong(0), cursor.getLong(1)};
         } finally {
             cursor.close();
         }
@@ -206,6 +218,11 @@ public final class GroupStatsReader {
                     }
                     GroupStatsReport.Participant who = report.participant(key, isMe);
                     who.messages += count;
+                    // Kept per sender as well as chat-wide: it is what a member
+                    // with no recorded join date is dated by.
+                    if (first > 0 && (who.firstMessage == 0 || first < who.firstMessage)) {
+                        who.firstMessage = first;
+                    }
                     report.totalMessages += count;
                     if (first > 0 && (report.firstTimestamp == 0 || first < report.firstTimestamp)) {
                         report.firstTimestamp = first;
@@ -227,6 +244,66 @@ public final class GroupStatsReader {
         } catch (Throwable t) {
             Log.e(TAG, "GroupStatsReader: participant counts failed", t);
             report.failed.add(Section.PARTICIPANTS.name());
+        }
+    }
+
+    /**
+     * When each current member was added, from WhatsApp's own membership table.
+     *
+     * {@code group_participant_user.add_timestamp} is milliseconds -- it is
+     * written from the same server-corrected clock the message timestamps come
+     * from, not from a protocol field in seconds.
+     *
+     * Only current members have a row there, and a row carries no date when the
+     * membership was synced before WhatsApp kept one, so this is expected to
+     * name some of the group and not all of it. A sender it says nothing about
+     * keeps a zero and is dated by their first message instead.
+     *
+     * Not a section of its own and never marked failed: the participant counts
+     * are unaffected by this query, and losing it costs one line of one card.
+     */
+    private static void readJoined(SQLiteDatabase database, long groupJidRowId,
+                                   GroupStatsReport report) {
+        try {
+            Map<String, Long> added = new HashMap<>();
+            Cursor cursor = database.rawQuery(
+                    "SELECT j.raw_string, gpu.add_timestamp"
+                            + " FROM group_participant_user gpu"
+                            + " JOIN jid j ON j._id = gpu.user_jid_row_id"
+                            + " WHERE gpu.group_jid_row_id = ?"
+                            + " AND gpu.add_timestamp > 0",
+                    new String[]{String.valueOf(groupJidRowId)});
+            try {
+                while (cursor.moveToNext()) {
+                    String jid = cursor.getString(0);
+                    if (jid != null && !jid.isEmpty()) {
+                        added.put(jid, cursor.getLong(1));
+                    }
+                }
+            } finally {
+                cursor.close();
+            }
+            int dated = 0;
+            for (GroupStatsReport.Participant who : report.participants()) {
+                Long when = added.get(who.key);
+                if (when == null) {
+                    // Same two-form lookup the names and the photos need: the
+                    // membership row may be keyed on the phone jid where the
+                    // messages name a LID.
+                    String phone = LidJids.phoneJid(who.key);
+                    if (phone != null && !phone.equals(who.key)) {
+                        when = added.get(phone);
+                    }
+                }
+                if (when != null) {
+                    who.joined = when;
+                    dated++;
+                }
+            }
+            Log.i(TAG, "GroupStatsReader: " + added.size() + " member(s) carry a join date, "
+                    + dated + " of them people who have spoken here");
+        } catch (Throwable t) {
+            Log.e(TAG, "GroupStatsReader: join dates unavailable, members dated by their first message", t);
         }
     }
 

@@ -1,8 +1,11 @@
 package com.smali_generator.ui;
 
 import android.app.Activity;
+import android.app.AlertDialog;
+import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.Insets;
+import android.graphics.Outline;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
 import android.os.Handler;
@@ -15,17 +18,21 @@ import android.view.Gravity;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.ViewOutlineProvider;
 import android.view.WindowInsets;
 import android.widget.EditText;
 import android.widget.FrameLayout;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
+import com.smali_generator.db.Avatars;
 import com.smali_generator.stats.GroupStatsReader;
 import com.smali_generator.utils.Utils;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * What a group's messages add up to.
@@ -48,6 +55,9 @@ public class GroupStatsActivity extends Activity {
 
     private LinearLayout content;
     private String gid;
+
+    /** Owned by the screen so its cache dies with it; see {@link Avatars}. */
+    private Avatars avatars;
 
     private final Handler main = new Handler(Looper.getMainLooper());
 
@@ -83,6 +93,7 @@ public class GroupStatsActivity extends Activity {
             getActionBar().setDisplayHomeAsUpEnabled(true);
         }
         gid = getIntent() == null ? null : getIntent().getStringExtra(EXTRA_GID);
+        avatars = new Avatars(this);
         setContentView(buildContent());
         if (gid == null) {
             content.addView(note("No group was named."));
@@ -262,7 +273,7 @@ public class GroupStatsActivity extends Activity {
                 ? hits.size() : Math.min(TOP_PARTICIPANTS, hits.size());
         for (int i = 0; i < shown; i++) {
             GroupStatsReader.Snapshot.Participant who = hits.get(i);
-            content.addView(bar(who.name, who.messages,
+            content.addView(participantRow(who,
                     snapshot.totalMessages == 0 ? 0 : who.messages * 100f / snapshot.totalMessages,
                     top == 0 ? 0f : (float) who.messages / top));
         }
@@ -596,6 +607,191 @@ public class GroupStatsActivity extends Activity {
         view.setTypeface(view.getTypeface(), android.graphics.Typeface.BOLD);
         view.setPadding(0, Palette.dp(this, 20), 0, Palette.dp(this, 6));
         return view;
+    }
+
+    private static final int ROW_AVATAR_DP = 36;
+    private static final int CARD_AVATAR_DP = 56;
+
+    /**
+     * The discs a person with no photo is drawn as.
+     *
+     * Muted enough to carry white text, and picked by the jid rather than by
+     * the row's position, so somebody keeps their colour when the list is
+     * filtered or unfolded.
+     */
+    private static final int[] DISC_COLOURS = {
+            0xFF5B7C99, 0xFF7E6B8F, 0xFF4F7A5B, 0xFF9C6B4E,
+            0xFF7A5C5C, 0xFF3F6E7A, 0xFF8A7A4E, 0xFF6B5E8C,
+    };
+
+    /** A participant's bar, behind their photo, opening their card when tapped. */
+    private View participantRow(GroupStatsReader.Snapshot.Participant who,
+                                float percent, float fraction) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setClickable(true);
+        row.setBackground(Palette.rowRipple(this));
+        row.setOnClickListener(view -> showPerson(who));
+        row.addView(avatar(who, ROW_AVATAR_DP));
+        row.addView(bar(who.name, who.messages, percent, fraction),
+                new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        return row;
+    }
+
+    /**
+     * Somebody's photo, or a coloured disc bearing their initial.
+     *
+     * The disc is the common case, not the fallback nobody sees: WhatsApp holds
+     * a photo for a small minority of the people a big group contains.
+     */
+    private View avatar(GroupStatsReader.Snapshot.Participant who, int sizeDp) {
+        Bitmap photo = who.isMe ? avatars.mine() : avatars.photo(who.key);
+        View view;
+        if (photo != null) {
+            ImageView image = new ImageView(this);
+            image.setImageBitmap(photo);
+            image.setScaleType(ImageView.ScaleType.CENTER_CROP);
+            view = image;
+        } else {
+            TextView initial = new TextView(this);
+            initial.setText(initialOf(who.name));
+            initial.setTextColor(Color.WHITE);
+            initial.setTextSize(TypedValue.COMPLEX_UNIT_SP, sizeDp * 0.42f);
+            initial.setGravity(Gravity.CENTER);
+            GradientDrawable disc = new GradientDrawable();
+            disc.setShape(GradientDrawable.OVAL);
+            disc.setColor(discColour(who.key));
+            initial.setBackground(disc);
+            view = initial;
+        }
+        // Clipped to an oval rather than masked into the bitmap: it costs
+        // nothing, and the same three lines round off the drawn disc too.
+        view.setOutlineProvider(new ViewOutlineProvider() {
+            @Override
+            public void getOutline(View clipped, Outline outline) {
+                outline.setOval(0, 0, clipped.getWidth(), clipped.getHeight());
+            }
+        });
+        view.setClipToOutline(true);
+        int size = Palette.dp(this, sizeDp);
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(size, size);
+        params.setMarginEnd(Palette.dp(this, 12));
+        view.setLayoutParams(params);
+        return view;
+    }
+
+    /**
+     * The first letter of a name, or nothing at all.
+     *
+     * Names here are "number-pushname", so the first character is a digit for
+     * everybody and the first *letter* is the first character of what the
+     * person calls themselves. Somebody WhatsApp has no name for gets a bare
+     * disc: a digit lifted out of a phone number would look like an initial
+     * and mean nothing.
+     */
+    private static String initialOf(String name) {
+        for (int i = 0; i < name.length(); i++) {
+            if (Character.isLetter(name.charAt(i))) {
+                return name.substring(i, i + 1).toUpperCase(java.util.Locale.getDefault());
+            }
+        }
+        return "";
+    }
+
+    private static int discColour(String key) {
+        // Masked rather than Math.abs: abs(Integer.MIN_VALUE) is still negative.
+        return DISC_COLOURS[(key.hashCode() & 0x7FFFFFFF) % DISC_COLOURS.length];
+    }
+
+    /**
+     * One person's card.
+     *
+     * A dialog, not an activity: it carries the participant it was opened on
+     * rather than an intent extra, and it puts up a window of its own, so it
+     * never reaches the Window.Callback WhatsApp wraps around our activities.
+     */
+    private void showPerson(GroupStatsReader.Snapshot.Participant who) {
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        int side = Palette.dp(this, 22);
+        card.setPadding(side, side, side, Palette.dp(this, 8));
+
+        LinearLayout head = new LinearLayout(this);
+        head.setOrientation(LinearLayout.HORIZONTAL);
+        head.setGravity(Gravity.CENTER_VERTICAL);
+        head.addView(avatar(who, CARD_AVATAR_DP));
+        TextView name = new TextView(this);
+        name.setText(who.name);
+        name.setTextColor(Palette.primaryText(this));
+        name.setTextSize(TypedValue.COMPLEX_UNIT_SP, 17f);
+        name.setTypeface(name.getTypeface(), android.graphics.Typeface.BOLD);
+        // Whatever is left beside the photo, so a long "number-pushname" wraps
+        // inside the card rather than running off its edge.
+        head.addView(name, new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        card.addView(head);
+
+        long total = latest == null ? 0 : latest.totalMessages;
+        card.addView(fact("Messages", total == 0 ? String.valueOf(who.messages)
+                : String.format(java.util.Locale.getDefault(), "%d — %.1f%% of the group",
+                        who.messages, who.messages * 100f / total)));
+
+        if (who.joined > 0) {
+            card.addView(fact("Joined", longDate(who.joined)));
+        } else if (who.firstMessage > 0) {
+            // Only a current member carries a join date, so the label changes
+            // rather than a first message passing itself off as one.
+            card.addView(fact("First message here", longDate(who.firstMessage)));
+        } else {
+            card.addView(fact("Joined", "Not recorded"));
+        }
+
+        card.addView(fact("Favourite emoji", favourite(who.textEmoji)));
+        card.addView(fact("Favourite reaction", favourite(who.reactionEmoji)));
+
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setView(card)
+                .setPositiveButton("Close", null)
+                .create();
+        dialog.show();
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(Palette.ACCENT);
+    }
+
+    /** A labelled line of the card: what it is above what it says. */
+    private View fact(String label, String value) {
+        LinearLayout block = new LinearLayout(this);
+        block.setOrientation(LinearLayout.VERTICAL);
+        block.setPadding(0, Palette.dp(this, 14), 0, 0);
+
+        TextView caption = new TextView(this);
+        caption.setText(label);
+        caption.setTextColor(Palette.secondaryText(this));
+        caption.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f);
+        block.addView(caption);
+
+        TextView text = new TextView(this);
+        text.setText(value);
+        text.setTextColor(Palette.primaryText(this));
+        text.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f);
+        block.addView(text);
+        return block;
+    }
+
+    private String favourite(Map<String, Long> tally) {
+        // Emoji is the last section the reader reports, and it is the slow one.
+        // A card opened before it lands has to say so rather than report that
+        // this person has never used one.
+        if (!reached.contains(GroupStatsReader.Section.EMOJI)) {
+            return "Still counting…";
+        }
+        List<Map.Entry<String, Long>> best = GroupStatsReader.top(tally, 1);
+        return best.isEmpty() ? "None" : best.get(0).getKey() + " × " + best.get(0).getValue();
+    }
+
+    /** Spelled out, unlike the short dates the sections carry: a card has the room. */
+    private String longDate(long millis) {
+        return DateFormat.getLongDateFormat(this).format(new java.util.Date(millis));
     }
 
     /** One participant: name, count, share, and a bar scaled to the loudest. */
