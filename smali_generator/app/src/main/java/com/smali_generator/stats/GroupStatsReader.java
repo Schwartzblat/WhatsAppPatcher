@@ -454,7 +454,7 @@ public final class GroupStatsReader {
     }
 
     /**
-     * Labels every sender not yet labelled, as "number-name".
+     * Labels every sender not yet labelled, as "number - name".
      *
      * Called again after the reaction query, because someone can react in a
      * group without ever having sent a message in it -- that participant is
@@ -480,11 +480,13 @@ public final class GroupStatsReader {
                 }
                 String phone = digitsOf(LidJids.phoneJid(who.key));
                 String name = names.get(who.key);
-                // "number-name", not one or the other: the name is whatever
+                // "number - name", not one or the other: the name is whatever
                 // the person calls themselves and two people in a group of
                 // hundreds can easily choose the same one, where the number
                 // is the thing that actually identifies them.
-                who.name = name != null ? phone + "-" + name : phone;
+                // Spaced, because a push name can itself contain a hyphen
+                // and an unspaced one reads as part of the number.
+                who.name = name != null ? phone + " - " + name : phone;
             }
         } catch (Throwable t) {
             Log.e(TAG, "GroupStatsReader: naming failed, senders stay as digits", t);

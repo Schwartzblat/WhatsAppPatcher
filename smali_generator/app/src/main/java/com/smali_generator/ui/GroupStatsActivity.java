@@ -654,7 +654,7 @@ public class GroupStatsActivity extends Activity {
     /**
      * The first letter of a name, or nothing at all.
      *
-     * Names here are "number-pushname", so the first character is a digit for
+     * Names here are "number - pushname", so the first character is a digit for
      * everybody and the first *letter* is the first character of what the
      * person calls themselves. Somebody WhatsApp has no name for gets a bare
      * disc: a digit lifted out of a phone number would look like an initial
@@ -696,7 +696,7 @@ public class GroupStatsActivity extends Activity {
         name.setTextColor(Palette.primaryText(this));
         name.setTextSize(TypedValue.COMPLEX_UNIT_SP, 17f);
         name.setTypeface(name.getTypeface(), android.graphics.Typeface.BOLD);
-        // Whatever is left beside the photo, so a long "number-pushname" wraps
+        // Whatever is left beside the photo, so a long "number - pushname" wraps
         // inside the card rather than running off its edge.
         head.addView(name, new LinearLayout.LayoutParams(
                 0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
