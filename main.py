@@ -19,6 +19,7 @@ from artifactory_generator.message_search import MessageSearchFinder
 from artifactory_generator.contact_search import ContactSearchFinder, ContactAccessorsFinder
 from artifactory_generator.ab_props import AbPropsFinder
 from artifactory_generator.mention_everyone import MentionEveryoneFinder
+from artifactory_generator.group_info import GroupInfoFinder
 
 
 def get_args():
@@ -69,7 +70,8 @@ def main():
         ContactSearchFinder(args),
         ContactAccessorsFinder(args),
         AbPropsFinder(args),
-        MentionEveryoneFinder(args)
+        MentionEveryoneFinder(args),
+        GroupInfoFinder(args)
     ]
     with Stitch(
             apk_path=args.apk_path,

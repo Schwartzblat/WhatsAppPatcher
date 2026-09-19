@@ -3,12 +3,9 @@ package com.smali_generator.ui;
 import android.app.Activity;
 import android.content.Intent;
 import android.util.Log;
-import android.util.TypedValue;
-import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.AdapterView;
-import android.widget.LinearLayout;
 import android.widget.TextView;
 
 /**
@@ -155,7 +152,7 @@ public final class SettingsEntryRow {
     private static boolean isRow(View view) {
         return view instanceof ViewGroup
                 && view.isClickable()
-                && firstTextView(view) != null;
+                && InjectedRow.firstTextView(view) != null;
     }
 
     private static View templateRow(ViewGroup container) {
@@ -168,66 +165,21 @@ public final class SettingsEntryRow {
         return null;
     }
 
-    private static TextView firstTextView(View view) {
-        if (view instanceof TextView) {
-            return (TextView) view;
-        }
-        if (!(view instanceof ViewGroup)) {
-            return null;
-        }
-        ViewGroup group = (ViewGroup) view;
-        for (int i = 0; i < group.getChildCount(); i++) {
-            TextView found = firstTextView(group.getChildAt(i));
-            if (found != null) {
-                return found;
-            }
-        }
-        return null;
-    }
-
-    private static TextView secondTextView(View view, TextView first) {
-        if (view instanceof TextView) {
-            return view == first ? null : (TextView) view;
-        }
-        if (!(view instanceof ViewGroup)) {
-            return null;
-        }
-        ViewGroup group = (ViewGroup) view;
-        for (int i = 0; i < group.getChildCount(); i++) {
-            TextView found = secondTextView(group.getChildAt(i), first);
-            if (found != null) {
-                return found;
-            }
-        }
-        return null;
-    }
-
     private static View buildRow(Activity activity, ViewGroup container) {
         View template = templateRow(container);
-        TextView templateTitle = template == null ? null : firstTextView(template);
-        TextView templateSubtitle = template == null ? null : secondTextView(template, templateTitle);
+        TextView templateTitle = template == null ? null : InjectedRow.firstTextView(template);
+        TextView templateSubtitle =
+                template == null ? null : InjectedRow.secondTextView(template, templateTitle);
 
-        LinearLayout row = new LinearLayout(activity);
-        row.setOrientation(LinearLayout.VERTICAL);
-        row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setTag(ROW_TAG);
-        row.setClickable(true);
-        row.setFocusable(true);
-
-        int inset = titleInset(template, templateTitle, activity);
-        int vertical = dp(activity, FALLBACK_VERTICAL_PADDING_DP);
-        row.setPaddingRelative(inset, vertical, dp(activity, FALLBACK_VERTICAL_PADDING_DP), vertical);
+        View row = InjectedRow.build(activity, ROW_TITLE, ROW_SUBTITLE,
+                templateTitle, templateSubtitle,
+                titleInset(template, templateTitle, activity),
+                InjectedRow.dp(activity, FALLBACK_VERTICAL_PADDING_DP),
+                ROW_TAG, () -> open(activity));
+        // Measured off a real row so ours is not the short one in the list.
         if (template != null && template.getHeight() > 0) {
             row.setMinimumHeight(template.getHeight());
         }
-        applySelectableBackground(activity, row);
-
-        row.addView(label(activity, ROW_TITLE, templateTitle, 16f, 1f));
-        row.addView(label(activity, ROW_SUBTITLE,
-                templateSubtitle != null ? templateSubtitle : templateTitle,
-                13f, templateSubtitle != null ? 1f : 0.7f));
-
-        row.setOnClickListener(view -> open(activity));
         return row;
     }
 
@@ -240,35 +192,11 @@ public final class SettingsEntryRow {
     }
 
     /**
-     * A label that matches a native one.
-     *
-     * The size and colour are copied in pixels straight off the template, so
-     * they are already whatever the current theme, font scale and dark mode
-     * made them. The sp figures are only reached when there is no template.
-     */
-    private static TextView label(Activity activity, String text, TextView template,
-                                  float fallbackSp, float alpha) {
-        TextView label = new TextView(activity);
-        label.setText(text);
-        label.setAlpha(alpha);
-        if (template == null) {
-            label.setTextSize(TypedValue.COMPLEX_UNIT_SP, fallbackSp);
-            return label;
-        }
-        label.setTextSize(TypedValue.COMPLEX_UNIT_PX, template.getTextSize());
-        label.setTextColor(template.getTextColors());
-        label.setTypeface(template.getTypeface());
-        label.setLetterSpacing(template.getLetterSpacing());
-        label.setIncludeFontPadding(template.getIncludeFontPadding());
-        return label;
-    }
-
-    /**
      * How far a native row's text sits from the row's leading edge, measured
      * rather than assumed: it is the icon column, and WhatsApp has changed it.
      */
     private static int titleInset(View template, TextView templateTitle, Activity activity) {
-        int fallback = dp(activity, FALLBACK_TITLE_INSET_DP);
+        int fallback = InjectedRow.dp(activity, FALLBACK_TITLE_INSET_DP);
         if (template == null || templateTitle == null || template.getWidth() <= 0) {
             return fallback;
         }
@@ -285,17 +213,5 @@ public final class SettingsEntryRow {
             return fallback;
         }
         return inset;
-    }
-
-    private static void applySelectableBackground(Activity activity, View view) {
-        TypedValue value = new TypedValue();
-        if (activity.getTheme().resolveAttribute(
-                android.R.attr.selectableItemBackground, value, true) && value.resourceId != 0) {
-            view.setBackgroundResource(value.resourceId);
-        }
-    }
-
-    private static int dp(Activity activity, int dp) {
-        return Math.round(dp * activity.getResources().getDisplayMetrics().density);
     }
 }

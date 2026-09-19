@@ -16,6 +16,7 @@ import com.smali_generator.patches.ContactSearchDuplicates;
 import com.smali_generator.patches.DecryptProtobuf;
 import com.smali_generator.patches.DeletedMessageIndicator;
 import com.smali_generator.patches.FirebaseParams;
+import com.smali_generator.patches.GroupStats;
 import com.smali_generator.patches.MentionEveryone;
 import com.smali_generator.patches.MetaAiButton;
 import com.smali_generator.patches.PackageManagerHook;
@@ -70,6 +71,7 @@ public class InitProvider extends ContentProvider {
             new ContactSearchDuplicates(),
             new MentionEveryone(),
             new SettingsEntryHook(),
+            new GroupStats(),
     };
 
     static AtomicBoolean is_loaded = new AtomicBoolean(false);
