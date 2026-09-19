@@ -145,7 +145,11 @@ public final class GroupStatsReader {
             section(Section.WHEN, report, progress);
             readWhat(database, chatRowId, report);
             section(Section.WHAT, report, progress);
-            // Task 8 adds EMOJI here.
+            readEmoji(database, chatRowId, report);
+            // Again: a reaction can come from someone who never sent a message
+            // here, and that participant did not exist when naming first ran.
+            nameThem(context, report);
+            section(Section.EMOJI, report, progress);
         } catch (Throwable t) {
             Log.e(TAG, "GroupStatsReader: could not read " + MSGSTORE_DB, t);
             allFailed(report, progress);
@@ -339,6 +343,111 @@ public final class GroupStatsReader {
             Log.e(TAG, "GroupStatsReader: media mix failed", t);
             report.failed.add(Section.WHAT.name());
         }
+    }
+
+    /**
+     * Emoji typed, and emoji reacted with.
+     *
+     * Listed separately because they are different acts: reaching for a symbol
+     * mid-sentence is not the same as picking one off the reaction tray.
+     *
+     * The text half is the only query in this class that touches text_data,
+     * and it is last for that reason -- it is proportional to everything the
+     * group has ever said, where the others are grouped counts an index
+     * answers. The cursor is consumed row by row and nothing is materialised.
+     *
+     * The reaction half does not join message_system: message_add_on rows are
+     * never message_system rows themselves (a reaction has its own row, not a
+     * message row), and a reaction's target -- message_add_on.parent_message_row_id
+     * -- was never seen pointing at a system event on the test account (0 of
+     * 1160 reactions), which matches the UI: WhatsApp does not offer the
+     * reaction tray on a "so-and-so joined" bubble. Nothing to exclude.
+     */
+    private static void readEmoji(SQLiteDatabase database, long chatRowId,
+                                  GroupStatsReport report) {
+        try {
+            Cursor cursor = database.rawQuery(
+                    "SELECT m.from_me, IFNULL(j.raw_string, '') AS sender, m.text_data"
+                            + " FROM available_message_view m"
+                            + " LEFT JOIN message_system ms ON ms.message_row_id = m._id"
+                            + " LEFT JOIN jid j ON j._id = m.sender_jid_row_id"
+                            + " WHERE m.chat_row_id = ? AND ms.message_row_id IS NULL"
+                            + " AND m.text_data IS NOT NULL AND m.text_data <> ''",
+                    new String[]{String.valueOf(chatRowId)});
+            try {
+                while (cursor.moveToNext()) {
+                    boolean isMe = cursor.getInt(0) == 1;
+                    String sender = cursor.getString(1);
+                    // Same three-way split as readParticipants/readWhat: a
+                    // from_me=0 row with no resolvable sender is still someone
+                    // else's emoji, not this device's.
+                    String key;
+                    if (isMe) {
+                        key = GroupStatsReport.ME;
+                    } else if (sender == null || sender.isEmpty()) {
+                        key = GroupStatsReport.UNKNOWN;
+                    } else {
+                        key = sender;
+                    }
+                    GroupStatsReport.Participant who = report.participant(key, isMe);
+                    Emoji.tally(cursor.getString(2), who.textEmoji);
+                }
+            } finally {
+                cursor.close();
+            }
+        } catch (Throwable t) {
+            Log.e(TAG, "GroupStatsReader: emoji in text failed", t);
+            report.failed.add(Section.EMOJI.name());
+        }
+        try {
+            Cursor cursor = database.rawQuery(
+                    "SELECT mao.from_me, IFNULL(j.raw_string, '') AS sender,"
+                            + " mar.reaction, COUNT(*) AS n"
+                            + " FROM message_add_on mao"
+                            + " JOIN message_add_on_reaction mar"
+                            + " ON mar.message_add_on_row_id = mao._id"
+                            + " LEFT JOIN jid j ON j._id = mao.sender_jid_row_id"
+                            + " WHERE mao.chat_row_id = ?"
+                            + " AND mar.reaction IS NOT NULL AND length(mar.reaction) > 0"
+                            + " GROUP BY mao.from_me, sender, mar.reaction",
+                    new String[]{String.valueOf(chatRowId)});
+            try {
+                while (cursor.moveToNext()) {
+                    boolean isMe = cursor.getInt(0) == 1;
+                    String sender = cursor.getString(1);
+                    String reaction = cursor.getString(2);
+                    long count = cursor.getLong(3);
+                    String key;
+                    if (isMe) {
+                        key = GroupStatsReport.ME;
+                    } else if (sender == null || sender.isEmpty()) {
+                        key = GroupStatsReport.UNKNOWN;
+                    } else {
+                        key = sender;
+                    }
+                    GroupStatsReport.Participant who = report.participant(key, isMe);
+                    Long seen = who.reactionEmoji.get(reaction);
+                    who.reactionEmoji.put(reaction, seen == null ? count : seen + count);
+                }
+            } finally {
+                cursor.close();
+            }
+        } catch (Throwable t) {
+            Log.e(TAG, "GroupStatsReader: reactions failed", t);
+            report.failed.add(Section.EMOJI.name());
+        }
+    }
+
+    /** The {@code limit} most-used entries of a tally, commonest first. */
+    public static List<Map.Entry<String, Long>> top(Map<String, Long> tally, int limit) {
+        List<Map.Entry<String, Long>> all = new ArrayList<>(tally.entrySet());
+        Collections.sort(all, new Comparator<Map.Entry<String, Long>>() {
+            @Override
+            public int compare(Map.Entry<String, Long> left, Map.Entry<String, Long> right) {
+                return Long.compare(right.getValue(), left.getValue());
+            }
+        });
+        return all.size() > limit ? all.subList(0, limit) : all;
     }
 
     private static void add(GroupStatsReport.Participant who, String mime, long count) {

@@ -144,6 +144,9 @@ public class GroupStatsActivity extends Activity {
         if (reached.contains(GroupStatsReader.Section.WHAT)) {
             drawWhat(snapshot);
         }
+        if (reached.contains(GroupStatsReader.Section.EMOJI)) {
+            drawEmoji(snapshot);
+        }
     }
 
     private void drawSummary(GroupStatsReader.Snapshot snapshot) {
@@ -253,6 +256,60 @@ public class GroupStatsActivity extends Activity {
                 continue;
             }
             content.addView(bar(who.name, theirs, 0f, (float) theirs / media));
+        }
+    }
+
+    private static final int TOP_EMOJI = 8;
+
+    private void drawEmoji(GroupStatsReader.Snapshot snapshot) {
+        content.addView(heading("Emoji"));
+        if (snapshot.failed.contains(GroupStatsReader.Section.EMOJI.name())) {
+            content.addView(note("Unavailable."));
+            return;
+        }
+        java.util.Map<String, Long> typed = new java.util.HashMap<>();
+        java.util.Map<String, Long> reacted = new java.util.HashMap<>();
+        for (GroupStatsReader.Snapshot.Participant who : snapshot.participants) {
+            merge(typed, who.textEmoji);
+            merge(reacted, who.reactionEmoji);
+        }
+        content.addView(note("Most typed"));
+        addTally(typed);
+        content.addView(note("Most reacted with"));
+        addTally(reacted);
+
+        // snapshot.participants is already most-talkative-first -- the
+        // Snapshot's own sort -- so this reads as "in that same order",
+        // not a ranking of favourites.
+        content.addView(note("Each person's favourite"));
+        for (GroupStatsReader.Snapshot.Participant who : snapshot.participants) {
+            List<java.util.Map.Entry<String, Long>> best =
+                    GroupStatsReader.top(who.textEmoji, 1);
+            if (best.isEmpty()) {
+                continue;
+            }
+            content.addView(note(who.name + " — " + best.get(0).getKey()
+                    + " × " + best.get(0).getValue()));
+        }
+    }
+
+    private void addTally(java.util.Map<String, Long> tally) {
+        List<java.util.Map.Entry<String, Long>> top = GroupStatsReader.top(tally, TOP_EMOJI);
+        if (top.isEmpty()) {
+            content.addView(note("None."));
+            return;
+        }
+        long peak = top.get(0).getValue();
+        for (java.util.Map.Entry<String, Long> entry : top) {
+            content.addView(bar(entry.getKey(), entry.getValue(), 0f,
+                    peak == 0 ? 0f : (float) entry.getValue() / peak));
+        }
+    }
+
+    private static void merge(java.util.Map<String, Long> into, java.util.Map<String, Long> from) {
+        for (java.util.Map.Entry<String, Long> entry : from.entrySet()) {
+            Long seen = into.get(entry.getKey());
+            into.put(entry.getKey(), seen == null ? entry.getValue() : seen + entry.getValue());
         }
     }
 
