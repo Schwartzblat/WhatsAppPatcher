@@ -37,9 +37,10 @@ import java.util.Map;
 /**
  * What a group's messages add up to.
  *
- * Built programmatically like every screen in this module: the module's
- * resource table is not merged into WhatsApp's, so there is no res/ and
- * nothing may be inflated.
+ * Built programmatically like every screen in this module. Not because a
+ * layout is impossible -- stitch ships the module's resource table as
+ * assets/stitch/<package>.apk and StitchResources loads it -- but because this
+ * module carries neither, and a screen of plain rows does not earn them.
  *
  * No options menu, ever. WhatsApp wraps every activity's Window.Callback --
  * ours included, since they run in its process -- with a Kotlin class whose

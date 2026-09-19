@@ -11,8 +11,10 @@ import android.widget.TextView;
 /**
  * The patcher's own row inside WhatsApp's settings list.
  *
- * WhatsApp strips resource names, so the list cannot be found by id and the
- * row cannot be inflated from a layout. Both are done structurally: the list
+ * WhatsApp strips resource names, so the list cannot be found by id; and a
+ * layout of ours, even one loaded through the module's own resources, would
+ * arrive carrying the module's theme rather than this screen's. Both are
+ * therefore done structurally: the list
  * is the view group holding the most clickable, labelled children, and the row
  * is built in code, borrowing its typography and metrics from a row already in
  * that list so it matches whatever theme is in force.
@@ -167,13 +169,12 @@ public final class SettingsEntryRow {
 
     private static View buildRow(Activity activity, ViewGroup container) {
         View template = templateRow(container);
-        TextView templateTitle = template == null ? null : InjectedRow.firstTextView(template);
-        TextView templateSubtitle =
-                template == null ? null : InjectedRow.secondTextView(template, templateTitle);
-
+        // The patcher's green rather than the neighbours' icon colour: this
+        // row is not one of WhatsApp's, and the rest of the patcher's UI says
+        // so in the same green.
         View row = InjectedRow.build(activity, ROW_TITLE, ROW_SUBTITLE,
-                templateTitle, templateSubtitle,
-                titleInset(template, templateTitle, activity),
+                template, Icons.patcher(activity, Palette.ACCENT),
+                titleInset(template, activity),
                 InjectedRow.dp(activity, FALLBACK_VERTICAL_PADDING_DP),
                 ROW_TAG, () -> open(activity));
         // Measured off a real row so ours is not the short one in the list.
@@ -195,8 +196,9 @@ public final class SettingsEntryRow {
      * How far a native row's text sits from the row's leading edge, measured
      * rather than assumed: it is the icon column, and WhatsApp has changed it.
      */
-    private static int titleInset(View template, TextView templateTitle, Activity activity) {
+    private static int titleInset(View template, Activity activity) {
         int fallback = InjectedRow.dp(activity, FALLBACK_TITLE_INSET_DP);
+        TextView templateTitle = template == null ? null : InjectedRow.firstTextView(template);
         if (template == null || templateTitle == null || template.getWidth() <= 0) {
             return fallback;
         }
