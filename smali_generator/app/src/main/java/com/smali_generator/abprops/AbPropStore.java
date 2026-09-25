@@ -152,9 +152,10 @@ public final class AbPropStore {
      * Notes what an accessor answered, and keeps the properties object it was
      * asked of.
      *
-     * Only called when no override applied, so an overridden property keeps
-     * showing the last value the app itself gave rather than this patch's own
-     * answer read back.
+     * Called with the app's own answer on every read, overridden or not --
+     * the hook asks the app first and substitutes after -- so an overridden
+     * property keeps showing what the app itself says rather than this
+     * patch's own answer read back.
      */
     public static void observe(Object from, int id, Object value) {
         if (owner == null && from != null) {

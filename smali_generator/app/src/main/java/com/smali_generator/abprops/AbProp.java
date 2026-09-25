@@ -17,9 +17,9 @@ public final class AbProp {
      *
      * Four types for five accessors: the string table and the JSON table both
      * hold their defaults as text and are indistinguishable by value class. It
-     * does not matter -- an override is keyed by id, and an id only ever
-     * reaches one accessor, so whichever one it lands in reads the stored text
-     * its own way.
+     * does not matter -- an override is keyed by id, an id only ever reaches
+     * one accessor, and the hook reads which one off the class of the app's own
+     * answer: text goes back as a String or is parsed into a JSONObject to match.
      */
     public enum Type {
         BOOL("bool"),
@@ -128,6 +128,27 @@ public final class AbProp {
 
     public String defaultText() {
         return defaultValue == null ? "unknown" : format(defaultValue);
+    }
+
+    /**
+     * Whether two answers for one property are the same value.
+     *
+     * Numbers compare by value, because the same number arrives boxed as
+     * different classes: the default tables hold Longs for some int
+     * properties, and the app's own answer is whatever the funnel it is read
+     * from boxed, before the accessor narrows it. equals() calls Long 5 and
+     * Integer 5 different, which would mark a property as changed by Meta when
+     * it was not. A float property is compared as the float the accessor
+     * returns, so a Double table entry is not told apart by its extra digits.
+     */
+    public static boolean sameValue(Object a, Object b) {
+        if (a instanceof Number && b instanceof Number) {
+            if (Type.of(a) == Type.INT && Type.of(b) == Type.INT) {
+                return ((Number) a).longValue() == ((Number) b).longValue();
+            }
+            return Float.compare(((Number) a).floatValue(), ((Number) b).floatValue()) == 0;
+        }
+        return a == null ? b == null : a.equals(b);
     }
 
     /** Values go on one line of a list row, so a long one is cut rather than

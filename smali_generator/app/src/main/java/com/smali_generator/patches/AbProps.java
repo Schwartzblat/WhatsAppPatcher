@@ -14,6 +14,9 @@ import org.json.JSONObject;
 import java.lang.reflect.Executable;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import java.util.Arrays;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Lets the app's A/B properties be read and changed.
@@ -26,114 +29,207 @@ import java.lang.reflect.Modifier;
  * answering one of those questions differently is how you find out what it
  * does.
  *
- * All five accessors are hooked, because a property's type decides which one it
- * goes through and there is no saying in advance which type an interesting
- * property is. Between them they are reached from 13,336 sites on 2.26.36.71,
- * 10,420 of them the boolean one, so this is as hot a path as the patch
- * touches: with nothing overridden the replacement is a single volatile read
- * and a call to the backup.
+ * The hook is not on those accessors but on the one private method all five
+ * end in, which takes the id and returns the value boxed. The accessors are 8
+ * dex code units each: a warm profile's inline caches let dex2oat copy one into
+ * a hot call site behind a class check, and the override then silently stopped
+ * applying there -- a read of property 16520 on 2.26.37.74 under the phone's
+ * own speed-profile. The funnel is some two hundred instructions; no compiler
+ * filter inlines it, so every read reaches it however the app was compiled.
  *
- * Off by default for that reason. It is a tool for poking at the app, not
- * something a normal session should be carrying.
+ * What the funnel does not know is which accessor asked. That is decided by the
+ * type the app's own answer comes back as: the caller casts the funnel's result
+ * to Boolean, Number, String or JSONObject, so an override is only ever handed
+ * back in the shape the original answer had. It costs the original call on an
+ * overridden read, which the accessor hooks used to skip, and buys the one
+ * thing that cannot be got any other way: a string property and a JSON one
+ * store their overrides as the same text, and handing a String to the JSON
+ * accessor's cast would crash the app inside its own code.
  *
- * One subclass of the properties class overrides all five accessors and so goes
- * past a hook placed on the base -- the properties object used during
- * registration and Drive restore, 51 references against 635 for the one the
- * rest of the app holds. It is deliberately not covered: those are not paths
- * with features to find in them.
+ * Reached from 13,336 sites on 2.26.36.71, so this is as hot a path as the
+ * patch touches, and off by default for that reason. It is a tool for poking at
+ * the app, not something a normal session should be carrying.
+ *
+ * One subclass of the properties class overrides all five accessors -- the
+ * properties object used during registration and Drive restore, 51 references
+ * against 635 for the one the rest of the app holds. Its reads reach the funnel
+ * too, on its own receiver, and are passed through untouched: those are not
+ * paths with features to find in them, and it must not become the object the
+ * default tables are read from.
  */
 public class AbProps implements Hook {
 
     private static final String TAG = "PATCH";
 
-    /** native on purpose: a body here would be inlined into the hook and the backup would
-     * silently answer for the original. ArtHooks rewrites its entry point. */
-    static native boolean bool_backup(Object thiz, int id);
+    /** The boolean accessor. A receiver whose class declares it itself is the
+     *  registration object above, and is left alone. */
+    private static final String BOOL_ACCESSOR = "{{AB_PROPS_BOOL_METHOD_NAME}}";
 
-    static boolean bool_hook(Object thiz, int id) {
-        AbPropStore.Override override = AbPropStore.override(id);
-        if (override != null && override.value instanceof Boolean) {
-            override.served = true;
-            return (Boolean) override.value;
-        }
-        boolean value = bool_backup(thiz, id);
-        AbPropStore.observe(thiz, id, value);
-        return value;
+    private static Class<?> owner;
+
+    /** The receiver class every ordinary read comes from, checked before the map. */
+    private static volatile Class<?> lastCovered;
+
+    /** Whether reads on a receiver of this class are this hook's business. A
+     *  handful of entries: the properties class has three subclasses. */
+    private static final Map<Class<?>, Boolean> covered = new ConcurrentHashMap<>();
+
+    // One replacement and backup per number of reference parameters ahead of
+    // the id: four on 2.26.17.72, five since. The layout has to match the
+    // target's exactly, and Object stands in for every obfuscated type.
+
+    /** native on purpose: a body here would be inlined into the hook and the backup would
+     *  silently answer for the original. ArtHooks rewrites its entry point. */
+    static native Object funnel3_backup(Object thiz, Object a, Object b, Object c, int id);
+
+    static Object funnel3_hook(Object thiz, Object a, Object b, Object c, int id) {
+        return answer(thiz, id, funnel3_backup(thiz, a, b, c, id));
     }
 
     /** native on purpose: a body here would be inlined into the hook and the backup would
-     * silently answer for the original. ArtHooks rewrites its entry point. */
-    static native int int_backup(Object thiz, int id);
+     *  silently answer for the original. ArtHooks rewrites its entry point. */
+    static native Object funnel4_backup(Object thiz, Object a, Object b, Object c, Object d, int id);
 
-    static int int_hook(Object thiz, int id) {
-        AbPropStore.Override override = AbPropStore.override(id);
-        if (override != null && override.value instanceof Integer) {
-            override.served = true;
-            return (Integer) override.value;
-        }
-        int value = int_backup(thiz, id);
-        AbPropStore.observe(thiz, id, value);
-        return value;
+    static Object funnel4_hook(Object thiz, Object a, Object b, Object c, Object d, int id) {
+        return answer(thiz, id, funnel4_backup(thiz, a, b, c, d, id));
     }
 
     /** native on purpose: a body here would be inlined into the hook and the backup would
-     * silently answer for the original. ArtHooks rewrites its entry point. */
-    static native float float_backup(Object thiz, int id);
+     *  silently answer for the original. ArtHooks rewrites its entry point. */
+    static native Object funnel5_backup(Object thiz, Object a, Object b, Object c, Object d, Object e,
+                                        int id);
 
-    static float float_hook(Object thiz, int id) {
-        AbPropStore.Override override = AbPropStore.override(id);
-        if (override != null && override.value instanceof Float) {
-            override.served = true;
-            return (Float) override.value;
-        }
-        float value = float_backup(thiz, id);
-        AbPropStore.observe(thiz, id, value);
-        return value;
+    static Object funnel5_hook(Object thiz, Object a, Object b, Object c, Object d, Object e, int id) {
+        return answer(thiz, id, funnel5_backup(thiz, a, b, c, d, e, id));
     }
 
     /** native on purpose: a body here would be inlined into the hook and the backup would
-     * silently answer for the original. ArtHooks rewrites its entry point. */
-    static native String string_backup(Object thiz, int id);
+     *  silently answer for the original. ArtHooks rewrites its entry point. */
+    static native Object funnel6_backup(Object thiz, Object a, Object b, Object c, Object d, Object e,
+                                        Object f, int id);
 
-    static String string_hook(Object thiz, int id) {
-        AbPropStore.Override override = AbPropStore.override(id);
-        if (override != null && override.value instanceof String) {
-            override.served = true;
-            return (String) override.value;
-        }
-        String value = string_backup(thiz, id);
-        AbPropStore.observe(thiz, id, value);
-        return value;
+    static Object funnel6_hook(Object thiz, Object a, Object b, Object c, Object d, Object e, Object f,
+                               int id) {
+        return answer(thiz, id, funnel6_backup(thiz, a, b, c, d, e, f, id));
     }
-
-    /** native on purpose: a body here would be inlined into the hook and the backup would
-     * silently answer for the original. ArtHooks rewrites its entry point. */
-    static native JSONObject json_backup(Object thiz, int id);
 
     /**
-     * The JSON accessor. Its overrides are stored as the same text as a
-     * string property's, because the two default tables are indistinguishable
-     * by value class -- so this is where text meant for this accessor is read
-     * as JSON, and text that is not JSON leaves the app's own answer alone.
+     * What the app is told property {@code id} is, given what it would have
+     * been told.
      *
-     * Parsed on each read rather than kept: there are 143 call sites against
-     * the boolean accessor's 10,420, and a shared JSONObject is one the app
-     * could edit under us.
+     * Never throws: this runs inside every property read the app makes, on
+     * whatever thread got there first. With nothing overridden it costs a
+     * class compare, a volatile read and the observation.
      */
-    static JSONObject json_hook(Object thiz, int id) {
-        AbPropStore.Override override = AbPropStore.override(id);
-        if (override != null && override.value instanceof String) {
+    private static Object answer(Object thiz, int id, Object value) {
+        try {
+            if (!covers(thiz)) {
+                return value;
+            }
+            // Before the override: what the screen shows as the app's own
+            // value has to be the app's own, not this patch's answer read back.
+            AbPropStore.observe(thiz, id, value instanceof JSONObject ? value.toString() : value);
+            AbPropStore.Override override = AbPropStore.override(id);
+            if (override == null) {
+                return value;
+            }
+            Object shaped = shape(id, override.value, value);
+            if (shaped == null) {
+                return value;
+            }
+            override.served = true;
+            return shaped;
+        } catch (Throwable t) {
+            Log.e(TAG, "AbProps: property " + id + " answered with the app's own value: " + t);
+            return value;
+        }
+    }
+
+    /**
+     * The override in the shape the caller will cast to, or null to leave the
+     * app's answer alone.
+     *
+     * The shape is read off the app's own answer, since that is what the
+     * accessor's cast was written for. The int and float accessors cast to
+     * Number, so either kind of number fits either. With no answer to go by
+     * -- the app's value was null -- only a type that cannot be mistaken
+     * would be safe, and text can: it is a String to one accessor and a
+     * JSONObject to another, and the wrong one is a ClassCastException in the
+     * app's own code. So null is left alone, and the override shows as not
+     * served.
+     */
+    static Object shape(int id, Object override, Object original) {
+        if (override == null || original == null) {
+            return null;
+        }
+        if (original instanceof Boolean) {
+            return override instanceof Boolean ? override : null;
+        }
+        if (original instanceof Number) {
+            return override instanceof Number ? override : null;
+        }
+        if (original instanceof String) {
+            return override instanceof String ? override : null;
+        }
+        if (original instanceof JSONObject && override instanceof String) {
+            // Parsed on each read rather than kept: a shared JSONObject is one
+            // the app could edit under us.
             try {
-                JSONObject parsed = new JSONObject((String) override.value);
-                override.served = true;
-                return parsed;
+                return new JSONObject((String) override);
             } catch (Throwable t) {
                 Log.e(TAG, "AbProps: the override for " + id + " is not JSON, using the app's own value: " + t);
             }
         }
-        JSONObject value = json_backup(thiz, id);
-        AbPropStore.observe(thiz, id, value == null ? null : value.toString());
-        return value;
+        return null;
+    }
+
+    /**
+     * Whether reads on this receiver are overridden and observed.
+     *
+     * The registration object is told apart by what it is rather than by
+     * name: it declares the accessors itself, where the object the rest of
+     * the app holds inherits them. Decided once per class.
+     */
+    private static boolean covers(Object thiz) {
+        if (thiz == null) {
+            return false;
+        }
+        Class<?> cls = thiz.getClass();
+        if (cls == lastCovered) {
+            return true;
+        }
+        Boolean known = covered.get(cls);
+        if (known == null) {
+            try {
+                known = !declaresAccessor(cls);
+                Log.i(TAG, "AbProps: reads on " + cls.getName() + (known ? " are covered"
+                        : " are left alone, it declares the accessors itself"));
+            } catch (Throwable t) {
+                // Remembered like an answer, so a class that cannot be looked
+                // at costs one log line rather than one per read.
+                known = false;
+                Log.e(TAG, "AbProps: reads on " + cls.getName() + " are left alone, it could not be inspected: " + t);
+            }
+            covered.put(cls, known);
+        }
+        if (known) {
+            lastCovered = cls;
+        }
+        return known;
+    }
+
+    /** By exact name and parameters: getDeclaredMethods() would resolve every
+     *  signature in an obfuscated class to answer, and can fail on any one. */
+    private static boolean declaresAccessor(Class<?> cls) {
+        for (Class<?> c = cls; c != null && c != owner; c = c.getSuperclass()) {
+            try {
+                c.getDeclaredMethod(BOOL_ACCESSOR, int.class);
+                return true;
+            } catch (NoSuchMethodException ignored) {
+                // Inherited here; keep walking up to the properties class.
+            }
+        }
+        return false;
     }
 
     public String id() {
@@ -152,8 +248,8 @@ public class AbProps implements Hook {
         return HookCategory.DEVELOPER;
     }
 
-    /** Off unless asked for: five hooks on the app's hottest read path, in aid
-     *  of a screen most sessions have no use for. */
+    /** Off unless asked for: a hook on the app's hottest read path, in aid of
+     *  a screen most sessions have no use for. */
     public boolean defaultEnabled() {
         return false;
     }
@@ -172,60 +268,57 @@ public class AbProps implements Hook {
     }
 
     public void load() {
-        // Before anything is hooked: an accessor that fired between being
-        // redirected and the overrides arriving would answer with the app's own
-        // value and be recorded as though nothing was set.
+        // Before anything is hooked: a read that arrived between the redirect
+        // and the overrides would answer with the app's own value.
         AbPropStore.load();
         try {
-            Class<?> owner = Class.forName("{{AB_PROPS_CLASS_NAME}}");
-            install(owner, "boolean", "{{AB_PROPS_BOOL_METHOD_NAME}}", "{{AB_PROPS_BOOL_METHOD_SIG}}",
-                    "bool_hook", "bool_backup", boolean.class);
-            install(owner, "int", "{{AB_PROPS_INT_METHOD_NAME}}", "{{AB_PROPS_INT_METHOD_SIG}}",
-                    "int_hook", "int_backup", int.class);
-            install(owner, "float", "{{AB_PROPS_FLOAT_METHOD_NAME}}", "{{AB_PROPS_FLOAT_METHOD_SIG}}",
-                    "float_hook", "float_backup", float.class);
-            install(owner, "string", "{{AB_PROPS_STRING_METHOD_NAME}}", "{{AB_PROPS_STRING_METHOD_SIG}}",
-                    "string_hook", "string_backup", String.class);
-            install(owner, "json", "{{AB_PROPS_JSON_METHOD_NAME}}", "{{AB_PROPS_JSON_METHOD_SIG}}",
-                    "json_hook", "json_backup", JSONObject.class);
-        } catch (Throwable t) {
-            Log.e(TAG, "AbProps: the properties class was not reached, nothing is hooked: " + t);
-        }
-    }
-
-    /**
-     * One accessor, in its own try/catch: a release that has moved one of the
-     * five should still leave the other four readable and overridable.
-     *
-     * The return type is passed rather than inferred so that the replacement
-     * and the backup are looked up by their exact shapes; a mismatch is a
-     * NoSuchMethodException here rather than a redirect into the wrong method.
-     */
-    private void install(Class<?> owner, String label, String name, String signature,
-                         String replacementName, String backupName, Class<?> returns) {
-        try {
-            Executable target = ArtHooks.find_function(owner, name, signature);
+            owner = Class.forName("{{AB_PROPS_CLASS_NAME}}");
+            Executable funnel = ArtHooks.find_function(owner,
+                    "{{AB_PROPS_FUNNEL_METHOD_NAME}}", "{{AB_PROPS_FUNNEL_METHOD_SIG}}");
+            if (funnel == null) {
+                Log.e(TAG, "AbProps: " + owner.getName() + " has no funnel of the shape the finder saw");
+                return;
+            }
             // R8 makes an instance method static when its receiver goes unused,
             // without touching the descriptor the finder matched. Hooking a
             // static one installs cleanly and then dies on the first call, when
             // the backup re-enters the replacement -- outside every try/catch,
             // with the app already running.
-            if (Modifier.isStatic(target.getModifiers())) {
-                Log.e(TAG, "AbProps: " + owner.getName() + "." + name + signature
-                        + " is static in this build; the " + label + " accessor is left alone");
+            if (Modifier.isStatic(funnel.getModifiers())) {
+                Log.e(TAG, "AbProps: the funnel is static in this build, nothing is hooked");
                 return;
             }
-            Method replacement = AbProps.class.getDeclaredMethod(replacementName, Object.class, int.class);
-            Method original = AbProps.class.getDeclaredMethod(backupName, Object.class, int.class);
-            if (replacement.getReturnType() != returns || original.getReturnType() != returns) {
-                Log.e(TAG, "AbProps: the " + label + " replacement does not return " + returns.getName());
+            Class<?>[] params = ((Method) funnel).getParameterTypes();
+            int references = params.length - 1;
+            if (references < 0 || params[references] != int.class
+                    || ((Method) funnel).getReturnType() != Object.class) {
+                Log.e(TAG, "AbProps: the funnel does not take the id last and return Object: " + funnel);
                 return;
             }
-            boolean hooked = ArtHooks.hook_function(target, replacement, original);
-            Log.i(TAG, "AbProps: " + label + " accessor hooked on " + owner.getName() + "."
-                    + name + signature + ", hooked=" + hooked);
+            for (int i = 0; i < references; i++) {
+                if (params[i].isPrimitive()) {
+                    Log.e(TAG, "AbProps: the funnel takes a primitive before the id: " + funnel);
+                    return;
+                }
+            }
+            Class<?>[] shape = new Class<?>[references + 2];
+            Arrays.fill(shape, Object.class);
+            shape[references + 1] = int.class;
+            Method replacement;
+            Method original;
+            try {
+                replacement = AbProps.class.getDeclaredMethod("funnel" + references + "_hook", shape);
+                original = AbProps.class.getDeclaredMethod("funnel" + references + "_backup", shape);
+            } catch (NoSuchMethodException e) {
+                Log.e(TAG, "AbProps: the funnel takes " + references
+                        + " references before the id, and no replacement has that shape");
+                return;
+            }
+            boolean hooked = ArtHooks.hook_function(funnel, replacement, original);
+            Log.i(TAG, "AbProps: hooked the funnel " + owner.getName() + "."
+                    + ((Method) funnel).getName() + "{{AB_PROPS_FUNNEL_METHOD_SIG}}, hooked=" + hooked);
         } catch (Throwable t) {
-            Log.e(TAG, "AbProps: the " + label + " accessor was left alone: " + t);
+            Log.e(TAG, "AbProps: the properties class was not reached, nothing is hooked: " + t);
         }
     }
 
