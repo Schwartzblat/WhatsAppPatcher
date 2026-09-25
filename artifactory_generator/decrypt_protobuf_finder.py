@@ -1,11 +1,7 @@
 import re
 from stitch.artifactory_generator.SimpleArtifactoryFinder import SimpleArtifactoryFinder
 
-#: Not stitch's CLASS_NAME_RE: that one is greedy, so it backtracks to the last
-#: ``L`` on the line and reads ``LX/BLz;`` as ``z``. The message class has no
-#: ``L`` in its name and never tripped over it; the builder is whatever R8
-#: named it, so this finder cannot afford the same luck.
-CLASS_RE = re.compile(r'^\.class[^\n]*?\sL(?P<name>[\w/$]+);', re.M)
+from artifactory_generator.smali import CLASS_RE
 
 
 class DecryptProtobufFinder(SimpleArtifactoryFinder):

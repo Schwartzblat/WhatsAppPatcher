@@ -113,6 +113,16 @@ def test_survives_a_renamed_gate_class_and_method():
     assert artifacts['META_AI_BUTTON_GATE_METHOD_NAME'] == 'A02'
 
 
+def test_reads_a_gate_class_whose_name_has_an_l_in_it():
+    """2.26.37.74 named it X.1LK, and stitch's greedy class regex read that as K:
+    the key was written, the gate passed, and the hook died on ClassNotFoundException."""
+    moved = GATE.replace('LX/13z;', 'LX/1LK;')
+    found = gate_finder()
+    artifacts = feed(found, moved)
+    assert found.is_found is True
+    assert artifacts['META_AI_BUTTON_GATE_CLASS_NAME'] == 'X.1LK'
+
+
 def test_reads_a_jumbo_pref_string():
     """Recent builds use const-string/jumbo for large string indices."""
     jumbo = GATE.replace('const-string v1,', 'const-string/jumbo v1,')

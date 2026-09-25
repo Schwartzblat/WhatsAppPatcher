@@ -1,6 +1,8 @@
 import re
 
-from stitch.artifactory_generator.SimpleArtifactoryFinder import SimpleArtifactoryFinder, CLASS_NAME_RE
+from stitch.artifactory_generator.SimpleArtifactoryFinder import SimpleArtifactoryFinder
+
+from artifactory_generator.smali import CLASS_RE
 
 METHOD_RE = re.compile(
     r'^\.method (?P<modifiers>[\w ]*?)(?P<name>[\w$]+)(?P<sig>\([^)\n]*\)[\w/$;\[]+)\n'
@@ -60,7 +62,7 @@ class ContactSearchFinder(SimpleArtifactoryFinder):
         if self.SIG_RE.match(search.group('sig')) is None:
             return
 
-        class_match = CLASS_NAME_RE.match(class_data)
+        class_match = CLASS_RE.search(class_data)
         if class_match is None:
             return
 
@@ -125,7 +127,7 @@ class ContactAccessorsFinder(SimpleArtifactoryFinder):
             return
         raw_ids = [getter for getter in getters if getter is not row_ids[0]]
 
-        class_match = CLASS_NAME_RE.match(class_data)
+        class_match = CLASS_RE.search(class_data)
         if class_match is None:
             return
 

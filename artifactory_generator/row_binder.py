@@ -1,5 +1,7 @@
 import re
-from stitch.artifactory_generator.SimpleArtifactoryFinder import SimpleArtifactoryFinder, CLASS_NAME_RE
+from stitch.artifactory_generator.SimpleArtifactoryFinder import SimpleArtifactoryFinder
+
+from artifactory_generator.smali import CLASS_RE
 
 
 class RowBinderFinder(SimpleArtifactoryFinder):
@@ -95,7 +97,7 @@ class RowBinderFinder(SimpleArtifactoryFinder):
             # Ambiguity means do not fire; the gate then reports the finder as
             # never fired rather than the hook decorating nothing at runtime.
             return
-        class_match = CLASS_NAME_RE.match(class_data)
+        class_match = CLASS_RE.search(class_data)
         if class_match is None:
             return
         artifacts['ROW_BINDER_CLASS_NAME'] = class_match.groupdict().get('name').replace('/', '.')

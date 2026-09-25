@@ -1,5 +1,7 @@
 import re
-from stitch.artifactory_generator.SimpleArtifactoryFinder import SimpleArtifactoryFinder, CLASS_NAME_RE
+from stitch.artifactory_generator.SimpleArtifactoryFinder import SimpleArtifactoryFinder
+
+from artifactory_generator.smali import CLASS_RE
 
 # The setting WhatsApp's own Settings > Chats screen writes for its Meta AI
 # button. It is a SharedPreferences key, so renaming it would strand the stored
@@ -43,14 +45,16 @@ class MetaAiButtonFinder(SimpleArtifactoryFinder):
     The class is found by what it is for: it declares exactly one method, a
     ``()Z`` that reads {BUTTON_PREF} out of SharedPreferences. Nothing else in
     the app has that shape, while the class itself was renamed in every build
-    examined -- ``X.16t``, ``X.17f``, ``X.118``, ``X.12O``, ``X.13z``.
+    examined -- ``X.16t``, ``X.17f``, ``X.118``, ``X.12O``, ``X.13z``, ``X.1LK``.
+    That last one is why the name is read with the shared ``CLASS_RE``: stitch's
+    own regex made it ``K``.
 
     Deliberately not hooked: WhatsApp's own Settings > Chats screen, which reads
     the same key directly to draw its switch. It keeps showing the user's real
     setting rather than one this patch invented.
 
     Verified to resolve the gate, and nothing else, on 2.26.17.72, 2.26.27.85,
-    2.26.29.74, 2.26.33.76 and 2.26.36.71.
+    2.26.29.74, 2.26.33.76, 2.26.36.71 and 2.26.37.74.
     """
 
     def __init__(self, args):
@@ -68,7 +72,7 @@ class MetaAiButtonFinder(SimpleArtifactoryFinder):
         # classes, and neither is what should be hooked.
         if len(methods) != 1 or not _reads_the_pref(methods[0]):
             return
-        class_match = CLASS_NAME_RE.match(class_data)
+        class_match = CLASS_RE.search(class_data)
         if class_match is None:
             return
         artifacts['META_AI_BUTTON_GATE_CLASS_NAME'] = class_match.groupdict().get('name').replace('/', '.')
@@ -107,7 +111,7 @@ class MetaAiCallsButtonFinder(SimpleArtifactoryFinder):
     def class_filter(self, class_data: str) -> bool:
         if PREF_RE.search(class_data) is None:
             return False
-        match = CLASS_NAME_RE.match(class_data)
+        match = CLASS_RE.search(class_data)
         return match is not None and match.groupdict().get('name') == self.FRAGMENT_CLASS
 
     def extract_artifacts(self, artifacts: dict, class_data: str) -> None:

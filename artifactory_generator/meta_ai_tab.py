@@ -1,5 +1,7 @@
 import re
-from stitch.artifactory_generator.SimpleArtifactoryFinder import SimpleArtifactoryFinder, CLASS_NAME_RE
+from stitch.artifactory_generator.SimpleArtifactoryFinder import SimpleArtifactoryFinder
+
+from artifactory_generator.smali import CLASS_RE
 
 
 class MetaAiTabFinder(SimpleArtifactoryFinder):
@@ -68,7 +70,7 @@ class MetaAiTabFinder(SimpleArtifactoryFinder):
         return self._is_ai_fragment(class_data) or self.TABS_SIG in class_data
 
     def _is_ai_fragment(self, class_data: str) -> bool:
-        match = CLASS_NAME_RE.match(class_data)
+        match = CLASS_RE.search(class_data)
         return match is not None and match.groupdict().get('name') == self.FRAGMENT_CLASS
 
     def extract_artifacts(self, artifacts: dict, class_data: str) -> None:
@@ -90,7 +92,7 @@ class MetaAiTabFinder(SimpleArtifactoryFinder):
         self._tab_id = ids[0]
 
     def _collect_candidates(self, class_data: str) -> None:
-        class_match = CLASS_NAME_RE.match(class_data)
+        class_match = CLASS_RE.search(class_data)
         if class_match is None:
             return
         for method in self.METHOD_RE.finditer(class_data):

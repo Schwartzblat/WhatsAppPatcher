@@ -1,6 +1,8 @@
 import re
 
-from stitch.artifactory_generator.SimpleArtifactoryFinder import SimpleArtifactoryFinder, CLASS_NAME_RE
+from stitch.artifactory_generator.SimpleArtifactoryFinder import SimpleArtifactoryFinder
+
+from artifactory_generator.smali import CLASS_RE
 
 
 class MessageSearchFinder(SimpleArtifactoryFinder):
@@ -54,7 +56,7 @@ class MessageSearchFinder(SimpleArtifactoryFinder):
         if len(encoders) != 1:
             return
 
-        class_match = CLASS_NAME_RE.match(class_data)
+        class_match = CLASS_RE.search(class_data)
         if class_match is None:
             return
 

@@ -1,5 +1,7 @@
 import re
-from stitch.artifactory_generator.SimpleArtifactoryFinder import SimpleArtifactoryFinder, CLASS_NAME_RE
+from stitch.artifactory_generator.SimpleArtifactoryFinder import SimpleArtifactoryFinder
+
+from artifactory_generator.smali import CLASS_RE
 
 
 class ReadReceiptsFinder(SimpleArtifactoryFinder):
@@ -92,7 +94,7 @@ class ReadReceiptsFinder(SimpleArtifactoryFinder):
 
     @staticmethod
     def _class_name(class_data: str):
-        match = CLASS_NAME_RE.match(class_data)
+        match = CLASS_RE.search(class_data)
         return match.groupdict().get('name') if match is not None else None
 
     def class_filter(self, class_data: str) -> bool:
@@ -172,7 +174,7 @@ class ReadReceiptsFinder(SimpleArtifactoryFinder):
             return
         played_gate = played_gates[0]
 
-        class_match = CLASS_NAME_RE.match(class_data)
+        class_match = CLASS_RE.search(class_data)
         if class_match is None:
             return
 
