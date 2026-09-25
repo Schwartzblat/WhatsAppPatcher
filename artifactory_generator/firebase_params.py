@@ -3,7 +3,9 @@ from pathlib import Path
 from androguard.core.apk import APK
 from androguard.core.axml import ARSCParser
 from stitch.apk_utils import is_bundle
-from stitch.artifactory_generator.SimpleArtifactoryFinder import SimpleArtifactoryFinder, CLASS_NAME_RE
+from stitch.artifactory_generator.SimpleArtifactoryFinder import SimpleArtifactoryFinder
+
+from artifactory_generator.smali import CLASS_RE
 from stitch.common import BUNDLE_APK_EXTRACTED_PATH, EXTRACTED_PATH
 
 
@@ -17,7 +19,7 @@ class FirebaseParamsFinder(SimpleArtifactoryFinder):
         return '"ApplicationId must be set."' in class_data
 
     def extract_artifacts(self, artifacts: dict, class_data: str) -> None:
-        artifacts['FIREBASE_PARAMS_CLASS_NAME'] = CLASS_NAME_RE.match(class_data).groupdict().get('name').replace('/', '.')
+        artifacts['FIREBASE_PARAMS_CLASS_NAME'] = CLASS_RE.search(class_data).groupdict().get('name').replace('/', '.')
         resources_path = Path(self.args.temp_path) / EXTRACTED_PATH / 'resources.arsc'
 
         if is_bundle(self.args.apk_path):

@@ -1,5 +1,7 @@
 import re
-from stitch.artifactory_generator.SimpleArtifactoryFinder import SimpleArtifactoryFinder, CLASS_NAME_RE
+from stitch.artifactory_generator.SimpleArtifactoryFinder import SimpleArtifactoryFinder
+
+from artifactory_generator.smali import CLASS_RE
 
 
 class MentionEveryoneFinder(SimpleArtifactoryFinder):
@@ -59,7 +61,7 @@ class MentionEveryoneFinder(SimpleArtifactoryFinder):
         self.is_found = False
 
     def class_filter(self, class_data: str) -> bool:
-        match = CLASS_NAME_RE.match(class_data)
+        match = CLASS_RE.search(class_data)
         return (match is not None
                 and self.ENTRY_CLASS_RE.match(match.groupdict().get('name')) is not None
                 and self.MENTIONS_SIG in class_data)
@@ -79,7 +81,7 @@ class MentionEveryoneFinder(SimpleArtifactoryFinder):
         owner, field = markers.pop()
 
         artifacts['MENTION_ENTRY_CLASS_NAME'] = \
-            CLASS_NAME_RE.match(class_data).groupdict().get('name').replace('/', '.')
+            CLASS_RE.search(class_data).groupdict().get('name').replace('/', '.')
         artifacts['MENTION_GET_METHOD_NAME'] = accessor.group('name')
         artifacts['MENTION_GET_METHOD_SIG'] = self.MENTIONS_SIG
         artifacts['MENTION_EVERYONE_CLASS_NAME'] = owner[1:-1].replace('/', '.')

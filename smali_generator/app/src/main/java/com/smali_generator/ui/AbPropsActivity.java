@@ -658,7 +658,7 @@ public class AbPropsActivity extends Activity {
                 return served != null && served.served;
             case CHANGED:
                 Object live = seen.get(prop.id);
-                return live != null && prop.defaultValue != null && !live.equals(prop.defaultValue);
+                return live != null && prop.defaultValue != null && !AbProp.sameValue(live, prop.defaultValue);
             case OVERRIDDEN:
                 AbPropStore.Override active = AbPropStore.overrides().get(prop.id);
                 return active != null && !active.heldBack;
@@ -930,7 +930,7 @@ public class AbPropsActivity extends Activity {
                         ? "forced " + override.text + " · the app has read it"
                         : "forced " + override.text + " · not read yet");
                 status.setVisibility(View.VISIBLE);
-            } else if (live != null && prop.defaultValue != null && !live.equals(prop.defaultValue)) {
+            } else if (live != null && prop.defaultValue != null && !AbProp.sameValue(live, prop.defaultValue)) {
                 status.setText("changed from the shipped default");
                 status.setVisibility(View.VISIBLE);
             } else {

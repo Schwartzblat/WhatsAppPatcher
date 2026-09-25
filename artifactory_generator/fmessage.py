@@ -1,4 +1,6 @@
-from stitch.artifactory_generator.SimpleArtifactoryFinder import SimpleArtifactoryFinder, CLASS_NAME_RE
+from stitch.artifactory_generator.SimpleArtifactoryFinder import SimpleArtifactoryFinder
+
+from artifactory_generator.smali import CLASS_RE
 
 
 class FMessage(SimpleArtifactoryFinder):
@@ -12,5 +14,5 @@ class FMessage(SimpleArtifactoryFinder):
         return '\"FMessage/getSenderUserJid/key.id=\"' in class_data
 
     def extract_artifacts(self, artifacts: dict, class_data: str) -> None:
-        artifacts['FMESSAGE_CLASS'] = CLASS_NAME_RE.match(class_data).groupdict().get('name').replace('/', '.')
+        artifacts['FMESSAGE_CLASS'] = CLASS_RE.search(class_data).groupdict().get('name').replace('/', '.')
         self.is_found = True

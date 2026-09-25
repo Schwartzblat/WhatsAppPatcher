@@ -1,5 +1,7 @@
 import re
-from stitch.artifactory_generator.SimpleArtifactoryFinder import SimpleArtifactoryFinder, CLASS_NAME_RE
+from stitch.artifactory_generator.SimpleArtifactoryFinder import SimpleArtifactoryFinder
+
+from artifactory_generator.smali import CLASS_RE
 
 
 class GroupInfoFinder(SimpleArtifactoryFinder):
@@ -51,7 +53,7 @@ class GroupInfoFinder(SimpleArtifactoryFinder):
             return
         if self.ON_CREATE_RE.search(class_data) is None:
             return
-        class_match = CLASS_NAME_RE.match(class_data)
+        class_match = CLASS_RE.search(class_data)
         if class_match is None:
             return
         name = class_match.groupdict().get('name')

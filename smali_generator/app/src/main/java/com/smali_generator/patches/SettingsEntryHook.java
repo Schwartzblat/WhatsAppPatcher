@@ -11,8 +11,8 @@ import com.smali_generator.ui.SettingsEntryRow;
 /**
  * Puts the patcher's own row into WhatsApp's settings list.
  *
- * The resume hook itself belongs to {@link ActivityResume}, which owns it for
- * every feature that wants one; the app-specific value here is only which
+ * Hearing about resumes belongs to {@link ActivityResume}, which owns that for
+ * every feature that wants it; the app-specific value here is only which
  * activity is the settings screen, and SettingsScreenFinder resolves that.
  *
  * Firing on every resume is deliberate. The row is added once per screen, and
