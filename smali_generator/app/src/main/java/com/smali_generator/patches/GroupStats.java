@@ -16,7 +16,7 @@ import java.util.regex.Pattern;
 /**
  * Adds a statistics row to WhatsApp's group info screen.
  *
- * The resume hook belongs to {@link ActivityResume}; the app-specific value
+ * Hearing about resumes belongs to {@link ActivityResume}; the app-specific value
  * here is which activity is the group info screen, and GroupInfoFinder
  * resolves that.
  *
