@@ -14,6 +14,7 @@ import com.smali_generator.patches.AbProps;
 import com.smali_generator.patches.ActivityHook;
 import com.smali_generator.patches.ContactSearchDuplicates;
 import com.smali_generator.patches.DecryptProtobuf;
+import com.smali_generator.patches.DeleteForEveryone;
 import com.smali_generator.patches.DeletedMessageIndicator;
 import com.smali_generator.patches.FirebaseParams;
 import com.smali_generator.patches.GroupStats;
@@ -70,6 +71,7 @@ public class InitProvider extends ContentProvider {
             new SenderSearch(),
             new ContactSearchDuplicates(),
             new MentionEveryone(),
+            new DeleteForEveryone(),
             new SettingsEntryHook(),
             new GroupStats(),
     };

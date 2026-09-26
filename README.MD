@@ -4,20 +4,21 @@ WhatsApp patcher is a program that patches WhatsApp apk.
 
 ## Features
 
-|                    Feature                    | Availability |
-|:---------------------------------------------:|:------------:|
-|           Signature Verifier Bypass           |      ✔      |
-|              Enable all AB tests              |      X       |
-|         Keep revoked for all messages         |      ✔      |
-|     Trash icon marking a revoked message      |      ✔      |
-|        Disable read receipts, per chat        |      ✔      |
-|      Remove Meta AI from the home screen      |      ✔      |
-|        Option to save view once media         |      ✔      |
-|          Profile Picture Screenshot           |      ✔      |
-|            Unlock premium features            |      ✔      |
-|          Tag a group with @everyone           |      ✔      |
-| Settings screen to switch features on and off |      ✔      |
-|    Statistics for a group and its members     |      ✔      |
+|                     Feature                     | Availability |
+|:-----------------------------------------------:|:------------:|
+|            Signature Verifier Bypass            |      ✔      |
+|               Enable all AB tests               |      X       |
+|          Keep revoked for all messages          |      ✔      |
+|      Trash icon marking a revoked message       |      ✔      |
+| Unlimited time to delete a message for everyone |      ✔      |
+|         Disable read receipts, per chat         |      ✔      |
+|       Remove Meta AI from the home screen       |      ✔      |
+|         Option to save view once media          |      ✔      |
+|           Profile Picture Screenshot            |      ✔      |
+|             Unlock premium features             |      ✔      |
+|           Tag a group with @everyone            |      ✔      |
+|  Settings screen to switch features on and off  |      ✔      |
+|     Statistics for a group and its members      |      ✔      |
 
 There is support for apks, apkm and xapk files.
 

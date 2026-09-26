@@ -20,6 +20,7 @@ from artifactory_generator.contact_search import ContactSearchFinder, ContactAcc
 from artifactory_generator.ab_props import AbPropsFinder
 from artifactory_generator.mention_everyone import MentionEveryoneFinder
 from artifactory_generator.group_info import GroupInfoFinder
+from artifactory_generator.delete_for_everyone import DeleteForEveryoneFinder
 
 
 # Stitch writes this into the target's manifest as the provider's android:name,
@@ -78,7 +79,8 @@ def main():
         ContactAccessorsFinder(args),
         AbPropsFinder(args),
         MentionEveryoneFinder(args),
-        GroupInfoFinder(args)
+        GroupInfoFinder(args),
+        DeleteForEveryoneFinder(args)
     ]
     with Stitch(
             apk_path=args.apk_path,
