@@ -1,7 +1,7 @@
 [versions]
 agp = "8.10.0"
 annotationJvm = "1.9.1"
-arthooks = "1.0.5"
+arthooks = "1.1.0"
 junit = "4.13.2"
 [libraries]
 androidx-annotation-jvm = { group = "androidx.annotation", name = "annotation-jvm", version.ref = "annotationJvm" }
