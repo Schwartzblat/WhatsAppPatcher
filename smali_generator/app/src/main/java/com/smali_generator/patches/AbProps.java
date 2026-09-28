@@ -17,6 +17,7 @@ import java.lang.reflect.Modifier;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Lets the app's A/B properties be read and changed.
@@ -66,6 +67,20 @@ public class AbProps implements Hook {
     private static final String BOOL_ACCESSOR = "{{AB_PROPS_BOOL_METHOD_NAME}}";
 
     private static Class<?> owner;
+
+    /**
+     * Whether the funnel has been hooked, or the attempt made and lost.
+     *
+     * Set even when it failed: it fails for a reason a second attempt cannot
+     * change -- a class that is not there, a funnel of the wrong shape -- and
+     * retrying would only repeat the log line.
+     */
+    private static final AtomicBoolean funnelAttempted = new AtomicBoolean(false);
+
+    /** Whether the redirect is actually in place, which is a different question
+     *  from whether it was tried: a feature riding it can be switched on and
+     *  still not be in force. */
+    private static volatile boolean funnelHooked;
 
     /** The receiver class every ordinary read comes from, checked before the map. */
     private static volatile Class<?> lastCovered;
@@ -263,6 +278,14 @@ public class AbProps implements Hook {
                 : count == 1 ? "1 property overridden" : count + " properties overridden";
     }
 
+    /**
+     * Whether the funnel is hooked, so that a feature riding it can say whether
+     * it is actually in force rather than only switched on.
+     */
+    public static boolean funnelHooked() {
+        return funnelHooked;
+    }
+
     public Class<?> configScreen() {
         return AbPropsActivity.class;
     }
@@ -271,6 +294,26 @@ public class AbProps implements Hook {
         // Before anything is hooked: a read that arrived between the redirect
         // and the overrides would answer with the app's own value.
         AbPropStore.load();
+        installFunnel();
+    }
+
+    /**
+     * Hooks the funnel, once per process.
+     *
+     * Called by this hook's own {@code load()} and by any feature hook whose
+     * implementation is an override rather than a hook of its own -- there is
+     * one funnel and ArtHooks would redirect it twice, the second redirect
+     * landing on the first's replacement. So the funnel has a single owner and
+     * whoever needs it asks; the guard is what makes asking safe.
+     *
+     * It is switched-off-safe in the other direction too: a feature asking for
+     * this is asking for the app's hottest read path to be hooked, which is the
+     * cost the A/B hook is off by default to avoid, and the log line says so.
+     */
+    public static synchronized void installFunnel() {
+        if (funnelAttempted.getAndSet(true)) {
+            return;
+        }
         try {
             owner = Class.forName("{{AB_PROPS_CLASS_NAME}}");
             Executable funnel = ArtHooks.find_function(owner,
@@ -315,6 +358,7 @@ public class AbProps implements Hook {
                 return;
             }
             boolean hooked = ArtHooks.hook_function(funnel, replacement, original);
+            funnelHooked = hooked;
             Log.i(TAG, "AbProps: hooked the funnel " + owner.getName() + "."
                     + ((Method) funnel).getName() + "{{AB_PROPS_FUNNEL_METHOD_SIG}}, hooked=" + hooked);
         } catch (Throwable t) {

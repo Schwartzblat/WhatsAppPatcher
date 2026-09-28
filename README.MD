@@ -19,6 +19,7 @@ WhatsApp patcher is a program that patches WhatsApp apk.
 |           Tag a group with @everyone            |      ✔      |
 |  Settings screen to switch features on and off  |      ✔      |
 |     Statistics for a group and its members      |      ✔      |
+|     Send more group history to a new member     |      ✔      |
 
 There is support for apks, apkm and xapk files.
 

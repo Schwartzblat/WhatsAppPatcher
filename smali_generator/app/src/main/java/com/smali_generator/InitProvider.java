@@ -17,6 +17,7 @@ import com.smali_generator.patches.DecryptProtobuf;
 import com.smali_generator.patches.DeleteForEveryone;
 import com.smali_generator.patches.DeletedMessageIndicator;
 import com.smali_generator.patches.FirebaseParams;
+import com.smali_generator.patches.GroupHistorySharing;
 import com.smali_generator.patches.GroupStats;
 import com.smali_generator.patches.MentionEveryone;
 import com.smali_generator.patches.MetaAiButton;
@@ -72,6 +73,8 @@ public class InitProvider extends ContentProvider {
             new ContactSearchDuplicates(),
             new MentionEveryone(),
             new DeleteForEveryone(),
+            // After AbProps, which owns the funnel it asks to have hooked.
+            new GroupHistorySharing(),
             new SettingsEntryHook(),
             new GroupStats(),
     };

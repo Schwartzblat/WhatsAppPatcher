@@ -53,12 +53,28 @@ public final class AbPropStore {
         /** Consumed the moment it is installed, so it applies to this run only. */
         public final boolean once;
 
+        /**
+         * The feature that asked for this value, or null when somebody typed it.
+         *
+         * The screen lists a property's live value and what is forcing it, and
+         * a feature override is invisible to everything else it could read: the
+         * observation is deliberately the app's own answer, so without this a
+         * row would show the shipped default and no override while the app was
+         * being told something else.
+         */
+        public final String source;
+
         Override(AbProp.Type type, String text, boolean heldBack, boolean once) {
+            this(type, text, heldBack, once, null);
+        }
+
+        Override(AbProp.Type type, String text, boolean heldBack, boolean once, String source) {
             this.type = type;
             this.text = text;
             this.value = type.parse(text);
             this.heldBack = heldBack;
             this.once = once;
+            this.source = source;
         }
     }
 
@@ -74,6 +90,32 @@ public final class AbPropStore {
      * hashing on a path the app reaches from 13,336 call sites.
      */
     private static volatile SparseArray<Override> installed;
+
+    /**
+     * The overrides a feature hook asks for, layered under the manual ones.
+     *
+     * A feature whose whole implementation is "answer property N differently"
+     * must not write to {@code ab_props}: that table is what somebody typed, and
+     * a feature putting its own values there would both bury a manual override
+     * of the same id and leave its own behind once it is switched off. So these
+     * live apart, are consulted only where nothing manual covers the id, and are
+     * rebuilt from the feature's own configuration at every launch.
+     */
+    private static final Map<Integer, Override> requested = new ConcurrentHashMap<>();
+
+    /** The same, in the form the accessor path reads. Null rather than empty,
+     *  for the same reason as {@link #installed}. */
+    private static volatile SparseArray<Override> requestedInstalled;
+
+    /**
+     * Whether a failed launch has taken the feature layer out of service.
+     *
+     * In memory only, unlike the manual overrides' {@code held_back} column: the
+     * layer is published by each feature's {@code load()} and so is rebuilt from
+     * nothing on every launch anyway. {@link InitProvider} sets this before any
+     * hook runs, which is the only moment that matters.
+     */
+    private static volatile boolean requestedHeldBack;
 
     /** What each accessor last answered of its own accord. */
     private static final Map<Integer, Object> observed = new ConcurrentHashMap<>();
@@ -145,7 +187,17 @@ public final class AbPropStore {
      */
     public static Override override(int id) {
         SparseArray<Override> current = installed;
-        return current == null ? null : current.get(id);
+        if (current != null) {
+            Override manual = current.get(id);
+            if (manual != null) {
+                return manual;
+            }
+        }
+        // Second, so that a property somebody has set by hand keeps the value
+        // they set whatever a feature would like it to be. With neither layer in
+        // use this costs two volatile reads and no search.
+        SparseArray<Override> features = requestedInstalled;
+        return features == null ? null : features.get(id);
     }
 
     /**
@@ -212,6 +264,31 @@ public final class AbPropStore {
         install();
     }
 
+    /**
+     * Asks that a property be answered with {@code text} for as long as this
+     * process lives, on behalf of {@code source}.
+     *
+     * Null text stops asking. Nothing is stored: the feature's own settings are
+     * what survives a restart, and they are read again the next time it loads.
+     * Safe to call with no funnel hooked -- then nothing reads this and the
+     * feature simply does nothing, which is what a switched-off A/B hook means.
+     */
+    public static void feature(int id, AbProp.Type type, String text, String source) {
+        if (text == null || type == null) {
+            requested.remove(id);
+        } else {
+            requested.put(id, new Override(type, text, requestedHeldBack, false, source));
+        }
+        installRequested();
+    }
+
+    /** The feature layer's override for this property, for a screen that wants
+     *  to say what is forcing it. Not the accessor path; that uses
+     *  {@link #override(int)}. */
+    public static Override featureOverride(int id) {
+        return requested.get(id);
+    }
+
     public static void clearAll() {
         overrides.clear();
         PatchDb.clearAbProps();
@@ -227,6 +304,10 @@ public final class AbPropStore {
      */
     public static void holdBackAll() {
         PatchDb.setAbPropsHeldBack(true);
+        // Set before the features publish rather than after: a launch that is
+        // already suspect must never have their values installed even briefly.
+        requestedHeldBack = true;
+        rebuildRequested();
         if (loaded.get()) {
             reread();
         }
@@ -236,6 +317,8 @@ public final class AbPropStore {
      *  read; the app has cached what it was told in the meantime. */
     public static void restoreHeldBack() {
         PatchDb.setAbPropsHeldBack(false);
+        requestedHeldBack = false;
+        rebuildRequested();
         reread();
     }
 
@@ -275,6 +358,37 @@ public final class AbPropStore {
             }
         }
         installed = next.size() == 0 ? null : next;
+    }
+
+    /** Rebuilt whole, like {@link #install()}, and for the same reason. */
+    private static void installRequested() {
+        if (requested.isEmpty()) {
+            requestedInstalled = null;
+            return;
+        }
+        SparseArray<Override> next = new SparseArray<>(requested.size());
+        for (Map.Entry<Integer, Override> entry : requested.entrySet()) {
+            if (entry.getValue().value != null && !entry.getValue().heldBack) {
+                next.put(entry.getKey(), entry.getValue());
+            }
+        }
+        requestedInstalled = next.size() == 0 ? null : next;
+    }
+
+    /** Re-makes the feature layer's entries against the current hold-back state,
+     *  keeping what each feature asked for. */
+    private static void rebuildRequested() {
+        for (Map.Entry<Integer, Override> entry : requested.entrySet()) {
+            Override asked = entry.getValue();
+            entry.setValue(new Override(asked.type, asked.text, requestedHeldBack, false, asked.source));
+        }
+        installRequested();
+    }
+
+    /** How many feature overrides are in force, for the screen's own count. */
+    public static int featureCount() {
+        SparseArray<Override> current = requestedInstalled;
+        return current == null ? 0 : current.size();
     }
 
     /**

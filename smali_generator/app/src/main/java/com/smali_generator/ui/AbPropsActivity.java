@@ -916,6 +916,7 @@ public class AbPropsActivity extends Activity {
             detail.setText(line.toString());
 
             AbPropStore.Override override = AbPropStore.overrides().get(prop.id);
+            AbPropStore.Override feature = AbPropStore.featureOverride(prop.id);
             if (override != null && override.heldBack) {
                 status.setText("held back after a failed start \u00b7 was " + override.text);
                 status.setVisibility(View.VISIBLE);
@@ -929,6 +930,13 @@ public class AbPropsActivity extends Activity {
                         : override.served
                         ? "forced " + override.text + " · the app has read it"
                         : "forced " + override.text + " · not read yet");
+                status.setVisibility(View.VISIBLE);
+            } else if (feature != null && feature.value != null) {
+                // Said out loud because nothing else on the row shows it: "app
+                // said" is deliberately the app's own answer, so a property a
+                // feature is holding would otherwise read as untouched.
+                status.setText("forced " + feature.text + " · by the " + feature.source
+                        + " feature" + (feature.heldBack ? ", held back after a failed start" : ""));
                 status.setVisibility(View.VISIBLE);
             } else if (live != null && prop.defaultValue != null && !AbProp.sameValue(live, prop.defaultValue)) {
                 status.setText("changed from the shipped default");
