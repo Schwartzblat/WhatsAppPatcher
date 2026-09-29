@@ -4,11 +4,13 @@ import android.accounts.AccountManager;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Intent;
+import android.graphics.Insets;
 import android.os.Bundle;
 import android.text.InputType;
 import android.util.Log;
 import android.view.Gravity;
 import android.view.View;
+import android.view.WindowInsets;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -41,6 +43,7 @@ public class DriveBackupActivity extends Activity {
         int pad = Palette.dp(this, SIDE_PADDING_DP);
         content.setPadding(pad, pad, pad, pad);
         scroller.addView(content);
+        insetBelowSystemBars(scroller);
         setContentView(scroller);
         setTitle("Drive backup");
     }
@@ -138,6 +141,25 @@ public class DriveBackupActivity extends Activity {
             }
         }
         redraw();
+    }
+
+    /**
+     * Keeps the content clear of the system bars and the action bar.
+     *
+     * The host app targets an SDK that forces edge-to-edge and this activity
+     * inherits that, so the window runs the full height of the display and the
+     * action bar is laid over the content rather than above it. Without this
+     * the first two rows render underneath it -- measured on the device, the
+     * summary and Connect Google Drive were simply invisible. The scroller is
+     * what gets the inset, not content, whose own padding is the screen margin.
+     */
+    private void insetBelowSystemBars(View content) {
+        content.setOnApplyWindowInsetsListener((view, insets) -> {
+            Insets bars = insets.getInsets(
+                    WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout());
+            view.setPadding(bars.left, bars.top, bars.right, bars.bottom);
+            return insets;
+        });
     }
 
     private TextView paragraph(String text) {
