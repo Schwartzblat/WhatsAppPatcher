@@ -7,7 +7,7 @@ WhatsApp patcher is a program that patches WhatsApp apk.
 |                     Feature                     | Availability |
 |:-----------------------------------------------:|:------------:|
 |            Signature Verifier Bypass            |      ✔      |
-|               Enable all AB tests               |      X       |
+|               Enable all AB tests               |      ✔      |
 |          Keep revoked for all messages          |      ✔      |
 |      Trash icon marking a revoked message       |      ✔      |
 | Unlimited time to delete a message for everyone |      ✔      |
@@ -20,6 +20,7 @@ WhatsApp patcher is a program that patches WhatsApp apk.
 |  Settings screen to switch features on and off  |      ✔      |
 |     Statistics for a group and its members      |      ✔      |
 |     Send more group history to a new member     |      ✔      |
+|    Shared members between two or more groups    |      ✔      |
 
 There is support for apks, apkm and xapk files.
 

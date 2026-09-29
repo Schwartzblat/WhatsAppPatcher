@@ -1,89 +1,26 @@
 package com.smali_generator.patches;
 
-import android.app.Activity;
 import android.content.Intent;
-import android.os.Bundle;
 import android.util.Log;
 
-import com.smali_generator.ActivityResume;
 import com.smali_generator.Hook;
 import com.smali_generator.HookCategory;
+import com.smali_generator.ui.GroupInfoRows;
 import com.smali_generator.ui.GroupStatsActivity;
-import com.smali_generator.ui.GroupStatsRow;
-
-import java.util.regex.Pattern;
+import com.smali_generator.ui.Icons;
+import com.smali_generator.ui.Palette;
 
 /**
  * Adds a statistics row to WhatsApp's group info screen.
  *
- * Hearing about resumes belongs to {@link ActivityResume}; the app-specific value
- * here is which activity is the group info screen, and GroupInfoFinder
- * resolves that.
- *
- * The group's jid is read off the Intent rather than resolved by a finder.
- * WhatsApp passes it as a plain String through the framework's own
- * getStringExtra, so there is no obfuscated type in the way and none of the
- * Jid.toString() trap -- that method returns the form WhatsApp prints in its
- * logs, not the addressable one.
+ * Which activity that screen is, where on it a row goes and how the group's
+ * jid is found all belong to {@link GroupInfoRows}, which several features
+ * share; what is left here is the row itself and the hook's own identity.
  */
 public class GroupStats implements Hook {
     private static final String TAG = "PATCH";
 
-    private static final String GROUP_INFO_ACTIVITY = "{{GROUP_INFO_ACTIVITY_CLASS_NAME}}";
-
-    /** The key WhatsApp has used for it; the shape check is the fallback. */
-    private static final String GID_EXTRA = "gid";
-
-    /** A group jid: plain, or the "created by"-suffixed form older groups use. */
-    private static final Pattern GROUP_JID = Pattern.compile("^\\d+(-\\d+)?@g\\.us$");
-
-    private static void onResumed(Activity activity) {
-        if (!GROUP_INFO_ACTIVITY.equals(activity.getClass().getName())) {
-            return;
-        }
-        final String gid = gidOf(activity);
-        if (gid == null) {
-            Log.e(TAG, "GroupStats: no group jid on the group info intent, no row added");
-            return;
-        }
-        GroupStatsRow.injectWhenReady(activity, gid);
-    }
-
-    /**
-     * The group jid this screen is showing, or null.
-     *
-     * Prefers the key WhatsApp uses and falls back to shape, so a renamed key
-     * degrades instead of breaking. Two differing group-shaped extras mean the
-     * screen is not the one this was written against, and guessing between
-     * them would key the whole screen on the wrong chat.
-     */
-    static String gidOf(Activity activity) {
-        Intent intent = activity.getIntent();
-        if (intent == null) {
-            return null;
-        }
-        String named = intent.getStringExtra(GID_EXTRA);
-        if (named != null && GROUP_JID.matcher(named).matches()) {
-            return named;
-        }
-        Bundle extras = intent.getExtras();
-        if (extras == null) {
-            return null;
-        }
-        String found = null;
-        for (String key : extras.keySet()) {
-            Object value = extras.get(key);
-            if (!(value instanceof String) || !GROUP_JID.matcher((String) value).matches()) {
-                continue;
-            }
-            if (found != null && !found.equals(value)) {
-                Log.e(TAG, "GroupStats: two different group jids on the intent, declining");
-                return null;
-            }
-            found = (String) value;
-        }
-        return found;
-    }
+    private static final String ROW_TAG = GroupInfoRows.Tags.PREFIX + "statistics";
 
     public String id() {
         // A database key. Renaming it silently resets the hook to its default.
@@ -104,13 +41,20 @@ public class GroupStats implements Hook {
 
     public void load() {
         try {
-            if (ActivityResume.addListener(GroupStats::onResumed)) {
-                Log.i(TAG, "GroupStats: listening for resumes, group info screen is "
-                        + GROUP_INFO_ACTIVITY);
+            GroupInfoRows.Row row = new GroupInfoRows.Row(ROW_TAG, "Statistics",
+                    "Who talks most, and when",
+                    activity -> Icons.statistics(activity, Palette.ACCENT),
+                    (activity, gid) -> {
+                        Intent intent = new Intent(activity, GroupStatsActivity.class);
+                        intent.putExtra(GroupStatsActivity.EXTRA_GID, gid);
+                        activity.startActivity(intent);
+                    });
+            if (GroupInfoRows.register(row)) {
+                Log.i(TAG, "GroupStats: the statistics row is registered");
             } else {
-                // ActivityResume already logged why; this line is what makes the
+                // GroupInfoRows already logged why; this line is what makes the
                 // absence show up under this hook's own name in `logcat -s PATCH`.
-                Log.e(TAG, "GroupStats: ActivityResume did not install, "
+                Log.e(TAG, "GroupStats: resumes are not being heard, "
                         + "the statistics row will not appear");
             }
         } catch (Throwable t) {

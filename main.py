@@ -19,6 +19,7 @@ from artifactory_generator.message_search import MessageSearchFinder
 from artifactory_generator.contact_search import ContactSearchFinder, ContactAccessorsFinder
 from artifactory_generator.ab_props import AbPropsFinder
 from artifactory_generator.mention_everyone import MentionEveryoneFinder
+from artifactory_generator.contact_info import ContactInfoFinder
 from artifactory_generator.group_info import GroupInfoFinder
 from artifactory_generator.delete_for_everyone import DeleteForEveryoneFinder
 
@@ -80,6 +81,7 @@ def main():
         AbPropsFinder(args),
         MentionEveryoneFinder(args),
         GroupInfoFinder(args),
+        ContactInfoFinder(args),
         DeleteForEveryoneFinder(args)
     ]
     with Stitch(

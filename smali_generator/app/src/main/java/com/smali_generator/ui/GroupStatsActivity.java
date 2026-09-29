@@ -2,10 +2,8 @@ package com.smali_generator.ui;
 
 import android.app.Activity;
 import android.app.AlertDialog;
-import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.Insets;
-import android.graphics.Outline;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
 import android.os.Handler;
@@ -18,11 +16,9 @@ import android.view.Gravity;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
-import android.view.ViewOutlineProvider;
 import android.view.WindowInsets;
 import android.widget.EditText;
 import android.widget.FrameLayout;
-import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -581,18 +577,8 @@ public class GroupStatsActivity extends Activity {
     private static final int CARD_AVATAR_DP = 56;
 
     /**
-     * The discs a person with no photo is drawn as.
-     *
-     * Muted enough to carry white text, and picked by the jid rather than by
-     * the row's position, so somebody keeps their colour when the list is
-     * filtered or unfolded.
+     * A participant's bar, behind their photo, opening their card when tapped.
      */
-    private static final int[] DISC_COLOURS = {
-            0xFF5B7C99, 0xFF7E6B8F, 0xFF4F7A5B, 0xFF9C6B4E,
-            0xFF7A5C5C, 0xFF3F6E7A, 0xFF8A7A4E, 0xFF6B5E8C,
-    };
-
-    /** A participant's bar, behind their photo, opening their card when tapped. */
     private View participantRow(GroupStatsReader.Snapshot.Participant who,
                                 float percent, float fraction) {
         LinearLayout row = new LinearLayout(this);
@@ -610,69 +596,9 @@ public class GroupStatsActivity extends Activity {
         return row;
     }
 
-    /**
-     * Somebody's photo, or a coloured disc bearing their initial.
-     *
-     * The disc is the common case, not the fallback nobody sees: WhatsApp holds
-     * a photo for a small minority of the people a big group contains.
-     */
+    /** Somebody's photo, or a coloured disc bearing their initial. */
     private View avatar(GroupStatsReader.Snapshot.Participant who, int sizeDp) {
-        Bitmap photo = who.isMe ? avatars.mine() : avatars.photo(who.key);
-        View view;
-        if (photo != null) {
-            ImageView image = new ImageView(this);
-            image.setImageBitmap(photo);
-            image.setScaleType(ImageView.ScaleType.CENTER_CROP);
-            view = image;
-        } else {
-            TextView initial = new TextView(this);
-            initial.setText(initialOf(who.name));
-            initial.setTextColor(Color.WHITE);
-            initial.setTextSize(TypedValue.COMPLEX_UNIT_SP, sizeDp * 0.42f);
-            initial.setGravity(Gravity.CENTER);
-            GradientDrawable disc = new GradientDrawable();
-            disc.setShape(GradientDrawable.OVAL);
-            disc.setColor(discColour(who.key));
-            initial.setBackground(disc);
-            view = initial;
-        }
-        // Clipped to an oval rather than masked into the bitmap: it costs
-        // nothing, and the same three lines round off the drawn disc too.
-        view.setOutlineProvider(new ViewOutlineProvider() {
-            @Override
-            public void getOutline(View clipped, Outline outline) {
-                outline.setOval(0, 0, clipped.getWidth(), clipped.getHeight());
-            }
-        });
-        view.setClipToOutline(true);
-        int size = Palette.dp(this, sizeDp);
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(size, size);
-        params.setMarginEnd(Palette.dp(this, 12));
-        view.setLayoutParams(params);
-        return view;
-    }
-
-    /**
-     * The first letter of a name, or nothing at all.
-     *
-     * Names here are "number - pushname", so the first character is a digit for
-     * everybody and the first *letter* is the first character of what the
-     * person calls themselves. Somebody WhatsApp has no name for gets a bare
-     * disc: a digit lifted out of a phone number would look like an initial
-     * and mean nothing.
-     */
-    private static String initialOf(String name) {
-        for (int i = 0; i < name.length(); i++) {
-            if (Character.isLetter(name.charAt(i))) {
-                return name.substring(i, i + 1).toUpperCase(java.util.Locale.getDefault());
-            }
-        }
-        return "";
-    }
-
-    private static int discColour(String key) {
-        // Masked rather than Math.abs: abs(Integer.MIN_VALUE) is still negative.
-        return DISC_COLOURS[(key.hashCode() & 0x7FFFFFFF) % DISC_COLOURS.length];
+        return Avatar.of(this, avatars, who.isMe ? null : who.key, who.name, sizeDp);
     }
 
     /**

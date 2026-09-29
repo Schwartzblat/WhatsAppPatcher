@@ -2,6 +2,8 @@ package com.smali_generator.ui;
 
 import android.app.Activity;
 import android.content.Intent;
+import android.graphics.drawable.Drawable;
+import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
@@ -10,17 +12,22 @@ import android.widget.AdapterView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
+import com.smali_generator.ActivityResume;
+
 import java.lang.ref.WeakReference;
 import java.util.ArrayDeque;
+import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.regex.Pattern;
 
 /**
- * The statistics row inside WhatsApp's group info screen.
+ * The patcher's own rows inside WhatsApp's group info screen.
  *
- * It goes in the screen's own settings group -- the card of Manage storage /
+ * They go in the screen's own settings group -- the card of Manage storage /
  * Notifications / Media visibility -- because that is a list of things you do
- * to this group, which is what a statistics screen is.
+ * to this group, which is what these screens are.
  *
  * This used to anchor on the Members/Media/Settings tab strip instead, and
  * that was too narrow a target. A Galaxy S25+ on the same build and the same
@@ -38,28 +45,37 @@ import java.util.WeakHashMap;
  * several such groups in a row, so the topmost wins rather than a unique one
  * being demanded.
  *
+ * A feature adds itself with {@link #register}; one scan of the view tree
+ * serves all of them, and a row appears only while its own hook is loaded. The
+ * screen's identity and the group's jid live here rather than in each hook,
+ * for the same reason: two features asking the same question of the same
+ * screen should not be two places to keep the answer.
+ *
  * The watcher never detaches. The settings card exists only while that tab is
  * the one showing, and switching tabs is not a resume -- so a listener that
- * stopped after the first success would put the row on the screen once and
+ * stopped after the first success would put a row on the screen once and
  * never again.
  *
  * Every failure is silent by design: the screen renders exactly as WhatsApp
  * intended, one row short.
  */
-public final class GroupStatsRow {
+public final class GroupInfoRows {
     private static final String TAG = "PATCH";
 
-    /** Identifies our row so a second pass does not add another one. */
-    private static final String ROW_TAG = "com.smali_generator.group_stats_row";
+    /** Resolved by GroupInfoFinder; never written by hand. */
+    private static final String GROUP_INFO_ACTIVITY = "{{GROUP_INFO_ACTIVITY_CLASS_NAME}}";
 
-    private static final String ROW_TITLE = "Statistics";
-    private static final String ROW_SUBTITLE = "Who talks most, and when";
+    /** The key WhatsApp has used for the group's jid; the shape check is the fallback. */
+    private static final String GID_EXTRA = "gid";
+
+    /** A group jid: plain, or the "created by"-suffixed form older groups use. */
+    private static final Pattern GROUP_JID = Pattern.compile("^\\d+(-\\d+)?@g\\.us$");
 
     /**
      * How many rows a container needs before it is taken for a settings group.
      *
      * Three, because two is what the details card's own pair of action buttons
-     * carries, and picking that would put the row up beside the group's photo.
+     * carries, and picking that would put a row up beside the group's photo.
      */
     private static final int MIN_ROWS = 3;
 
@@ -77,6 +93,18 @@ public final class GroupStatsRow {
     private static final long REPORT_AFTER_MS = 15_000L;
 
     /**
+     * The rows to add, in the order their hooks loaded.
+     *
+     * Copy-on-write because it is written from hook loading and read from
+     * every layout pass of a group info screen. Registration happens once per
+     * hook at startup, so the copying costs nothing.
+     */
+    private static final List<Row> rows = new CopyOnWriteArrayList<>();
+
+    /** Whether the resume listener is in place; the first registration installs it. */
+    private static boolean listening;
+
+    /**
      * One entry per activity already being watched, so a second resume does
      * not attach a second listener.
      *
@@ -92,9 +120,110 @@ public final class GroupStatsRow {
      * layout passes both run on the main thread, so this needs no
      * synchronization.
      */
-    private static final Map<Activity, ViewTreeObserver.OnGlobalLayoutListener> pending = new WeakHashMap<>();
+    private static final Map<Activity, ViewTreeObserver.OnGlobalLayoutListener> pending =
+            new WeakHashMap<>();
 
-    private GroupStatsRow() {
+    private GroupInfoRows() {
+    }
+
+    /** What a row does when it is tapped, given the group it was added for. */
+    public interface Action {
+        void open(Activity activity, String gid);
+    }
+
+    /** How a row draws its glyph; {@code Icons} needs the screen's own context. */
+    public interface Glyph {
+        Drawable of(Activity activity);
+    }
+
+    /** One feature's row on the group info screen. */
+    public static final class Row {
+        /** Identifies this row so a second pass does not add another one. */
+        final String tag;
+        final String title;
+        final String subtitle;
+        final Glyph glyph;
+        final Action action;
+
+        public Row(String tag, String title, String subtitle, Glyph glyph, Action action) {
+            this.tag = tag;
+            this.title = title;
+            this.subtitle = subtitle;
+            this.glyph = glyph;
+            this.action = action;
+        }
+    }
+
+    /**
+     * Adds a row to every group info screen from now on.
+     *
+     * Returns whether the screen can be reached at all -- a hook that gets
+     * false has not been installed, and should say so under its own name
+     * rather than leave a silent absence.
+     */
+    public static synchronized boolean register(Row row) {
+        for (Row already : rows) {
+            if (already.tag.equals(row.tag)) {
+                return listening;
+            }
+        }
+        rows.add(row);
+        if (!listening) {
+            listening = ActivityResume.addListener(GroupInfoRows::onResumed);
+            if (listening) {
+                Log.i(TAG, "GroupInfoRows: listening for resumes, group info screen is "
+                        + GROUP_INFO_ACTIVITY);
+            }
+        }
+        return listening;
+    }
+
+    private static void onResumed(Activity activity) {
+        if (!GROUP_INFO_ACTIVITY.equals(activity.getClass().getName())) {
+            return;
+        }
+        String gid = gidOf(activity);
+        if (gid == null) {
+            Log.e(TAG, "GroupInfoRows: no group jid on the group info intent, no rows added");
+            return;
+        }
+        injectWhenReady(activity, gid);
+    }
+
+    /**
+     * The group jid this screen is showing, or null.
+     *
+     * Prefers the key WhatsApp uses and falls back to shape, so a renamed key
+     * degrades instead of breaking. Two differing group-shaped extras mean the
+     * screen is not the one this was written against, and guessing between
+     * them would key the whole screen on the wrong chat.
+     */
+    static String gidOf(Activity activity) {
+        Intent intent = activity.getIntent();
+        if (intent == null) {
+            return null;
+        }
+        String named = intent.getStringExtra(GID_EXTRA);
+        if (named != null && GROUP_JID.matcher(named).matches()) {
+            return named;
+        }
+        Bundle extras = intent.getExtras();
+        if (extras == null) {
+            return null;
+        }
+        String found = null;
+        for (String key : extras.keySet()) {
+            Object value = extras.get(key);
+            if (!(value instanceof String) || !GROUP_JID.matcher((String) value).matches()) {
+                continue;
+            }
+            if (found != null && !found.equals(value)) {
+                Log.e(TAG, "GroupInfoRows: two different group jids on the intent, declining");
+                return null;
+            }
+            found = (String) value;
+        }
+        return found;
     }
 
     /**
@@ -103,7 +232,7 @@ public final class GroupStatsRow {
      * Safe to call on every resume: {@link #pending} is what stops a second
      * resume from attaching a second listener onto the same activity.
      */
-    public static void injectWhenReady(Activity activity, String gid) {
+    static void injectWhenReady(Activity activity, String gid) {
         if (pending.containsKey(activity)) {
             return;
         }
@@ -122,7 +251,7 @@ public final class GroupStatsRow {
     }
 
     /**
-     * Re-adds the row whenever the settings card is on screen without it.
+     * Re-adds any missing row whenever the settings card is on screen.
      *
      * Holds the activity through a {@link WeakReference} rather than a plain
      * field -- see the comment on {@link #pending} for why a strong reference
@@ -167,7 +296,7 @@ public final class GroupStatsRow {
             if (activity == null || injectInto(activity, gid)) {
                 return;
             }
-            Log.e(TAG, "GroupStatsRow: no row after " + REPORT_AFTER_MS + "ms and "
+            Log.e(TAG, "GroupInfoRows: rows missing after " + REPORT_AFTER_MS + "ms and "
                     + passes + " layout pass(es) -- " + why(activity.getWindow().getDecorView()));
         }
     }
@@ -189,42 +318,50 @@ public final class GroupStatsRow {
     }
 
     /**
-     * A single attempt to add the row to whatever settings card is showing.
+     * A single attempt to put every registered row on whatever settings card
+     * is showing.
      *
      * Idempotent: a row already present, from this call or an earlier one, is
-     * left alone. Returns whether the row is present when this call returns,
-     * not whether this call is the one that added it.
+     * left alone. Returns whether they are all present when this call returns,
+     * not whether this call is the one that added them.
      */
-    public static boolean injectInto(Activity activity, String gid) {
+    static boolean injectInto(Activity activity, String gid) {
         try {
             View root = activity.getWindow().getDecorView();
-            if (root.findViewWithTag(ROW_TAG) != null) {
-                return true;
+            ViewGroup card = null;
+            for (Row row : rows) {
+                if (root.findViewWithTag(row.tag) != null) {
+                    continue;
+                }
+                if (card == null) {
+                    card = scan(root).card;
+                    if (card == null) {
+                        return false;
+                    }
+                }
+                // Styled off the row it will sit under, so it inherits whatever
+                // theme, font scale and dark mode are in force. Copying a real
+                // neighbour is the only way to get that: WhatsApp's own row
+                // layout is not something this can inflate, and a layout of
+                // ours would carry our theme rather than the one this screen is
+                // drawn in.
+                View template = lastVisibleRow(card);
+                int inset = insetOf(template);
+                if (inset <= 0) {
+                    // The card is on screen but has not been measured yet,
+                    // which is the usual state on the layout pass that first
+                    // reveals it. Waiting costs a frame; guessing an inset
+                    // costs a row that sits a centimetre left of every row
+                    // above it, which is what a default of 24dp looked like.
+                    return false;
+                }
+                card.addView(buildRow(activity, row, template, inset, gid));
+                Log.i(TAG, "GroupInfoRows: added the " + row.title
+                        + " row to the settings card for " + gid);
             }
-            ViewGroup card = scan(root).card;
-            if (card == null) {
-                return false;
-            }
-            // Styled off the row it will sit under, so it inherits whatever
-            // theme, font scale and dark mode are in force. Copying a real
-            // neighbour is the only way to get that: WhatsApp's own row layout
-            // is not something this can inflate, and a layout of ours would
-            // carry our theme rather than the one this screen is drawn in.
-            View template = lastVisibleRow(card);
-            int inset = insetOf(template);
-            if (inset <= 0) {
-                // The card is on screen but has not been measured yet, which
-                // is the usual state on the layout pass that first reveals it.
-                // Waiting costs a frame; guessing an inset costs a row that
-                // sits a centimetre left of every row above it, which is what
-                // a default of 24dp actually looked like.
-                return false;
-            }
-            card.addView(buildRow(activity, template, inset, gid));
-            Log.i(TAG, "GroupStatsRow: added row to the settings card for " + gid);
             return true;
         } catch (Throwable t) {
-            Log.e(TAG, "GroupStatsRow: inject failed", t);
+            Log.e(TAG, "GroupInfoRows: inject failed", t);
             return false;
         }
     }
@@ -233,7 +370,7 @@ public final class GroupStatsRow {
      * What one walk of the view tree found, and how far each candidate got.
      *
      * The counts are the whole point of keeping this as an object: on a device
-     * where the row never appears, the question is which of these stages the
+     * where a row never appears, the question is which of these stages the
      * screen falls out of, and a boolean cannot answer it. That is what named
      * the S25+ variant in one round trip instead of several.
      */
@@ -289,7 +426,7 @@ public final class GroupStatsRow {
                 continue;
             }
             result.vertical++;
-            int rows = 0;
+            int rowCount = 0;
             int labelled = 0;
             for (int i = 0; i < group.getChildCount(); i++) {
                 View child = group.getChildAt(i);
@@ -300,18 +437,18 @@ public final class GroupStatsRow {
                 if (!child.isClickable() || child.getWidth() <= 0) {
                     continue;
                 }
-                rows++;
+                rowCount++;
                 if (InjectedRow.firstTextView(child) != null) {
                     labelled++;
                 }
             }
-            if (rows < MIN_ROWS) {
+            if (rowCount < MIN_ROWS) {
                 continue;
             }
             result.enoughRows++;
             // All of them, not most: a strip of clickable thumbnails is a row
             // of controls too, and it is not a settings group.
-            if (labelled < rows) {
+            if (labelled < rowCount) {
                 continue;
             }
             result.labelled++;
@@ -345,10 +482,17 @@ public final class GroupStatsRow {
      * clickable and zero-sized. Taking one as the template measured an inset
      * off a view with no width, which is how the row spent three builds not
      * appearing at all.
+     *
+     * A row of ours already added is skipped: it is a legitimate template in
+     * shape, but measuring the second row off the first would compound any
+     * error in the first, and ours is built rather than inflated.
      */
     private static View lastVisibleRow(ViewGroup card) {
         for (int i = card.getChildCount() - 1; i >= 0; i--) {
             View child = card.getChildAt(i);
+            if (child.getTag() instanceof String && ((String) child.getTag()).startsWith(Tags.PREFIX)) {
+                continue;
+            }
             if (child.isClickable() && child.getWidth() > 0) {
                 return child;
             }
@@ -356,14 +500,28 @@ public final class GroupStatsRow {
         return null;
     }
 
-    private static View buildRow(Activity activity, View template, int inset, String gid) {
-        // The patcher's green rather than the card's own icon colour: this row
-        // is not one of WhatsApp's, and the rest of the patcher's UI says so in
+    /** The namespace every row this class adds is tagged under. */
+    public static final class Tags {
+        public static final String PREFIX = "com.smali_generator.group_info_row.";
+
+        private Tags() {
+        }
+    }
+
+    private static View buildRow(Activity activity, Row row, View template, int inset, String gid) {
+        // The patcher's green rather than the card's own icon colour: these
+        // rows are not WhatsApp's, and the rest of the patcher's UI says so in
         // the same green.
-        return InjectedRow.build(activity, ROW_TITLE, ROW_SUBTITLE,
-                template, Icons.statistics(activity, Palette.ACCENT), inset,
+        return InjectedRow.build(activity, row.title, row.subtitle,
+                template, row.glyph.of(activity), inset,
                 InjectedRow.dp(activity, VERTICAL_PADDING_DP),
-                ROW_TAG, () -> open(activity, gid));
+                row.tag, () -> {
+                    try {
+                        row.action.open(activity, gid);
+                    } catch (Throwable t) {
+                        Log.e(TAG, "GroupInfoRows: could not open " + row.title, t);
+                    }
+                });
     }
 
     /**
@@ -391,15 +549,5 @@ public final class GroupStatsRow {
                 ? (rowAt[0] + row.getWidth()) - (textAt[0] + text.getWidth())
                 : textAt[0] - rowAt[0];
         return inset >= 0 && inset <= row.getWidth() / 2 ? inset : -1;
-    }
-
-    private static void open(Activity activity, String gid) {
-        try {
-            Intent intent = new Intent(activity, GroupStatsActivity.class);
-            intent.putExtra(GroupStatsActivity.EXTRA_GID, gid);
-            activity.startActivity(intent);
-        } catch (Throwable t) {
-            Log.e(TAG, "GroupStatsRow: could not open the statistics screen", t);
-        }
     }
 }

@@ -36,6 +36,7 @@ public final class Icons {
 
     static final String PATCH = "patcher/patch.png";
     static final String GRAPH = "patcher/datagraph.png";
+    static final String VENN = "patcher/venn.png";
 
     /**
      * What the art is decoded to, in dp.
@@ -62,6 +63,11 @@ public final class Icons {
     /** The group Statistics row's icon, or null if it could not be loaded. */
     public static Drawable statistics(Context context, int color) {
         return glyph(context, GRAPH, color);
+    }
+
+    /** The Shared members row's icon, or null if it could not be loaded. */
+    public static Drawable sharedMembers(Context context, int color) {
+        return glyph(context, VENN, color);
     }
 
     /**

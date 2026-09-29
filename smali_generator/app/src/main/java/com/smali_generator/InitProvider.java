@@ -23,6 +23,7 @@ import com.smali_generator.patches.MentionEveryone;
 import com.smali_generator.patches.MetaAiButton;
 import com.smali_generator.patches.PackageManagerHook;
 import com.smali_generator.patches.ReadReceipts;
+import com.smali_generator.patches.SharedMembers;
 import com.smali_generator.patches.SenderSearch;
 import com.smali_generator.patches.SettingsEntryHook;
 import com.smali_generator.patches.WhatsAppPlus;
@@ -77,6 +78,7 @@ public class InitProvider extends ContentProvider {
             new GroupHistorySharing(),
             new SettingsEntryHook(),
             new GroupStats(),
+            new SharedMembers(),
     };
 
     static AtomicBoolean is_loaded = new AtomicBoolean(false);

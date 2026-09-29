@@ -56,6 +56,11 @@ public class IconsTest {
         assertIsATintableMask(Icons.GRAPH);
     }
 
+    @Test
+    public void the_venn_is_a_tintable_mask() throws IOException {
+        assertIsATintableMask(Icons.VENN);
+    }
+
     private void assertIsATintableMask(String asset) throws IOException {
         Png png = Png.read(locate(asset), asset);
 
