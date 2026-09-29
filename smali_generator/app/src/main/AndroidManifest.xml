@@ -47,6 +47,17 @@
             android:label="Shared members"
             android:theme="@android:style/Theme.DeviceDefault.DayNight" />
 
+        <!--
+          Stitch merges this into WhatsApp's manifest. Verified 2026-09-30: the
+          permission and exported attributes survive the merge, and the job runs
+          in the host's process with InitProvider already through, so PatchDb is
+          open by the time onStartJob runs.
+        -->
+        <service
+            android:name="com.smali_generator.backup.BackupJob"
+            android:exported="false"
+            android:permission="android.permission.BIND_JOB_SERVICE" />
+
     </application>
 
 </manifest>
