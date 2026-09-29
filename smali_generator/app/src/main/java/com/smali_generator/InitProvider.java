@@ -16,6 +16,7 @@ import com.smali_generator.patches.ContactSearchDuplicates;
 import com.smali_generator.patches.DecryptProtobuf;
 import com.smali_generator.patches.DeleteForEveryone;
 import com.smali_generator.patches.DeletedMessageIndicator;
+import com.smali_generator.patches.DriveBackup;
 import com.smali_generator.patches.FirebaseParams;
 import com.smali_generator.patches.GroupHistorySharing;
 import com.smali_generator.patches.GroupStats;
@@ -79,6 +80,9 @@ public class InitProvider extends ContentProvider {
             new SettingsEntryHook(),
             new GroupStats(),
             new SharedMembers(),
+            // Last: it needs nothing from the other hooks, and a failure here
+            // must not stand between them and the settings row.
+            new DriveBackup(),
     };
 
     static AtomicBoolean is_loaded = new AtomicBoolean(false);
