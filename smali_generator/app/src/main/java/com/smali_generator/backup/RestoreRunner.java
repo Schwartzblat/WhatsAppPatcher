@@ -37,6 +37,19 @@ public final class RestoreRunner {
         return verifierSet ? Readable.YES : Readable.UNKNOWN_PASSPHRASE;
     }
 
+    /**
+     * Whether this device already has a key file.
+     *
+     * The screen asks before it offers to replace one. restoreKey refuses an
+     * existing key on its own, but that refusal is a backstop: a device that
+     * can reach the restore screen has registered a number and therefore
+     * always has a key, so without an explicit confirmation in front of it the
+     * overwrite branch is unreachable and the button never does anything.
+     */
+    public static boolean hasKey(Context context) {
+        return new File(context.getFilesDir(), "key").isFile();
+    }
+
     /** Blocks. Returns the outcome to show the user. */
     public static String restoreDatabase(Context context, String fileId, String fileName) {
         GoogleAuth.Token token = GoogleAuth.token(context);

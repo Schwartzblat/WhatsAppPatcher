@@ -2,10 +2,12 @@ package com.smali_generator.ui;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.graphics.Insets;
 import android.os.Bundle;
 import android.text.InputType;
 import android.view.Gravity;
 import android.view.View;
+import android.view.WindowInsets;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -42,6 +44,7 @@ public class DriveRestoreActivity extends Activity {
         int pad = Palette.dp(this, 20);
         content.setPadding(pad, pad, pad, pad);
         scroller.addView(content);
+        insetBelowSystemBars(scroller);
         setContentView(scroller);
         setTitle("Restore from Drive");
         content.addView(line("Loading..."));
@@ -134,20 +137,56 @@ public class DriveRestoreActivity extends Activity {
     }
 
     private void askPassphraseThenRestoreKey(DriveClient.Entry key) {
+        if (RestoreRunner.hasKey(this)) {
+            // The refusal inside restoreKey is the backstop; this is the
+            // explicit confirmation it asks for. Every device that can open
+            // this screen has a key, so without this the overwrite branch is
+            // unreachable and Restore key refuses forever.
+            new AlertDialog.Builder(this)
+                    .setTitle("Replace this device's key?")
+                    .setMessage("Every local backup already on this phone was encrypted with "
+                            + "the key it has now, and replacing it makes those unreadable. The "
+                            + "backup you are restoring stays readable.")
+                    .setPositiveButton("Replace", (d, w) -> askPassphrase(key, true))
+                    .setNegativeButton("Cancel", null)
+                    .show();
+            return;
+        }
+        askPassphrase(key, false);
+    }
+
+    private void askPassphrase(DriveClient.Entry key, boolean overwrite) {
         EditText field = new EditText(this);
         field.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
         new AlertDialog.Builder(this)
                 .setTitle("Passphrase")
                 .setView(field)
                 .setPositiveButton("Restore", (d, w) -> new Thread(() -> {
-                    // overwrite=false first: the refusal is what tells the user
-                    // that replacing a live key orphans their local backups.
                     String outcome = RestoreRunner.restoreKey(getApplicationContext(), key.id,
-                            field.getText().toString(), false);
+                            field.getText().toString(), overwrite);
                     runOnUiThread(() -> Toast.makeText(this, outcome, Toast.LENGTH_LONG).show());
                 }, "drive-restore-key").start())
                 .setNegativeButton("Cancel", null)
                 .show();
+    }
+
+    /**
+     * Keeps the content clear of the system bars and the action bar.
+     *
+     * The host app targets an SDK that forces edge-to-edge and this activity
+     * inherits that, so the window runs the full height of the display and the
+     * action bar is laid over the content rather than above it. Without this
+     * the first two rows render underneath it -- measured on the device, the
+     * summary and Connect Google Drive were simply invisible. The scroller is
+     * what gets the inset, not content, whose own padding is the screen margin.
+     */
+    private void insetBelowSystemBars(View content) {
+        content.setOnApplyWindowInsetsListener((view, insets) -> {
+            Insets bars = insets.getInsets(
+                    WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout());
+            view.setPadding(bars.left, bars.top, bars.right, bars.bottom);
+            return insets;
+        });
     }
 
     private TextView line(String text) {
