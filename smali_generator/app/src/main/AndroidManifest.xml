@@ -47,6 +47,18 @@
             android:label="Shared members"
             android:theme="@android:style/Theme.DeviceDefault.DayNight" />
 
+        <activity
+            android:name="com.smali_generator.ui.DriveBackupActivity"
+            android:exported="false"
+            android:label="Drive backup"
+            android:theme="@android:style/Theme.DeviceDefault.DayNight" />
+
+        <activity
+            android:name="com.smali_generator.ui.DriveRestoreActivity"
+            android:exported="false"
+            android:label="Restore from Drive"
+            android:theme="@android:style/Theme.DeviceDefault.DayNight" />
+
         <!--
           Stitch merges this into WhatsApp's manifest. Verified 2026-09-30: the
           permission and exported attributes survive the merge, and the job runs
