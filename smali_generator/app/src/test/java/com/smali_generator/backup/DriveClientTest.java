@@ -4,6 +4,8 @@ import static org.junit.Assert.assertEquals;
 
 import org.junit.Test;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 
@@ -50,5 +52,27 @@ public class DriveClientTest {
         f.deleteOnExit();
         assertEquals("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
                 DriveClient.sha256(f));
+    }
+
+    @Test
+    public void copy_reports_the_number_of_bytes_it_wrote() throws Exception {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        assertEquals(5000L, DriveClient.copy(new ByteArrayInputStream(new byte[5000]), out, Long.MAX_VALUE));
+        assertEquals(5000, out.size());
+    }
+
+    @Test
+    public void copy_stops_at_its_limit() throws Exception {
+        assertEquals(100L,
+                DriveClient.copy(new ByteArrayInputStream(new byte[5000]), new ByteArrayOutputStream(), 100L));
+    }
+
+    @Test
+    public void a_body_that_ends_early_reports_what_actually_arrived() throws Exception {
+        // This is how a truncated download is caught: the caller compares the
+        // count against Content-Length instead of trusting that no exception
+        // means the whole file arrived.
+        assertEquals(10L,
+                DriveClient.copy(new ByteArrayInputStream(new byte[10]), new ByteArrayOutputStream(), 1_000_000L));
     }
 }

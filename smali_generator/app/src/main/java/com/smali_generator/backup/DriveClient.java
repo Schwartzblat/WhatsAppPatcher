@@ -32,6 +32,10 @@ public final class DriveClient {
     private static final String UPLOAD = "https://www.googleapis.com/upload/drive/v3/files";
     private static final String FOLDER_MIME = "application/vnd.google-apps.folder";
     private static final int TIMEOUT_MS = 60_000;
+    /** A dead session restarts the upload; without a cap that is infinite recursion. */
+    private static final int MAX_SESSIONS = 3;
+    /** Consecutive 308s that moved the offset nowhere before the run is given up. */
+    private static final int MAX_STALLS = 3;
 
     private final Context context;
     private final String token;
@@ -134,6 +138,14 @@ public final class DriveClient {
 
     /** Resumable upload. Returns the new file's id, or null. */
     public String upload(String parentId, String name, String mime, File file) {
+        return upload(parentId, name, mime, file, MAX_SESSIONS);
+    }
+
+    private String upload(String parentId, String name, String mime, File file, int sessionsLeft) {
+        if (sessionsLeft <= 0) {
+            Log.e(TAG, "DriveClient: giving up on " + name + " after " + MAX_SESSIONS + " sessions");
+            return null;
+        }
         try {
             String session = startSession(parentId, name, mime, file.length());
             if (session == null) {
@@ -142,6 +154,10 @@ public final class DriveClient {
             long total = file.length();
             long start = 0L;
             String lastBody = null;
+            // A 308 whose Range header is missing or unreadable rewinds to zero,
+            // which is right once and an endless loop if the server keeps
+            // answering that way.
+            int stalls = 0;
             while (start < total) {
                 long length = ChunkPlan.chunkLength(start, total);
                 HttpURLConnection c = open(session, "PUT");
@@ -158,11 +174,16 @@ public final class DriveClient {
                     // never succeeds, so start the whole upload again.
                     Log.w(TAG, "DriveClient: upload session expired, restarting");
                     c.disconnect();
-                    return upload(parentId, name, mime, file);
+                    return upload(parentId, name, mime, file, sessionsLeft - 1);
                 }
                 if (status == 308) {
-                    start = ChunkPlan.nextStart(c.getHeaderField("Range"));
+                    long resumed = ChunkPlan.nextStart(c.getHeaderField("Range"));
                     c.disconnect();
+                    if (resumed <= start && ++stalls > MAX_STALLS) {
+                        Log.e(TAG, "DriveClient: upload made no progress " + stalls + " times");
+                        return null;
+                    }
+                    start = resumed;
                     continue;
                 }
                 if (status == 200 || status == 201) {
@@ -182,6 +203,14 @@ public final class DriveClient {
         }
     }
 
+    /**
+     * Writes the file, or writes nothing and says so.
+     *
+     * A body that stops early throws nothing -- the stream simply ends -- so
+     * without comparing what arrived against Content-Length a broken connection
+     * is indistinguishable from a complete download, and the caller would go on
+     * to tell the user their backup is restored.
+     */
     public boolean downloadTo(String fileId, File target) {
         try {
             HttpURLConnection c = open(FILES + "/" + fileId + "?alt=media", "GET");
@@ -191,12 +220,20 @@ public final class DriveClient {
                 noteUnauthorized(status);
                 return false;
             }
+            long expected = c.getContentLengthLong();
+            long written;
             try (InputStream in = c.getInputStream(); OutputStream out = new FileOutputStream(target)) {
-                copy(in, out, Long.MAX_VALUE);
+                written = copy(in, out, Long.MAX_VALUE);
+            }
+            if (expected >= 0 && written != expected) {
+                Log.e(TAG, "DriveClient: download ended early, " + written + " of " + expected);
+                target.delete();
+                return false;
             }
             return true;
         } catch (Exception e) {
             Log.e(TAG, "DriveClient: downloadTo failed", e);
+            target.delete();
             return false;
         }
     }
@@ -329,7 +366,7 @@ public final class DriveClient {
         return end == i ? null : body.substring(i, end);
     }
 
-    private static String read(InputStream in) throws IOException {
+    static String read(InputStream in) throws IOException {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         copy(in, out, Long.MAX_VALUE);
         return out.toString("UTF-8");
@@ -349,17 +386,24 @@ public final class DriveClient {
         }
     }
 
-    private static void copy(InputStream in, OutputStream out, long limit) throws IOException {
+    /**
+     * Returns how many bytes were written, which is how a caller tells a
+     * complete body from a connection that died halfway through one.
+     */
+    static long copy(InputStream in, OutputStream out, long limit) throws IOException {
         byte[] buffer = new byte[64 * 1024];
         long left = limit;
+        long written = 0L;
         while (left > 0) {
             int want = (int) Math.min(buffer.length, left);
             int n = in.read(buffer, 0, want);
             if (n < 0) {
-                return;
+                return written;
             }
             out.write(buffer, 0, n);
+            written += n;
             left -= n;
         }
+        return written;
     }
 }
