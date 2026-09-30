@@ -21,6 +21,7 @@ import com.smali_generator.backup.GoogleAuth;
 import com.smali_generator.backup.RestoreRunner;
 import com.smali_generator.db.PatchDb;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 /**
@@ -96,16 +97,28 @@ public class DriveRestoreActivity extends Activity {
             }
             final DriveClient.Entry database = db;
             final DriveClient.Entry key = keyBlob;
-            boolean verifierSet =
-                    PatchDb.getString(BackupRunner.PASSPHRASE_VERIFIER_KEY, null) != null;
-            RestoreRunner.Readable readable =
-                    RestoreRunner.readability(key != null, verifierSet);
-            runOnUiThread(() -> showRun(run, database, key, readable));
+            // The manifest is what makes a restore checkable: it carries the
+            // database's digest and the verifier of the passphrase this run's
+            // key was wrapped under. Uploading it and never reading it back
+            // would leave both questions unanswerable.
+            BackupManifest parsed = null;
+            if (manifestFile != null) {
+                byte[] raw = drive.download(manifestFile.id);
+                if (raw != null) {
+                    parsed = BackupManifest.parse(new String(raw, StandardCharsets.UTF_8));
+                }
+            }
+            final BackupManifest manifest = parsed;
+            RestoreRunner.Readable readable = RestoreRunner.readability(key != null,
+                    manifest == null ? null : manifest.passVerifier,
+                    PatchDb.getString(BackupRunner.PASSPHRASE_VERIFIER_KEY, null));
+            runOnUiThread(() -> showRun(run, database, key, readable, manifest));
         }, "drive-restore-open").start();
     }
 
     private void showRun(DriveClient.Entry run, DriveClient.Entry database,
-                         DriveClient.Entry key, RestoreRunner.Readable readable) {
+                         DriveClient.Entry key, RestoreRunner.Readable readable,
+                         BackupManifest manifest) {
         String note;
         switch (readable) {
             case YES:
@@ -116,8 +129,16 @@ public class DriveRestoreActivity extends Activity {
                         + "cannot be decrypted on its own.";
                 break;
             default:
-                note = "A key is in Drive, but it was wrapped under a passphrase this device no "
-                        + "longer has. Restoring it needs that passphrase.";
+                // Covers both "the passphrase was changed since this run" and
+                // "this run does not say which passphrase it used". Neither is
+                // a promise the screen is entitled to make.
+                note = "A key is in Drive, but this device cannot show that it was wrapped under "
+                        + "the passphrase it has now. Restoring it needs the passphrase this run "
+                        + "was made with.";
+        }
+        if (manifest == null) {
+            note += "\n\nThis run has no manifest, so a restored copy cannot be checked "
+                    + "against it.";
         }
         AlertDialog.Builder builder = new AlertDialog.Builder(this)
                 .setTitle(run.name)
@@ -125,8 +146,9 @@ public class DriveRestoreActivity extends Activity {
                 .setNegativeButton("Close", null);
         if (database != null) {
             builder.setPositiveButton("Restore database", (d, w) -> new Thread(() -> {
-                String outcome = RestoreRunner.restoreDatabase(
-                        getApplicationContext(), database.id, database.name);
+                String outcome = RestoreRunner.restoreDatabase(getApplicationContext(),
+                        database.id, database.name,
+                        manifest == null ? null : manifest.dbSha256);
                 runOnUiThread(() -> Toast.makeText(this, outcome, Toast.LENGTH_LONG).show());
             }, "drive-restore-db").start());
         }

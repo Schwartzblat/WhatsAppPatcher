@@ -27,9 +27,17 @@ public final class BackupManifest {
     public final boolean keyIncluded;
     public final String waVersion;
     public final long createdAtMs;
+    /**
+     * The verifier of the passphrase this run's key was wrapped under, or null
+     * for a run made before this was recorded. Without it the restore screen
+     * can only ask whether the device has a passphrase at all, and would call a
+     * run readable after the passphrase had been changed.
+     */
+    public final String passVerifier;
 
     public BackupManifest(String runId, String dbFileName, long dbSize, String dbSha256,
-                          String crypt, boolean keyIncluded, String waVersion, long createdAtMs) {
+                          String crypt, boolean keyIncluded, String waVersion, long createdAtMs,
+                          String passVerifier) {
         this.runId = runId;
         this.dbFileName = dbFileName;
         this.dbSize = dbSize;
@@ -38,6 +46,7 @@ public final class BackupManifest {
         this.keyIncluded = keyIncluded;
         this.waVersion = waVersion;
         this.createdAtMs = createdAtMs;
+        this.passVerifier = passVerifier;
     }
 
     public String render() {
@@ -49,7 +58,8 @@ public final class BackupManifest {
                 + "db_size=" + dbSize + "\n"
                 + "db_sha256=" + dbSha256 + "\n"
                 + "crypt=" + crypt + "\n"
-                + "key_included=" + keyIncluded + "\n";
+                + "key_included=" + keyIncluded + "\n"
+                + (passVerifier == null ? "" : "pass_verifier=" + passVerifier + "\n");
     }
 
     public static BackupManifest parse(String text) {
@@ -75,10 +85,12 @@ public final class BackupManifest {
             if (runId == null || dbFile == null || sha == null || sha.isEmpty() || size == null) {
                 return null;
             }
+            String verifier = fields.get("pass_verifier");
             return new BackupManifest(runId, dbFile, Long.parseLong(size), sha,
                     fields.get("crypt"), Boolean.parseBoolean(fields.get("key_included")),
                     fields.get("wa_version"),
-                    Long.parseLong(fields.getOrDefault("created_at_ms", "0")));
+                    Long.parseLong(fields.getOrDefault("created_at_ms", "0")),
+                    verifier == null || verifier.isEmpty() ? null : verifier);
         } catch (NumberFormatException e) {
             return null;
         }

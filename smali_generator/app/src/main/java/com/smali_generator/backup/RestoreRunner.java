@@ -30,11 +30,39 @@ public final class RestoreRunner {
     private RestoreRunner() {
     }
 
-    public static Readable readability(boolean keyInDrive, boolean verifierSet) {
+    /**
+     * Whether the wrapped key in a run can be opened on this device.
+     *
+     * Decided per run, from the verifier the run recorded, not from "does this
+     * device have a passphrase": changing the passphrase does not re-wrap the
+     * runs already in Drive, and a screen that still called them readable would
+     * be promising an archive the user does not have. A run that did not record
+     * a verifier is unknown, and unknown is not yes.
+     */
+    public static Readable readability(boolean keyInDrive, String runVerifier,
+                                       String deviceVerifier) {
         if (!keyInDrive) {
             return Readable.NO_KEY;
         }
-        return verifierSet ? Readable.YES : Readable.UNKNOWN_PASSPHRASE;
+        if (runVerifier == null || deviceVerifier == null || !runVerifier.equals(deviceVerifier)) {
+            return Readable.UNKNOWN_PASSPHRASE;
+        }
+        return Readable.YES;
+    }
+
+    /**
+     * A file name from Drive's listing, or null if it is not one.
+     *
+     * The name is whatever the file is called in Drive, which the user can
+     * change, and it is joined onto a shared-storage path -- so a separator in
+     * it would write outside the folder this feature owns.
+     */
+    public static String safeName(String name) {
+        if (name == null || name.isEmpty() || name.equals(".") || name.equals("..")
+                || name.indexOf('/') >= 0 || name.indexOf('\\') >= 0 || name.indexOf('\u0000') >= 0) {
+            return null;
+        }
+        return name;
     }
 
     /**
@@ -50,17 +78,41 @@ public final class RestoreRunner {
         return new File(context.getFilesDir(), "key").isFile();
     }
 
-    /** Blocks. Returns the outcome to show the user. */
-    public static String restoreDatabase(Context context, String fileId, String fileName) {
+    /**
+     * Blocks. Returns the outcome to show the user.
+     *
+     * The download lands beside the target and is checked against the manifest
+     * before it replaces anything. The old local backup is the user's only
+     * other copy, and a half-downloaded file that reported success would be
+     * discovered at the one moment they depend on it.
+     */
+    public static String restoreDatabase(Context context, String fileId, String fileName,
+                                         String expectedSha) {
+        String name = safeName(fileName);
+        if (name == null) {
+            Log.e(TAG, "RestoreRunner: refusing a backup named " + fileName);
+            return "That backup's name is not one this can write. Nothing was changed.";
+        }
         GoogleAuth.Token token = GoogleAuth.token(context);
         if (token.value == null) {
             return "Google Drive needs to be reconnected";
         }
-        File target = new File(BackupRunner.DATABASES_DIR, fileName);
-        if (!new DriveClient(context, token.value).downloadTo(fileId, target)) {
-            return "Download failed";
+        File target = new File(BackupRunner.DATABASES_DIR, name);
+        File staging = new File(BackupRunner.DATABASES_DIR, name + ".restoring");
+        if (!new DriveClient(context, token.value).downloadTo(fileId, staging)) {
+            return "Download failed. Nothing was changed.";
         }
-        Log.i(TAG, "RestoreRunner: wrote " + target);
+        if (expectedSha != null && !expectedSha.equals(DriveClient.sha256(staging))) {
+            staging.delete();
+            Log.e(TAG, "RestoreRunner: downloaded copy does not match the manifest");
+            return "The downloaded backup does not match its manifest. Nothing was changed.";
+        }
+        target.delete();
+        if (!staging.renameTo(target)) {
+            staging.delete();
+            return "Could not put the backup in place. Nothing was changed.";
+        }
+        Log.i(TAG, "RestoreRunner: wrote " + target + ", verified=" + (expectedSha != null));
         return "Restored to " + target.getName()
                 + ". WhatsApp reads it only during setup, so reinstall and verify your number.";
     }

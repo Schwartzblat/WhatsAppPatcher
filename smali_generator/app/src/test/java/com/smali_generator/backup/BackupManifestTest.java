@@ -10,7 +10,7 @@ public class BackupManifestTest {
 
     private static BackupManifest sample() {
         return new BackupManifest("2026-09-30T020304Z", "msgstore.db.crypt14", 13_421_772L,
-                "abc123", "crypt14", true, "2.26.37.74", 1790000000000L);
+                "abc123", "crypt14", true, "2.26.37.74", 1790000000000L, "verifier-of-the-day");
     }
 
     @Test
@@ -28,7 +28,7 @@ public class BackupManifestTest {
 
     @Test
     public void a_manifest_without_a_key_says_so() {
-        BackupManifest m = new BackupManifest("r", "f", 1L, "s", "crypt14", false, "v", 2L);
+        BackupManifest m = new BackupManifest("r", "f", 1L, "s", "crypt14", false, "v", 2L, null);
         assertTrue(BackupManifest.parse(m.render()) != null);
         assertEquals(false, BackupManifest.parse(m.render()).keyIncluded);
     }
@@ -58,5 +58,19 @@ public class BackupManifestTest {
     public void a_non_numeric_size_is_null_rather_than_an_exception() {
         String text = sample().render().replaceAll("(?m)^db_size=.*$", "db_size=banana");
         assertNull(BackupManifest.parse(text));
+    }
+
+    @Test
+    public void the_runs_own_passphrase_verifier_round_trips() {
+        // Which passphrase wrapped THIS run. Without it the restore screen can
+        // only ask whether the device has a passphrase at all, and says a run
+        // is readable after the passphrase has been changed.
+        assertEquals("verifier-of-the-day", BackupManifest.parse(sample().render()).passVerifier);
+    }
+
+    @Test
+    public void a_manifest_written_before_verifiers_parses_with_none() {
+        String text = sample().render().replaceAll("(?m)^pass_verifier=.*$", "");
+        assertNull(BackupManifest.parse(text).passVerifier);
     }
 }
