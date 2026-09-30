@@ -1,9 +1,14 @@
 package com.smali_generator.backup;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
+
+import java.io.File;
+import java.io.FileOutputStream;
 
 /**
  * Changing the passphrase does not re-wrap the runs already in Drive. A screen
@@ -56,5 +61,38 @@ public class RestoreRunnerTest {
         assertNull(RestoreRunner.safeName(".."));
         assertNull(RestoreRunner.safeName(""));
         assertNull(RestoreRunner.safeName(null));
+    }
+
+    @Test
+    public void the_backup_folder_is_created_when_it_is_not_there() throws Exception {
+        // Uninstalling WhatsApp deletes /sdcard/Android/media/com.whatsapp, and
+        // a fresh install does not put the Databases folder back until WhatsApp
+        // writes a backup of its own -- so the one moment a restore is wanted is
+        // exactly the moment the folder is missing.
+        File root = File.createTempFile("media", "");
+        assertTrue(root.delete());
+        root.deleteOnExit();
+        File dir = new File(root, "WhatsApp/Databases");
+        assertFalse(dir.exists());
+        assertTrue(RestoreRunner.ensureDirectory(dir));
+        assertTrue(dir.isDirectory());
+    }
+
+    @Test
+    public void an_existing_folder_is_left_as_it_is() throws Exception {
+        File dir = File.createTempFile("media", "");
+        assertTrue(dir.delete() && dir.mkdirs());
+        dir.deleteOnExit();
+        assertTrue(RestoreRunner.ensureDirectory(dir));
+    }
+
+    @Test
+    public void a_plain_file_in_the_folders_place_is_refused_rather_than_thrown_on() throws Exception {
+        File file = File.createTempFile("media", "");
+        file.deleteOnExit();
+        try (FileOutputStream out = new FileOutputStream(file)) {
+            out.write(1);
+        }
+        assertFalse(RestoreRunner.ensureDirectory(file));
     }
 }

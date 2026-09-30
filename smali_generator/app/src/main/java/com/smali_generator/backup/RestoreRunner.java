@@ -79,6 +79,19 @@ public final class RestoreRunner {
     }
 
     /**
+     * Makes sure the folder a restore writes into exists.
+     *
+     * Uninstalling WhatsApp deletes /sdcard/Android/media/com.whatsapp outright,
+     * and a fresh install does not put Databases/ back until WhatsApp writes a
+     * backup of its own -- which needs a registered account. So the one moment
+     * this feature exists for is exactly the moment the folder is missing, and
+     * opening a stream inside it fails with ENOENT.
+     */
+    static boolean ensureDirectory(File dir) {
+        return dir.isDirectory() || dir.mkdirs();
+    }
+
+    /**
      * Blocks. Returns the outcome to show the user.
      *
      * The download lands beside the target and is checked against the manifest
@@ -92,6 +105,10 @@ public final class RestoreRunner {
         if (name == null) {
             Log.e(TAG, "RestoreRunner: refusing a backup named " + fileName);
             return "That backup's name is not one this can write. Nothing was changed.";
+        }
+        if (!ensureDirectory(new File(BackupRunner.DATABASES_DIR))) {
+            Log.e(TAG, "RestoreRunner: cannot create " + BackupRunner.DATABASES_DIR);
+            return "Could not create WhatsApp's backup folder. Nothing was changed.";
         }
         GoogleAuth.Token token = GoogleAuth.token(context);
         if (token.value == null) {
