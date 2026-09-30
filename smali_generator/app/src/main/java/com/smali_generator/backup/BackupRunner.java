@@ -14,6 +14,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 import java.util.TimeZone;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * One backup run: pick the newest local backup, wrap the key if there is a
@@ -41,7 +42,32 @@ public final class BackupRunner {
     public static final String PASSPHRASE_SALT_KEY = "drive_backup_pass_salt";
     public static final int DEFAULT_RETENTION = 7;
 
+    /**
+     * One run at a time. Two runs would mint two run folders for one backup --
+     * two retention slots -- and would race over the same two cache files, so
+     * whichever finished second could find the temp file it was streaming
+     * already deleted and silently drop the key.
+     */
+    private static final AtomicBoolean RUNNING = new AtomicBoolean();
+
     private BackupRunner() {
+    }
+
+    /**
+     * What a finished run says. Pure so the two "without a key" cases cannot
+     * drift into reading the same: one is a user who set no passphrase, the
+     * other is a run that had one and could not reach it, which is the silent
+     * half-failure this feature exists to make visible.
+     */
+    public static String outcomeFor(String fileName, boolean keyIncluded, boolean verifierSet) {
+        if (keyIncluded) {
+            return "Backed up " + fileName + " with its key";
+        }
+        if (verifierSet) {
+            return "Backed up " + fileName + " without its key -- open this screen and enter your "
+                    + "passphrase, then back up again, to include it";
+        }
+        return "Backed up " + fileName + " without a key -- no passphrase is set";
     }
 
     /**
@@ -92,7 +118,16 @@ public final class BackupRunner {
 
     /** Blocks on network. Never call from the main thread. */
     public static String runOnce(Context context) {
-        String outcome = doRun(context);
+        if (!RUNNING.compareAndSet(false, true)) {
+            Log.i(TAG, "BackupRunner: a run is already in flight");
+            return "A backup is already running";
+        }
+        String outcome;
+        try {
+            outcome = doRun(context);
+        } finally {
+            RUNNING.set(false);
+        }
         PatchDb.setString(LAST_RESULT_KEY, outcome);
         PatchDb.setString(LAST_RUN_AT_KEY, String.valueOf(System.currentTimeMillis()));
         Log.i(TAG, "BackupRunner: " + outcome);
@@ -107,9 +142,6 @@ public final class BackupRunner {
         String sha = DriveClient.sha256(source);
         if (sha == null) {
             return "Could not read the local backup";
-        }
-        if (sha.equals(PatchDb.getString(LAST_SHA_KEY, null))) {
-            return "Already up to date";
         }
 
         GoogleAuth.Token token = GoogleAuth.token(context);
@@ -136,12 +168,23 @@ public final class BackupRunner {
             return "Could not open the Drive folder";
         }
 
+        // The stored hash alone would say "Already up to date" over a folder
+        // the user has since deleted in Drive, and go on saying it until
+        // WhatsApp next rewrites the local backup.
+        List<DriveClient.Entry> existing = drive.children(root);
+        if (sha.equals(PatchDb.getString(LAST_SHA_KEY, null)) && !existing.isEmpty()) {
+            return "Already up to date";
+        }
+
         String id = runId(System.currentTimeMillis());
         String runFolder = drive.folderId(id, root);
         if (runFolder == null) {
             return "Could not create the run folder";
         }
         if (drive.upload(runFolder, source.getName(), "application/octet-stream", source) == null) {
+            // Leaving the empty folder behind would spend a retention slot, and
+            // enough failed runs in a row would push every real backup out.
+            drive.delete(runFolder);
             return "Upload failed";
         }
 
@@ -155,7 +198,8 @@ public final class BackupRunner {
 
         PatchDb.setString(LAST_SHA_KEY, sha);
         trim(drive, root);
-        return "Backed up " + source.getName() + (keyIncluded ? " with its key" : " without a key");
+        return outcomeFor(source.getName(), keyIncluded,
+                PatchDb.getString(PASSPHRASE_VERIFIER_KEY, null) != null);
     }
 
     /**
@@ -203,7 +247,8 @@ public final class BackupRunner {
             }
             BackupManifest manifest = new BackupManifest(id, source.getName(), source.length(),
                     sha, cryptOf(source.getName()), keyIncluded, version,
-                    System.currentTimeMillis());
+                    System.currentTimeMillis(),
+                    keyIncluded ? PatchDb.getString(PASSPHRASE_VERIFIER_KEY, null) : null);
             File file = new File(context.getCacheDir(), BackupManifest.FILE_NAME);
             try (FileOutputStream out = new FileOutputStream(file)) {
                 out.write(manifest.render().getBytes("UTF-8"));

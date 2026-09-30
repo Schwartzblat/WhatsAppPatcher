@@ -1,6 +1,7 @@
 package com.smali_generator.backup;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
@@ -75,5 +76,27 @@ public class BackupRunnerTest {
         String late = BackupRunner.runId(1_900_000_000_000L);
         assertTrue(early.compareTo(late) < 0);
         assertEquals(early.length(), late.length());
+    }
+
+    @Test
+    public void a_run_that_sent_the_key_says_so() {
+        assertEquals("Backed up msgstore.db.crypt14 with its key",
+                BackupRunner.outcomeFor("msgstore.db.crypt14", true, true));
+    }
+
+    @Test
+    public void a_run_with_no_passphrase_set_says_that_is_why_the_key_stayed() {
+        assertEquals("Backed up msgstore.db.crypt14 without a key -- no passphrase is set",
+                BackupRunner.outcomeFor("msgstore.db.crypt14", false, false));
+    }
+
+    @Test
+    public void a_run_that_dropped_the_key_despite_a_passphrase_does_not_read_like_the_other_one() {
+        // The passphrase lives in memory only, so a scheduled run in a fresh
+        // process has none. Saying "without a key" and nothing else is the
+        // silent half-failure this feature is supposed to make visible.
+        String outcome = BackupRunner.outcomeFor("msgstore.db.crypt14", false, true);
+        assertTrue(outcome, outcome.toLowerCase().contains("enter your passphrase"));
+        assertNotEquals(BackupRunner.outcomeFor("msgstore.db.crypt14", false, false), outcome);
     }
 }
