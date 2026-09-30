@@ -8,6 +8,8 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.util.Log;
 
+import com.smali_generator.patches.DriveBackup;
+
 /**
  * Runs the upload on JobScheduler's schedule.
  *
@@ -26,8 +28,17 @@ public class BackupJob extends JobService {
         try {
             JobScheduler scheduler =
                     (JobScheduler) context.getSystemService(Context.JOB_SCHEDULER_SERVICE);
-            // schedule() replaces by id, so calling this on every load() is
-            // idempotent and picks up a changed constraint without a duplicate.
+            // schedule() on an existing id does not leave the job alone: it
+            // replaces the record, restarts the period from now, and stops the
+            // job if it happens to be running -- which would cancel an upload
+            // in flight. This process is created a dozen times an hour (push,
+            // WorkManager, launches), so re-scheduling only when something
+            // actually differs is what keeps the daily job daily.
+            JobInfo pending = scheduler.getPendingJob(JOB_ID);
+            if (pending != null && pending.isRequireCharging() == requiresCharging) {
+                Log.i(TAG, "BackupJob: already scheduled, charging=" + requiresCharging);
+                return;
+            }
             int rc = scheduler.schedule(
                     new JobInfo.Builder(JOB_ID, new ComponentName(context, BackupJob.class))
                             .setRequiredNetworkType(JobInfo.NETWORK_TYPE_UNMETERED)
@@ -53,6 +64,17 @@ public class BackupJob extends JobService {
 
     @Override
     public boolean onStartJob(JobParameters params) {
+        // The job is persisted and periodic, and its <service> is in the host's
+        // manifest whatever the hook's flag says -- so nothing else would ever
+        // stop it. Turning the feature off has to mean the backups stop, and
+        // this is the only place that can hear about it: an install whose hook
+        // is gone or switched off cancels the job it inherited.
+        if (!new DriveBackup().isEnabled()) {
+            Log.i(TAG, "BackupJob: the hook is off, cancelling the schedule");
+            cancel(getApplicationContext());
+            jobFinished(params, false);
+            return false;
+        }
         new Thread(() -> {
             String outcome;
             try {
@@ -71,7 +93,10 @@ public class BackupJob extends JobService {
 
     @Override
     public boolean onStopJob(JobParameters params) {
-        // Resumable uploads mean a killed run resumes rather than restarts.
+        // True asks for the run to be retried. The session URI is not persisted
+        // yet, so a killed upload starts again from the beginning rather than
+        // resuming -- 13 MB on unmetered wifi, and the sha check means a run
+        // that already finished is not repeated.
         return true;
     }
 }
