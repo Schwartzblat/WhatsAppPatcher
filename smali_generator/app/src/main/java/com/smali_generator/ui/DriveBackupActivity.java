@@ -87,23 +87,38 @@ public class DriveBackupActivity extends Activity {
     private void askForPassphrase() {
         EditText field = new EditText(this);
         field.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        boolean replacing =
+                PatchDb.getString(BackupRunner.PASSPHRASE_VERIFIER_KEY, null) != null;
+        String message = "The database key is wrapped under this before it leaves the phone. "
+                + "Lose it and the Drive copy cannot be decrypted -- WhatsApp's own restore "
+                + "still works.";
+        if (replacing) {
+            // Changing it does not re-wrap what is already in Drive, and a user
+            // who thinks it did would find out only when they needed those runs.
+            message += "\n\nRuns already in Drive keep the passphrase they were made with.";
+        }
         new AlertDialog.Builder(this)
                 .setTitle("Passphrase")
-                .setMessage("The database key is wrapped under this before it leaves the phone. "
-                        + "Lose it and the Drive copy cannot be decrypted -- WhatsApp's own "
-                        + "restore still works.")
+                .setMessage(message)
                 .setView(field)
                 .setPositiveButton("Save", (d, w) -> {
                     String value = field.getText().toString();
                     if (value.isEmpty()) {
                         return;
                     }
-                    String salt = KeyVault.newSaltB64();
-                    PatchDb.setString(BackupRunner.PASSPHRASE_SALT_KEY, salt);
-                    PatchDb.setString(BackupRunner.PASSPHRASE_VERIFIER_KEY,
-                            KeyVault.verifier(value, salt));
-                    PassphraseHolder.set(value);
-                    redraw();
+                    // Deriving the verifier is 600 000 PBKDF2 iterations, about
+                    // a second. On the host's UI thread that is a freeze, and a
+                    // slow device would make it an ANR -- which BootHealth
+                    // counts, and two of would put the patch into safe mode.
+                    Toast.makeText(this, "Saving the passphrase...", Toast.LENGTH_SHORT).show();
+                    new Thread(() -> {
+                        String salt = KeyVault.newSaltB64();
+                        String verifier = KeyVault.verifier(value, salt);
+                        PatchDb.setString(BackupRunner.PASSPHRASE_SALT_KEY, salt);
+                        PatchDb.setString(BackupRunner.PASSPHRASE_VERIFIER_KEY, verifier);
+                        PassphraseHolder.set(value);
+                        runOnUiThread(this::redraw);
+                    }, "drive-passphrase").start();
                 })
                 .setNegativeButton("Cancel", null)
                 .show();
