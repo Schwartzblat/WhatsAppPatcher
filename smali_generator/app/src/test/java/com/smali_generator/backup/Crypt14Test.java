@@ -223,17 +223,28 @@ public class Crypt14Test {
     }
 
     @Test
-    public void a_field_number_that_aliases_field_two_under_a_32_bit_cast_is_refused() throws Exception {
-        // tag 34359738386 -> field number 4294967298, wire type 2.
-        // Two things are true of that number at once: it exceeds Integer.MAX_VALUE,
-        // so the guard must reject it; and it truncates to exactly 2 in 32 bits, so
-        // without the guard it would be walked as field 2 -- the IV's parent. Six
-        // bytes, which is inside the varint reader's shift<=35 bound.
-        byte[] header = new byte[]{
-                (byte) 0x92, (byte) 0x80, (byte) 0x80, (byte) 0x80, (byte) 0x80, 0x01,
-                16, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        };
-        assertNull(Crypt14.parseHeader(crypt14(header, new byte[50])));
+    public void an_absurd_field_number_refuses_the_header_instead_of_skipping_past_it() throws Exception {
+        // The parser's contract is to refuse a shape it does not recognise, not to
+        // step over it and keep looking. So this header puts a field number of
+        // 2^32+2 first -- too large to be any real field, and the value that used to
+        // truncate to 2 and alias the IV's parent -- and a perfectly valid field 2
+        // after it. Without the Integer.MAX_VALUE guard the walk skips the first and
+        // returns the IV from the second, which is exactly the "parsed around
+        // something I did not understand" outcome this refuses.
+        byte[] iv = new byte[16];
+        for (int i = 0; i < 16; i++) {
+            iv[i] = (byte) (0xE0 + i);
+        }
+        ByteArrayOutputStream inner = new ByteArrayOutputStream();
+        inner.write(0x2a); inner.write(16); inner.write(iv);          // field 5, the IV
+        ByteArrayOutputStream header = new ByteArrayOutputStream();
+        header.write(new byte[]{(byte) 0x92, (byte) 0x80, (byte) 0x80,
+                                (byte) 0x80, (byte) 0x80, 0x01});     // tag -> field 2^32+2, wire 2
+        header.write(16); header.write(new byte[16]);                 // its 16-byte payload
+        header.write(0x12); header.write(inner.size());               // a real field 2...
+        header.write(inner.toByteArray());                            // ...holding a real IV
+
+        assertNull(Crypt14.parseHeader(crypt14(header.toByteArray(), new byte[50])));
     }
 
     @Test
