@@ -249,6 +249,17 @@ public class RestoreSwapTest {
     }
 
     @Test
+    public void a_recovered_database_keeps_its_own_log() throws Exception {
+        File target = new File(tmp.getRoot(), "msgstore.db");
+        file("msgstore.db.replaced", "LIVE");
+        file("msgstore.db.replaced-wal", "LIVEWAL");
+        assertTrue(RestoreSwap.swap(file("msgstore.db.restoring", "NEW"), target).ok);
+        assertEquals("LIVE", read(RestoreSwap.asideFile(target)));
+        assertEquals("LIVEWAL", read(sidecar(".pre-restore-wal")));
+        assertFalse(sidecar("-wal").exists());
+    }
+
+    @Test
     public void staging_the_live_file_over_itself_is_refused() throws Exception {
         File target = file("msgstore.db", "OLD");
         RestoreSwap.Result r = RestoreSwap.swap(target, target);
@@ -258,17 +269,75 @@ public class RestoreSwapTest {
         assertEquals("OLD", read(target));
     }
 
+    private File sidecar(String suffix) {
+        return new File(tmp.getRoot(), "msgstore.db" + suffix);
+    }
+
     @Test
-    public void no_log_is_left_beside_the_new_database_and_the_old_one_is_kept() throws Exception {
+    public void a_log_left_in_the_scratch_slot_by_a_killed_swap_never_becomes_the_way_backs_log()
+            throws Exception {
+        // The state a kill after staged-to-target and before scratch-to-aside
+        // leaves: the new database is live and the old one, with its log, is
+        // still in the scratch slot. The old log must not follow the live
+        // database into the next swap's way back, nor sit beside it.
+        File target = file("msgstore.db", "NEW");
+        file("msgstore.db.replaced", "OLD");
+        file("msgstore.db.replaced-wal", "OLDWAL");
+        RestoreSwap.Result r = RestoreSwap.swap(file("msgstore.db.restoring", "NEWER"), target);
+        assertTrue(r.message, r.ok);
+        assertEquals("NEWER", read(target));
+        assertFalse(sidecar("-wal").exists());
+        assertEquals("NEW", read(RestoreSwap.asideFile(target)));
+        assertFalse(sidecar(".pre-restore-wal").exists());
+        assertFalse(sidecar(".replaced-wal").exists());
+    }
+
+    @Test
+    public void a_log_orphaned_in_the_scratch_slot_with_no_database_is_not_carried_along()
+            throws Exception {
+        File target = file("msgstore.db", "OLD");
+        file("msgstore.db.replaced-wal", "ORPHAN");
+        assertTrue(RestoreSwap.swap(file("msgstore.db.restoring", "NEW"), target).ok);
+        assertEquals("OLD", read(RestoreSwap.asideFile(target)));
+        assertFalse(sidecar(".pre-restore-wal").exists());
+        assertFalse(sidecar("-wal").exists());
+    }
+
+    @Test
+    public void a_log_that_moves_only_partway_is_put_back_with_the_database() throws Exception {
+        // The -wal moves before the -shm fails, so the rollback has real work:
+        // without it the database returns without its log, saying nothing changed.
         File target = file("msgstore.db", "OLD");
         file("msgstore.db-wal", "OLDWAL");
         file("msgstore.db-shm", "OLDSHM");
-        file("msgstore.db-journal", "OLDJ");
+        File blocker = new File(tmp.getRoot(), "msgstore.db.replaced-shm");
+        assertTrue(blocker.mkdir());
+        new FileOutputStream(new File(blocker, "x")).close();
+        RestoreSwap.Result r = RestoreSwap.swap(file("msgstore.db.restoring", "NEW"), target);
+        assertFalse(r.ok);
+        assertTrue(r.message, r.message.contains("Nothing was changed"));
+        assertEquals("OLD", read(target));
+        assertEquals("OLDWAL", read(sidecar("-wal")));
+        assertFalse(sidecar(".replaced-wal").exists());
+    }
+
+    @Test
+    public void undo_never_leaves_the_earlier_log_stranded_when_a_stale_one_resists() throws Exception {
+        File target = file("msgstore.db", "OLD");
+        file("msgstore.db-wal", "OLDWAL");
         assertTrue(RestoreSwap.swap(file("msgstore.db.restoring", "NEW"), target).ok);
-        for (String s : new String[] {"-wal", "-shm", "-journal"}) {
-            assertFalse(s, new File(tmp.getRoot(), "msgstore.db" + s).exists());
-        }
-        assertEquals("OLDWAL", read(new File(tmp.getRoot(), "msgstore.db.pre-restore-wal")));
+        // The restored database is gone and something unremovable sits where its
+        // journal would be, so the stale-log check has a survivor to report.
+        assertTrue(target.delete());
+        File journal = sidecar("-journal");
+        assertTrue(journal.mkdir());
+        new FileOutputStream(new File(journal, "x")).close();
+        RestoreSwap.Result r = RestoreSwap.undo(target);
+        assertFalse(r.ok);
+        assertTrue(r.message, r.message.contains("journal"));
+        assertEquals("OLD", read(target));
+        assertEquals("OLDWAL", read(sidecar("-wal")));
+        assertFalse(sidecar(".pre-restore-wal").exists());
     }
 
     @Test

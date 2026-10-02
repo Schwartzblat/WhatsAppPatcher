@@ -102,10 +102,19 @@ public final class RestoreSwap {
                     return new Result(false, "An earlier restore was interrupted and its database"
                             + " could not be put back. It is at " + scratch.getAbsolutePath());
                 }
+                // The recovered database keeps its own log; leaving it behind would
+                // either orphan it or hand it to the delete below.
+                moveSidecars(scratch, target);
             } else {
                 scratch.delete();
             }
         }
+        // scratch is resolved by now (recovered to target, or deleted), so a log
+        // still at scratch-* is from an interrupted run and is not the live
+        // database's. Left there, the next move into scratch would pair it with a
+        // database it does not belong to. This does not contradict never deleting a
+        // stale scratch: that is about the database file, this is only its log.
+        deleteSidecars(scratch);
 
         // The live database is moved aside, never deleted: until the staged file is
         // safely in place this rename is the only thing standing between a failure
@@ -182,7 +191,25 @@ public final class RestoreSwap {
             return new Result(false, "There is no earlier database kept to go back to.");
         }
         File scratch = sibling(target, SCRATCH_SUFFIX);
-        scratch.delete();
+        if (scratch.exists()) {
+            if (!target.exists() && scratch.isFile()) {
+                // Same rescue as swap: a swap killed between its renames leaves the
+                // live database only here, and undo must not be what deletes it.
+                if (!scratch.renameTo(target)) {
+                    return new Result(false, "An earlier restore was interrupted and its database"
+                            + " could not be put back. It is at " + scratch.getAbsolutePath());
+                }
+                moveSidecars(scratch, target);
+            } else {
+                scratch.delete();
+            }
+        }
+        // scratch is resolved by now (recovered to target, or deleted), so a log
+        // still at scratch-* is from an interrupted run and is not the live
+        // database's. Left there, the next move into scratch would pair it with a
+        // database it does not belong to. This does not contradict never deleting a
+        // stale scratch: that is about the database file, this is only its log.
+        deleteSidecars(scratch);
         // Same rule as swap: the restored database is moved aside, not deleted,
         // until the earlier one is in place.
         if (target.isFile() && !target.renameTo(scratch)) {
@@ -211,13 +238,22 @@ public final class RestoreSwap {
         // The restored database's log already left with it, so nothing stale
         // sits beside the earlier database; its own log comes back now.
         deleteSidecars(scratch);
-        // Checked before the earlier log is moved in, or it would be deleted as stale.
+        // Property held here: undo never returns with the earlier database at the
+        // target and its log left at aside-*. So the stale check runs first (it
+        // would delete the log if it ran after), the log is moved in regardless of
+        // what it found, and anything still wrong is named rather than dropped.
         String stale = deleteSidecars(target);
-        if (stale != null) {
-            return new Result(false, "Went back, but " + stale + " could not be removed."
-                    + " Close and reopen WhatsApp before using it.");
+        String stranded = moveSidecars(aside, target);
+        if (stale != null || stranded != null) {
+            String msg = "Went back, but";
+            if (stale != null) {
+                msg += " " + stale + " could not be removed.";
+            }
+            if (stranded != null) {
+                msg += " The earlier database's log is still at " + stranded + ".";
+            }
+            return new Result(false, msg + " Close and reopen WhatsApp before using it.");
         }
-        moveSidecars(aside, target);
         return new Result(true, "Put the earlier database back.");
     }
 
