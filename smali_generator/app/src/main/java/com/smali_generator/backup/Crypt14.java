@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 
 /**
  * Where everything lives inside a crypt14, and nothing else.
@@ -78,7 +79,7 @@ public final class Crypt14 {
         if (meta != null) {
             byte[] raw = findField(meta, 0, meta.length, VERSION_FIELD);
             if (raw != null && raw.length > 0 && raw.length < 32) {
-                version = new String(raw);
+                version = new String(raw, StandardCharsets.US_ASCII);
             }
         }
         return new Header(headerLength, headerStart + headerLength, iv, version);
@@ -139,7 +140,11 @@ public final class Crypt14 {
             if (tag < 0) {
                 return null;
             }
-            int number = (int) (tag >> 3);
+            long number = tag >> 3;
+            // Reject field numbers that exceed 32-bit range to prevent aliasing.
+            if (number > Integer.MAX_VALUE) {
+                return null;
+            }
             int wire = (int) (tag & 7);
             if (wire == 2) {
                 long length = varint(b, cursor);
@@ -224,7 +229,7 @@ public final class Crypt14 {
      * yields bytes that fail it.
      */
     public static boolean looksLikeSqlite(byte[] firstBytes) {
-        byte[] magic = SQLITE_MAGIC.getBytes();
+        byte[] magic = SQLITE_MAGIC.getBytes(StandardCharsets.US_ASCII);
         if (firstBytes == null || firstBytes.length < magic.length) {
             return false;
         }

@@ -14,6 +14,7 @@ import org.junit.rules.TemporaryFolder;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.ByteArrayOutputStream;
+import java.nio.charset.StandardCharsets;
 
 /**
  * Getting the offsets wrong does not fail loudly -- it decrypts the wrong bytes
@@ -64,8 +65,8 @@ public class Crypt14Test {
         byte[] file = crypt14(realisticHeader(new byte[16]), new byte[100]);
         Crypt14.Header h = Crypt14.parseHeader(file);
         assertNotNull(h);
-        // Two prefix bytes plus the header: the real files put it at 196 for a 194-byte header.
-        assertEquals(2 + h.headerLength, h.cipherOffset);
+        // The test header is 85 bytes; real files put it at 196 for a 194-byte header.
+        assertEquals(87, h.cipherOffset);
     }
 
     @Test
@@ -76,7 +77,7 @@ public class Crypt14Test {
 
     @Test
     public void a_header_with_no_sixteen_byte_field_five_is_refused() throws Exception {
-        // Review Focus 1: a future format change must refuse, not slice at a guess.
+        // A future WhatsApp format change must be refused, not sliced at a guessed offset.
         ByteArrayOutputStream inner = new ByteArrayOutputStream();
         inner.write(0x1a); inner.write(32); inner.write(new byte[32]);   // only 2.3
         ByteArrayOutputStream header = new ByteArrayOutputStream();
@@ -128,7 +129,7 @@ public class Crypt14Test {
     public void the_whatsapp_version_is_read_from_field_four_point_one() throws Exception {
         // Measured on two real backups: field 4.1 is the versionName as text.
         ByteArrayOutputStream four = new ByteArrayOutputStream();
-        four.write(0x0a); four.write(10); four.write("2.26.38.74".getBytes());
+        four.write(0x0a); four.write(10); four.write("2.26.38.74".getBytes(StandardCharsets.US_ASCII));
         ByteArrayOutputStream header = new ByteArrayOutputStream();
         ByteArrayOutputStream inner = new ByteArrayOutputStream();
         inner.write(0x2a); inner.write(16); inner.write(new byte[16]);
@@ -170,10 +171,90 @@ public class Crypt14Test {
     @Test
     public void sqlite_is_recognised_by_its_magic_and_nothing_else_is() {
         byte[] good = new byte[32];
-        System.arraycopy("SQLite format 3".getBytes(), 0, good, 0, 15);
+        System.arraycopy("SQLite format 3".getBytes(StandardCharsets.US_ASCII), 0, good, 0, 15);
         assertTrue(Crypt14.looksLikeSqlite(good));
-        // Review Focus 2: a wrong key decrypts to rubbish, and this is what catches it.
+        // A wrong key cannot be detected during the decrypt because the GCM tag is
+        // not verifiable, so the magic bytes are the first thing that can catch it.
         assertFalse(Crypt14.looksLikeSqlite(new byte[32]));
         assertFalse(Crypt14.looksLikeSqlite(new byte[]{1, 2, 3}));
+    }
+
+    @Test
+    public void a_file_of_exactly_three_bytes_is_refused() {
+        assertNull(Crypt14.parseHeader(new byte[]{1, 2, 3}));
+    }
+
+    @Test
+    public void a_declared_header_length_exceeding_the_buffer_is_refused() throws Exception {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        out.write(0xFF); out.write(0x7F);  // varint 16383
+        out.write(new byte[100]);  // but only 100 bytes of actual header
+        assertNull(Crypt14.parseHeader(out.toByteArray()));
+    }
+
+    @Test
+    public void a_length_delimited_field_running_past_the_header_end_is_refused() throws Exception {
+        ByteArrayOutputStream inner = new ByteArrayOutputStream();
+        inner.write(0x2a); inner.write(100);  // field 5, claiming 100 bytes
+        inner.write(new byte[16]);  // but only 16 bytes present
+        ByteArrayOutputStream header = new ByteArrayOutputStream();
+        header.write(0x12); header.write(inner.size()); header.write(inner.toByteArray());
+        assertNull(Crypt14.parseHeader(crypt14(header.toByteArray(), new byte[50])));
+    }
+
+    @Test
+    public void a_nested_field_length_exceeding_its_parent_is_refused() throws Exception {
+        ByteArrayOutputStream inner = new ByteArrayOutputStream();
+        inner.write(0x1a); inner.write(32); inner.write(new byte[32]);  // 2.3
+        inner.write(0x2a); inner.write(100);  // 2.5, claiming 100 bytes but only 5 present
+        inner.write(new byte[5]);
+        ByteArrayOutputStream header = new ByteArrayOutputStream();
+        header.write(0x12); header.write(inner.size()); header.write(inner.toByteArray());
+        assertNull(Crypt14.parseHeader(crypt14(header.toByteArray(), new byte[50])));
+    }
+
+    @Test
+    public void a_varint_with_no_terminator_is_refused() throws Exception {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        for (int i = 0; i < 10; i++) {
+            out.write(0xFF);  // continuation bit set on every byte
+        }
+        assertNull(Crypt14.parseHeader(out.toByteArray()));
+    }
+
+    @Test
+    public void a_field_number_exceeding_integer_max_is_refused() throws Exception {
+        ByteArrayOutputStream inner = new ByteArrayOutputStream();
+        inner.write(0x2a); inner.write(16); inner.write(new byte[16]);  // field 5, 16 bytes
+        ByteArrayOutputStream header = new ByteArrayOutputStream();
+        header.write(0x12); header.write(inner.size()); header.write(inner.toByteArray());
+        // Prepend a tag with field (2^32 + 2) << 3 to alias field 2
+        ByteArrayOutputStream file = new ByteArrayOutputStream();
+        file.write(0xFF); file.write(0xFF); file.write(0xFF); file.write(0xFF); file.write(0x0F);  // 2^32-1
+        file.write(header.toByteArray());
+        file.write(new byte[50]);
+        assertNull(Crypt14.parseHeader(file.toByteArray()));
+    }
+
+    @Test
+    public void a_header_longer_than_127_bytes_encodes_the_varint_across_two_bytes() throws Exception {
+        // Build a header > 127 bytes by creating a large field 2
+        ByteArrayOutputStream inner = new ByteArrayOutputStream();
+        // field 2.1: 100 bytes
+        inner.write(0x0a); inner.write(100); inner.write(new byte[100]);
+        // field 2.5: 16 bytes (the IV)
+        inner.write(0x2a); inner.write(16); inner.write(new byte[16]);
+        ByteArrayOutputStream header = new ByteArrayOutputStream();
+        header.write(0x12); header.write(inner.size()); header.write(inner.toByteArray());
+        header.write(0x22); header.write(4); header.write(new byte[]{9, 9, 9, 9});
+        ByteArrayOutputStream outer = new ByteArrayOutputStream();
+        int headerLen = header.size();  // Should be > 127
+        outer.write(headerLen & 0x7f | 0x80);  // 2-byte varint encoding
+        outer.write(headerLen >> 7);
+        outer.write(header.toByteArray());
+        outer.write(new byte[100]);
+        Crypt14.Header h = Crypt14.parseHeader(outer.toByteArray());
+        assertNotNull(h);
+        assertEquals(2 + headerLen, h.cipherOffset);
     }
 }
