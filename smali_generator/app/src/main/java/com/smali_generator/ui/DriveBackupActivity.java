@@ -80,7 +80,7 @@ public class DriveBackupActivity extends Activity {
             redraw();
         }));
 
-        content.addView(row("Restore from Drive", v ->
+        content.addView(row("Restore", v ->
                 startActivity(new Intent(this, DriveRestoreActivity.class))));
     }
 

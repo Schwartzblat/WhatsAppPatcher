@@ -131,7 +131,8 @@ public final class RestoreRunner {
         }
         Log.i(TAG, "RestoreRunner: wrote " + target + ", verified=" + (expectedSha != null));
         return "Restored to " + target.getName()
-                + ". WhatsApp reads it only during setup, so reinstall and verify your number.";
+                + ". Restore it from the \"On this phone\" list above, or leave it for"
+                + " WhatsApp's own setup if you are about to reinstall.";
     }
 
     /**

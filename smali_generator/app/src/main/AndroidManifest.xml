@@ -56,7 +56,8 @@
         <activity
             android:name="com.smali_generator.ui.DriveRestoreActivity"
             android:exported="false"
-            android:label="Restore from Drive"
+            android:configChanges="orientation|screenSize|keyboardHidden"
+            android:label="Restore"
             android:theme="@android:style/Theme.DeviceDefault.DayNight" />
 
         <!--
