@@ -3,7 +3,6 @@ package com.smali_generator.backup;
 import android.util.Log;
 
 import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -81,9 +80,21 @@ public final class Crypt14Restore {
 
         staged.delete();
         long written;
+        String decryptError = null;
         try {
             written = decrypt(crypt14, key, header, staged);
-        } catch (IOException | RuntimeException e) {
+        } catch (IOException e) {
+            staged.delete();
+            decryptError = e.getMessage();
+            // Preserve diagnostic: "cipher released no plaintext" distinguishes provider from key
+            if (decryptError != null && decryptError.contains("plaintext")) {
+                return new Outcome(false, decryptError, 0);
+            }
+            return new Outcome(false, "That backup did not decrypt with the key on this phone."
+                    + " The key on this phone does not match it -- that happens when the"
+                    + " backup predates the last time this number was registered."
+                    + " Nothing was changed.", 0);
+        } catch (RuntimeException e) {
             staged.delete();
             return new Outcome(false, "That backup did not decrypt with the key on this phone."
                     + " The key on this phone does not match it -- that happens when the"
@@ -99,8 +110,6 @@ public final class Crypt14Restore {
             return new Outcome(false, "Could not read back the decrypted file: " + e.getMessage(), 0);
         }
         if (!Crypt14.looksLikeSqlite(first)) {
-            // The GCM tag is not verifiable here, so a wrong key cannot be
-            // detected during the decrypt -- only afterwards, by what came out.
             staged.delete();
             return new Outcome(false, "That backup did not decrypt to a database."
                     + " The key on this phone does not match it -- that happens when the"
@@ -121,32 +130,81 @@ public final class Crypt14Restore {
             throw new IOException("cipher refused the key or IV", e);
         }
 
-        long written = 0;
-        byte[] cipherChunk = new byte[128];
-        byte[] plainChunk;
-        ByteArrayInputStream plainIn = new ByteArrayInputStream(new byte[0]);
-        try (InputStream in = new FileInputStream(crypt14);
+        try (InputStream cipherIn = new FileInputStream(crypt14);
+             InputStream plainIn = new CipherUpdateStream(cipherIn, cipher, header.cipherOffset);
              OutputStream out = new FileOutputStream(staged)) {
-            skipFully(in, header.cipherOffset);
-            int read;
-            ByteArrayOutputStream plainBuffer = new ByteArrayOutputStream();
-            while ((read = in.read(cipherChunk)) > 0) {
-                // update() only, never doFinal. On Conscrypt (Android) this releases
-                // plaintext incrementally. On SunJCE (desktop) it buffers until
-                // doFinal, so desktop tests cannot exercise the cipher seam.
-                plainChunk = cipher.update(cipherChunk, 0, read);
-                if (plainChunk != null && plainChunk.length > 0) {
-                    plainBuffer.write(plainChunk);
-                }
-            }
-            byte[] allPlain = plainBuffer.toByteArray();
-            if (allPlain.length == 0) {
+            long written = inflateTo(plainIn, out);
+            if (written == 0) {
                 throw new IOException("cipher released no plaintext (desktop JVM with SunJCE)");
             }
-            plainIn = new ByteArrayInputStream(allPlain);
-            written = inflateTo(plainIn, out);
+            return written;
         }
-        return written;
+    }
+
+    /**
+     * Releases cipher.update() output as a stream, so a multi-hundred-megabyte
+     * backup is never resident in memory. Deliberately NOT CipherInputStream:
+     * that calls doFinal on close, which on a tagless crypt14 throws after the
+     * whole file has been read — the exact failure a probe hit on 2026-09-30,
+     * inflating 30 MB and then dying at close.
+     */
+    private static final class CipherUpdateStream extends InputStream {
+        private final InputStream cipherIn;
+        private final Cipher cipher;
+        private final byte[] cipherChunk = new byte[128];
+        private byte[] plainBuffer = new byte[0];
+        private int plainPos = 0;
+        private boolean eof = false;
+
+        CipherUpdateStream(InputStream cipherIn, Cipher cipher, long skipBytes) throws IOException {
+            this.cipherIn = cipherIn;
+            this.cipher = cipher;
+            skipFully(cipherIn, skipBytes);
+        }
+
+        @Override
+        public int read(byte[] b, int off, int len) throws IOException {
+            if (off < 0 || len < 0 || off + len > b.length) {
+                throw new IndexOutOfBoundsException();
+            }
+            if (len == 0) {
+                return 0;
+            }
+
+            int copied = 0;
+            while (copied < len) {
+                if (plainPos < plainBuffer.length) {
+                    int n = Math.min(len - copied, plainBuffer.length - plainPos);
+                    System.arraycopy(plainBuffer, plainPos, b, off + copied, n);
+                    plainPos += n;
+                    copied += n;
+                } else if (!eof) {
+                    int read = cipherIn.read(cipherChunk);
+                    if (read < 0) {
+                        eof = true;
+                        if (copied == 0) {
+                            return -1;
+                        }
+                        break;
+                    }
+                    plainBuffer = cipher.update(cipherChunk, 0, read);
+                    if (plainBuffer == null) {
+                        plainBuffer = new byte[0];
+                    }
+                    plainPos = 0;
+                } else {
+                    break;
+                }
+            }
+            return copied > 0 ? copied : -1;
+        }
+
+        @Override
+        public int read() throws IOException {
+            byte[] b = new byte[1];
+            int n = read(b, 0, 1);
+            return n < 0 ? -1 : b[0] & 0xff;
+        }
     }
 
     /**
@@ -156,7 +214,7 @@ public final class Crypt14Restore {
      * incrementally. Everything below this line is therefore testable; the cipher
      * seam above it is verified on the device.
      */
-    public static long inflateTo(InputStream plain, OutputStream staged) throws IOException {
+    static long inflateTo(InputStream plain, OutputStream staged) throws IOException {
         Inflater inflater = new Inflater();
         long written = 0;
         byte[] inflated = new byte[1 << 16];
