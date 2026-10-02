@@ -223,17 +223,17 @@ public class Crypt14Test {
     }
 
     @Test
-    public void a_field_number_exceeding_integer_max_is_refused() throws Exception {
-        ByteArrayOutputStream inner = new ByteArrayOutputStream();
-        inner.write(0x2a); inner.write(16); inner.write(new byte[16]);  // field 5, 16 bytes
-        ByteArrayOutputStream header = new ByteArrayOutputStream();
-        header.write(0x12); header.write(inner.size()); header.write(inner.toByteArray());
-        // Prepend a tag with field (2^32 + 2) << 3 to alias field 2
-        ByteArrayOutputStream file = new ByteArrayOutputStream();
-        file.write(0xFF); file.write(0xFF); file.write(0xFF); file.write(0xFF); file.write(0x0F);  // 2^32-1
-        file.write(header.toByteArray());
-        file.write(new byte[50]);
-        assertNull(Crypt14.parseHeader(file.toByteArray()));
+    public void a_field_number_that_aliases_field_two_under_a_32_bit_cast_is_refused() throws Exception {
+        // tag 34359738386 -> field number 4294967298, wire type 2.
+        // Two things are true of that number at once: it exceeds Integer.MAX_VALUE,
+        // so the guard must reject it; and it truncates to exactly 2 in 32 bits, so
+        // without the guard it would be walked as field 2 -- the IV's parent. Six
+        // bytes, which is inside the varint reader's shift<=35 bound.
+        byte[] header = new byte[]{
+                (byte) 0x92, (byte) 0x80, (byte) 0x80, (byte) 0x80, (byte) 0x80, 0x01,
+                16, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        };
+        assertNull(Crypt14.parseHeader(crypt14(header, new byte[50])));
     }
 
     @Test
