@@ -22,6 +22,19 @@ public final class RestoreSwap {
     public static final String PENDING_STAGED_KEY = "restore_pending_staged";
     public static final String PENDING_TARGET_KEY = "restore_pending_target";
     public static final String PENDING_AT_KEY = "restore_pending_at";
+    /**
+     * The target path of an undo the user asked for. Its own key rather than a
+     * flag on the swap's record: a pending swap and a pending undo mean opposite
+     * things, and keeping them apart is what lets startup notice both at once.
+     */
+    public static final String PENDING_UNDO_KEY = "restore_pending_undo";
+    /**
+     * A restore is on probation from the moment it is committed until a launch
+     * ends well. Its own pair of keys, never the pending ones: those are cleared
+     * on purpose before the move, and this has to outlive the move.
+     */
+    public static final String COMMITTED_AT_KEY = "restore_committed_at";
+    public static final String COMMITTED_TARGET_KEY = "restore_committed_target";
 
     /**
      * SQLite replays these into whatever database sits beside them, so a log

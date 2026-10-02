@@ -9,6 +9,7 @@ import android.util.Log;
 import androidx.annotation.NonNull;
 
 import com.smali_generator.abprops.AbPropStore;
+import com.smali_generator.backup.PendingRestore;
 import com.smali_generator.db.PatchDb;
 import com.smali_generator.patches.AbProps;
 import com.smali_generator.patches.ActivityHook;
@@ -106,6 +107,20 @@ public class InitProvider extends ContentProvider {
             // them does not load anyway, but the settings screen reads the same
             // store and has to show what the app is actually seeing.
             AbPropStore.holdBackAll();
+        }
+
+        // A restore verified in an earlier session is committed here, before any
+        // wrapper or hook runs and therefore before anything opens msgstore.db:
+        // WhatsApp holds it open for as long as it is running, so this is the
+        // only moment a database move is safe. After BootHealth.begin()
+        // deliberately: a swap that takes the app down is counted towards safe
+        // mode, and the mode is what lets a bad restore be rolled back.
+        try {
+            PendingRestore.applyPending(Utils.getApplicationContext(), mode);
+        } catch (Throwable t) {
+            // load() must not throw. A failed move leaves a database in place,
+            // so carrying on is strictly better than not starting.
+            Log.e("PATCH", "PendingRestore failed", t);
         }
 
         for (Class<?> wrapper : wrappers) {
