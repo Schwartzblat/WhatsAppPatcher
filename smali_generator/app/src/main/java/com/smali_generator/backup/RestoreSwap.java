@@ -195,6 +195,11 @@ public final class RestoreSwap {
             if (!target.exists() && scratch.isFile()) {
                 // Same rescue as swap: a swap killed between its renames leaves the
                 // live database only here, and undo must not be what deletes it.
+                // No test reaches this. On the success path the end state is the same
+                // either way, and the path where it matters needs aside.renameTo to
+                // fail with the target free -- impossible here, since asideFile puts
+                // the aside in the target's own directory. Keep it: swap's twin is
+                // tested, and the alternative is deleting somebody's only database.
                 if (!scratch.renameTo(target)) {
                     return new Result(false, "An earlier restore was interrupted and its database"
                             + " could not be put back. It is at " + scratch.getAbsolutePath());
@@ -226,6 +231,7 @@ public final class RestoreSwap {
                     + " not put the database back. It is at " + scratch.getAbsolutePath());
         }
         if (!aside.renameTo(target)) {
+            // Unreachable from a test, for the reason given at the rescue above.
             moveSidecars(scratch, target);
             if (scratch.isFile() && scratch.renameTo(target)) {
                 return new Result(false, "Could not put the earlier database back."
