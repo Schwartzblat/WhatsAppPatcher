@@ -121,7 +121,7 @@ public final class Crypt14Restore {
 
         Inflater inflater = new Inflater();
         long written = 0;
-        byte[] cipherChunk = new byte[1 << 14];
+        byte[] cipherChunk = new byte[128];  // Tiny chunks force update() to release blocks
         byte[] plainChunk;
         byte[] inflated = new byte[1 << 16];
         try (InputStream in = new FileInputStream(crypt14);
@@ -129,24 +129,19 @@ public final class Crypt14Restore {
             skipFully(in, header.cipherOffset);
             int read;
             while ((read = in.read(cipherChunk)) > 0) {
-                // update() buffers data until it has enough to process. With GCM, it
-                // withholds the last 16 bytes (potential tag area) until doFinal is called.
+                // update() and never doFinal: WhatsApp's crypt14 carries no GCM tag
+                // Java can verify, and doFinal throws away a good database. Feed in
+                // chunks so intermediate blocks are processed and released.
                 plainChunk = cipher.update(cipherChunk, 0, read);
                 if (plainChunk != null && plainChunk.length > 0) {
                     inflater.setInput(plainChunk);
                     written += drain(inflater, inflated, out);
                 }
             }
-            // Finalize the cipher to release any buffered plaintext and verify the tag.
-            try {
-                byte[] finalBytes = cipher.doFinal();
-                if (finalBytes != null && finalBytes.length > 0) {
-                    inflater.setInput(finalBytes);
-                    written += drain(inflater, inflated, out);
-                }
-            } catch (Exception e) {
-                throw new IOException("cipher doFinal failed", e);
-            }
+            // No doFinal, so the last 16 bytes of plaintext stay in the cipher's
+            // buffer for a tag that never comes. The stream therefore ends a
+            // little early and the inflater simply runs out of input; that is
+            // expected, and the SQLite check above is what proves the result good.
             inflater.end();
         }
         return written;

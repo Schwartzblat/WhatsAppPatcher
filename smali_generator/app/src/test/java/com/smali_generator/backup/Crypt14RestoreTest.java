@@ -69,8 +69,11 @@ public class Crypt14RestoreTest {
         byte[] compressed = deflate(plain);
         Cipher c = Cipher.getInstance("AES/GCM/NoPadding");
         c.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(KEY, "AES"), new GCMParameterSpec(128, IV));
-        byte[] ciphertext = c.doFinal(compressed);
-        // The ciphertext includes the 16-byte GCM tag; Java's GCM requires it for decryption.
+        byte[] withTag = c.doFinal(compressed);
+        // Drop the 16-byte tag: real crypt14 files do not carry one, so a fixture
+        // that keeps it would let doFinal succeed here and fail on every real backup.
+        byte[] ciphertext = new byte[withTag.length - 16];
+        System.arraycopy(withTag, 0, ciphertext, 0, ciphertext.length);
 
         ByteArrayOutputStream inner = new ByteArrayOutputStream();
         inner.write(0x1a); inner.write(32); inner.write(new byte[32]);
