@@ -2,7 +2,6 @@ package com.smali_generator.backup;
 
 import android.util.Log;
 
-import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -35,6 +34,13 @@ public final class Crypt14Restore {
      */
     public static final int INFLATION_FACTOR = 6;
 
+    /**
+     * Shown when the cipher itself released nothing. On Android that cannot
+     * happen; stage() matches on it to tell a provider fault from a wrong key.
+     */
+    static final String NO_PLAINTEXT = "This phone's crypto provider returned no data,"
+            + " which should not happen on Android. Nothing was changed.";
+
     private Crypt14Restore() {
     }
 
@@ -56,11 +62,12 @@ public final class Crypt14Restore {
 
     public static Outcome stage(File crypt14, byte[] key, File staged) {
         if (crypt14 == null || !crypt14.isFile()) {
-            return new Outcome(false, "That backup file is not there any more.", 0);
+            return new Outcome(false, "That backup file is not there any more. Nothing was changed.", 0);
         }
         if (key == null || key.length != Crypt14.KEY_LENGTH) {
             return new Outcome(false, "WhatsApp's database key could not be read."
-                    + " It only exists once the number on this phone is registered.", 0);
+                    + " It only exists once the number on this phone is registered."
+                    + " Nothing was changed.", 0);
         }
 
         byte[] sniff = new byte[Crypt14.SNIFF_BYTES];
@@ -68,7 +75,8 @@ public final class Crypt14Restore {
         try (InputStream in = new FileInputStream(crypt14)) {
             sniffed = readFully(in, sniff);
         } catch (IOException e) {
-            return new Outcome(false, "Could not read that backup: " + e.getMessage(), 0);
+            return new Outcome(false, "Could not read that backup: " + e.getMessage()
+                    + " Nothing was changed.", 0);
         }
         byte[] exact = new byte[sniffed];
         System.arraycopy(sniff, 0, exact, 0, sniffed);
@@ -86,8 +94,8 @@ public final class Crypt14Restore {
         } catch (IOException e) {
             staged.delete();
             decryptError = e.getMessage();
-            // Preserve diagnostic: "cipher released no plaintext" distinguishes provider from key
-            if (decryptError != null && decryptError.contains("plaintext")) {
+            // A silent cipher is a provider fault, not a wrong key; keep them apart.
+            if (NO_PLAINTEXT.equals(decryptError)) {
                 return new Outcome(false, decryptError, 0);
             }
             return new Outcome(false, "That backup did not decrypt with the key on this phone."
@@ -107,7 +115,8 @@ public final class Crypt14Restore {
             readFully(in, first);
         } catch (IOException e) {
             staged.delete();
-            return new Outcome(false, "Could not read back the decrypted file: " + e.getMessage(), 0);
+            return new Outcome(false, "Could not read back the decrypted file: " + e.getMessage()
+                    + " Nothing was changed.", 0);
         }
         if (!Crypt14.looksLikeSqlite(first)) {
             staged.delete();
@@ -131,11 +140,16 @@ public final class Crypt14Restore {
         }
 
         try (InputStream cipherIn = new FileInputStream(crypt14);
-             InputStream plainIn = new CipherUpdateStream(cipherIn, cipher, header.cipherOffset);
+             CipherUpdateStream plainIn = new CipherUpdateStream(cipherIn, cipher, header.cipherOffset);
              OutputStream out = new FileOutputStream(staged)) {
             long written = inflateTo(plainIn, out);
+            // Two different quantities: what the cipher released says whether the
+            // provider works; what the inflater made of it says whether the key did.
+            if (plainIn.released() == 0) {
+                throw new IOException(NO_PLAINTEXT);
+            }
             if (written == 0) {
-                throw new IOException("cipher released no plaintext (desktop JVM with SunJCE)");
+                throw new IOException("the released bytes inflated to nothing");
             }
             return written;
         }
@@ -151,10 +165,11 @@ public final class Crypt14Restore {
     private static final class CipherUpdateStream extends InputStream {
         private final InputStream cipherIn;
         private final Cipher cipher;
-        private final byte[] cipherChunk = new byte[128];
+        private final byte[] cipherChunk = new byte[16 * 1024];
         private byte[] plainBuffer = new byte[0];
         private int plainPos = 0;
         private boolean eof = false;
+        private long released = 0;
 
         CipherUpdateStream(InputStream cipherIn, Cipher cipher, long skipBytes) throws IOException {
             this.cipherIn = cipherIn;
@@ -191,12 +206,17 @@ public final class Crypt14Restore {
                     if (plainBuffer == null) {
                         plainBuffer = new byte[0];
                     }
+                    released += plainBuffer.length;
                     plainPos = 0;
                 } else {
                     break;
                 }
             }
             return copied > 0 ? copied : -1;
+        }
+
+        long released() {
+            return released;
         }
 
         @Override

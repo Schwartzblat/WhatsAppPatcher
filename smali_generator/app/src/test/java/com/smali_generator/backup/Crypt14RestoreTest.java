@@ -129,11 +129,10 @@ public class Crypt14RestoreTest {
     @Test
     public void stream_truncated_by_16_bytes_still_inflates_to_usable_file() throws Exception {
         // Large incompressible data to exercise multi-chunk drain loop.
-        byte[] plain = new byte[300000];
-        System.arraycopy(Crypt14.SQLITE_MAGIC.getBytes(), 0, plain, 0, Crypt14.SQLITE_MAGIC.length());
-        for (int i = Crypt14.SQLITE_MAGIC.length(); i < plain.length; i++) {
-            plain[i] = (byte) ((i * 73 + 41) % 256);  // pseudo-random, incompressible
-        }
+        byte[] plain = new byte[400000];
+        new java.util.Random(12345).nextBytes(plain);
+        System.arraycopy(Crypt14.SQLITE_MAGIC.getBytes(java.nio.charset.StandardCharsets.US_ASCII), 0,
+                plain, 0, Crypt14.SQLITE_MAGIC.length());
         byte[] compressed = deflate(plain);
         byte[] truncated = new byte[compressed.length - 16];
         System.arraycopy(compressed, 0, truncated, 0, truncated.length);
@@ -193,10 +192,8 @@ public class Crypt14RestoreTest {
         Crypt14Restore.Outcome o = Crypt14Restore.stage(crypt, KEY, staged);
         assertFalse(o.ok);
         assertFalse(staged.exists());
-        // SunJCE case: message names the provider difference
-        if (o.message.contains("plaintext")) {
-            assertTrue("message explains cipher released no plaintext", true);
-        }
+        assertTrue("message: " + o.message, o.message.contains("crypto provider returned no data"));
+        assertTrue(o.message.endsWith("Nothing was changed."));
     }
 
     @Test
