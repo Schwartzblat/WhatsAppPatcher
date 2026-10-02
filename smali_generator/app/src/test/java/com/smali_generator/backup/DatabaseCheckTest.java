@@ -19,7 +19,7 @@ public class DatabaseCheckTest {
     @Test
     public void realisticMessageStorePasses() {
         assertTrue(DatabaseCheck.looksLikeMessageStore(set(
-                "message", "chat", "jid", "message_media", "receipt_user",
+                "message", "chat", "jid", "jid_map", "group_participant_user",
                 "message_system", "message_mentions", "jid_map", "lid_display_name")));
     }
 

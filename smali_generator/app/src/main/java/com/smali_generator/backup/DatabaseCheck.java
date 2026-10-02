@@ -34,8 +34,18 @@ public final class DatabaseCheck {
      * committed over somebody's chat history. Three of five tolerates a rename
      * or two across releases without refusing a good backup.
      */
+    /**
+     * Tables only a message store has. Every one of these is a name this project
+     * has measured on a real msgstore, not one taken from general knowledge: a
+     * guess here either refuses good backups or waves a wrong database through.
+     * jid_map has been present in every release back to 2.26.27.85.
+     *
+     * Three of five, so a release that renames one or two still restores, while
+     * wa.db -- the contacts database, which is sound SQLite and would otherwise
+     * clear every other check here -- has none of them and cannot pass.
+     */
     private static final String[] MESSAGE_STORE_TABLES = {
-            "message", "chat", "jid", "message_media", "receipt_user"};
+            "message", "chat", "jid", "jid_map", "group_participant_user"};
     private static final int REQUIRED_MESSAGE_STORE_TABLES = 3;
     /** What SQLite may create beside a database it opens, even read-only. */
     private static final String[] SIDECARS = {"-wal", "-shm", "-journal"};
@@ -91,7 +101,11 @@ public final class DatabaseCheck {
             } catch (Throwable t) {
                 Log.w(TAG, "DatabaseCheck: no countable message table", t);
             }
-            Log.i(TAG, "DatabaseCheck: integrity ok, tables=" + tables + ", messages=" + messages);
+            // The recognised count is logged on success as well as refusal: it is
+            // the margin above the threshold, and a device run is the only place
+            // it can be confirmed.
+            Log.i(TAG, "DatabaseCheck: integrity ok, tables=" + tables + ", messages=" + messages
+                    + ", messageStoreTables=" + recognised(names) + "/" + MESSAGE_STORE_TABLES.length);
             String what = messages >= 0 ? tables + " tables, " + messages + " messages."
                     : tables + " tables.";
             return new Report(true, "Verified: " + what, tables, messages);
