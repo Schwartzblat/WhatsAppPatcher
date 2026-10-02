@@ -147,6 +147,26 @@ public class Crypt14RestoreTest {
     }
 
     @Test
+    public void a_highly_compressible_stream_drives_the_drain_loop_through_many_passes() throws Exception {
+        // The drain loop only runs more than once when a single input chunk inflates
+        // to more than the 64 KiB output buffer. Incompressible data cannot do that
+        // -- it deflates to its own size, giving one pass per chunk -- so this is the
+        // shape that covers the loop: 4 MB of near-constant bytes deflates to a few
+        // kilobytes, and one 4 KiB input chunk then inflates to about 4 MB.
+        byte[] plain = new byte[4_000_000];
+        System.arraycopy(Crypt14.SQLITE_MAGIC.getBytes(java.nio.charset.StandardCharsets.US_ASCII),
+                0, plain, 0, Crypt14.SQLITE_MAGIC.length());
+        byte[] deflated = deflate(plain);
+
+        File staged = new File(tmp.getRoot(), "compressible.restoring");
+        try (java.io.OutputStream out = new java.io.FileOutputStream(staged)) {
+            long written = Crypt14Restore.inflateTo(new java.io.ByteArrayInputStream(deflated), out);
+            assertEquals(plain.length, written);
+        }
+        assertTrue(Crypt14.looksLikeSqlite(head(staged, 32)));
+    }
+
+    @Test
     public void non_zlib_stream_fails_and_leaves_no_staged_file() throws Exception {
         File staged = new File(tmp.getRoot(), "notzlib.db");
         InputStream in = new ByteArrayInputStream(new byte[1000]);
