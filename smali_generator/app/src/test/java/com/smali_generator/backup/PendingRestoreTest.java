@@ -26,8 +26,14 @@ public class PendingRestoreTest {
 
     @Test
     public void nothing_recorded_means_nothing_to_do() {
-        assertFalse(PendingRestore.decide(null, null, false, true).shouldSwap);
-        assertFalse(PendingRestore.decide("", "", false, true).shouldSwap);
+        // The reason is asserted, not just the refusal: without the empty check the
+        // pair test refuses these anyway, and then nothing pins this guard at all.
+        assertEquals("no restore is pending",
+                PendingRestore.decide(null, null, false, true).reason);
+        assertEquals("no restore is pending",
+                PendingRestore.decide("", "", false, true).reason);
+        assertEquals("no restore is pending",
+                PendingRestore.decide("/x/msgstore.db.restoring", "", true, true).reason);
     }
 
     @Test

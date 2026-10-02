@@ -1,6 +1,5 @@
 package com.smali_generator.backup;
 
-import android.content.Context;
 import android.util.Log;
 
 import com.smali_generator.BootHealth;
@@ -171,7 +170,7 @@ public final class PendingRestore {
      * that: the clear-before-move rule is about attempts, and standing aside is
      * not one.
      */
-    public static void applyPending(Context context, BootHealth.Mode mode) {
+    public static void applyPending(BootHealth.Mode mode) {
         try {
             doApply(mode);
         } catch (Throwable t) {
@@ -196,6 +195,10 @@ public final class PendingRestore {
             clearCommitted();
             Log.i(TAG, "PendingRestore: restore is out of probation");
         }
+        // plan() below is still handed the marker value read before that clear,
+        // which is safe only because the two conditions cannot both want to act:
+        // probationOver needs a clean run or no way back, and decideRollback needs
+        // a bad run and a way back. Change either and re-read the marker here.
 
         Action action = plan(mode == BootHealth.Mode.SAFE, badly, committedAt, haveWayBack,
                 !undoTarget.isEmpty(), !stagedPath.isEmpty() || !targetPath.isEmpty());

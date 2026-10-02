@@ -116,7 +116,7 @@ public class InitProvider extends ContentProvider {
         // deliberately: a swap that takes the app down is counted towards safe
         // mode, and the mode is what lets a bad restore be rolled back.
         try {
-            PendingRestore.applyPending(Utils.getApplicationContext(), mode);
+            PendingRestore.applyPending(mode);
         } catch (Throwable t) {
             // load() must not throw. A failed move leaves a database in place,
             // so carrying on is strictly better than not starting.
