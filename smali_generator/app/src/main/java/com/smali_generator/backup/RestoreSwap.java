@@ -17,6 +17,7 @@ public final class RestoreSwap {
 
     public static final String ASIDE_SUFFIX = ".pre-restore";
     public static final String STAGED_SUFFIX = ".restoring";
+    private static final String SCRATCH_SUFFIX = ".replaced";
 
     public static final String PENDING_STAGED_KEY = "restore_pending_staged";
     public static final String PENDING_TARGET_KEY = "restore_pending_target";
@@ -54,57 +55,160 @@ public final class RestoreSwap {
         return aside.isFile() && aside.length() > 0;
     }
 
+    private static File sibling(File target, String suffix) {
+        return new File(target.getParentFile(), target.getName() + suffix);
+    }
+
+    private static boolean sameFile(File a, File b) {
+        try {
+            return a.getCanonicalFile().equals(b.getCanonicalFile());
+        } catch (java.io.IOException | RuntimeException e) {
+            // Cannot prove they differ, and aliasing is how a swap eats its input.
+            return true;
+        }
+    }
+
     public static Result swap(File staged, File target) {
-        if (staged == null || !staged.isFile() || staged.length() == 0) {
+        try {
+            return doSwap(staged, target);
+        } catch (RuntimeException e) {
+            return new Result(false, "Unexpected failure: " + e);
+        }
+    }
+
+    private static Result doSwap(File staged, File target) {
+        if (staged == null || target == null) {
+            return new Result(false, "Nothing to put in place.");
+        }
+        if (!staged.isFile() || staged.length() == 0) {
             return new Result(false, "There is no staged database to put in place.");
         }
         File aside = asideFile(target);
-        if (target.isFile()) {
-            // Only the first swap writes the way back. A second one would
-            // otherwise replace the user's original database with the result of
-            // their previous restore, which is not a way back at all.
-            if (!aside.exists()) {
-                if (!target.renameTo(aside)) {
-                    return new Result(false, "Could not move the current database aside."
-                            + " Nothing was changed.");
+        File scratch = sibling(target, SCRATCH_SUFFIX);
+        if (sameFile(staged, target) || sameFile(staged, aside) || sameFile(target, aside)) {
+            return new Result(false, "The staged, live and kept databases must be different files.");
+        }
+        // Only the FIRST swap writes the way back; a later one would replace the
+        // user's original with the result of their previous restore. Decided with
+        // hasUndo, the same test the UI uses, so a zero-byte or non-file aside
+        // cannot send this down a branch that reports no way back.
+        boolean keepAsWayBack = !hasUndo(target);
+
+        if (scratch.exists()) {
+            if (!target.exists() && scratch.isFile()) {
+                // A crash between the two renames below leaves the live database
+                // only here. Deleting it as "stale" would destroy the user's data.
+                if (!scratch.renameTo(target)) {
+                    return new Result(false, "An earlier restore was interrupted and its database"
+                            + " could not be put back. It is at " + scratch.getAbsolutePath());
                 }
-            } else if (!target.delete()) {
-                return new Result(false, "Could not clear the current database."
-                        + " Nothing was changed.");
+            } else {
+                scratch.delete();
             }
+        }
+
+        // The live database is moved aside, never deleted: until the staged file is
+        // safely in place this rename is the only thing standing between a failure
+        // and somebody's chat history.
+        if (target.isFile() && !target.renameTo(scratch)) {
+            return new Result(false, "Could not move the current database aside."
+                    + " Nothing was changed.");
         }
         if (!staged.renameTo(target)) {
-            // Put the original back rather than leave the app with no database.
-            if (!target.exists() && aside.isFile()) {
-                aside.renameTo(target);
+            if (scratch.isFile() && scratch.renameTo(target)) {
+                return new Result(false, "Could not put the restored database in place."
+                        + " The database you had is back where it was.");
             }
-            return new Result(false, "Could not put the restored database in place."
-                    + " The original is back where it was.");
+            if (!scratch.isFile()) {
+                return new Result(false, "Could not put the restored database in place."
+                        + " There was no database to put back.");
+            }
+            return new Result(false, "Could not put the restored database in place, and could"
+                    + " not put the previous one back either. It is at " + scratch.getAbsolutePath());
         }
-        deleteSidecars(target);
+        if (keepAsWayBack && scratch.isFile()) {
+            if (!scratch.renameTo(aside)) {
+                // The restore succeeded; only the way back could not be recorded.
+                deleteSidecars(target);
+                return new Result(false, "Restored, but the previous database could not be kept"
+                        + " as a way back. It is at " + scratch.getAbsolutePath());
+            }
+            // Committed transactions live in the -wal until checkpointed, so the
+            // way back is incomplete without the log that belongs to it.
+            moveSidecars(target, aside);
+        } else {
+            scratch.delete();
+        }
+        String stale = deleteSidecars(target);
+        if (stale != null) {
+            return new Result(false, "Restored, but " + stale + " could not be removed."
+                    + " Close and reopen WhatsApp before using it.");
+        }
         return new Result(true, "Restored. The database you had is kept as "
                 + aside.getName() + " in case you want it back.");
     }
 
     public static Result undo(File target) {
+        try {
+            return doUndo(target);
+        } catch (RuntimeException e) {
+            return new Result(false, "Unexpected failure: " + e);
+        }
+    }
+
+    private static Result doUndo(File target) {
+        if (target == null) {
+            return new Result(false, "Nothing to undo.");
+        }
         File aside = asideFile(target);
-        if (!aside.isFile() || aside.length() == 0) {
+        if (!hasUndo(target)) {
             return new Result(false, "There is no earlier database kept to go back to.");
         }
-        if (target.isFile() && !target.delete()) {
-            return new Result(false, "Could not clear the restored database. Nothing was changed.");
+        File scratch = sibling(target, SCRATCH_SUFFIX);
+        scratch.delete();
+        // Same rule as swap: the restored database is moved aside, not deleted,
+        // until the earlier one is in place.
+        if (target.isFile() && !target.renameTo(scratch)) {
+            return new Result(false, "Could not move the restored database aside."
+                    + " Nothing was changed.");
         }
         if (!aside.renameTo(target)) {
-            return new Result(false, "Could not put the earlier database back.");
+            if (scratch.isFile() && scratch.renameTo(target)) {
+                return new Result(false, "Could not put the earlier database back."
+                        + " The current one is back where it was.");
+            }
+            return new Result(false, "Could not put the earlier database back."
+                    + " The current one is at " + scratch.getAbsolutePath());
         }
-        // The restored database's own log must go too, for the same reason.
-        deleteSidecars(target);
+        scratch.delete();
+        // The restored database's own log must not be replayed into the one now
+        // in place; then the earlier database's log comes back with it.
+        String stale = deleteSidecars(target);
+        if (stale != null) {
+            return new Result(false, "Went back, but " + stale + " could not be removed."
+                    + " Close and reopen WhatsApp before using it.");
+        }
+        moveSidecars(aside, target);
         return new Result(true, "Put the earlier database back.");
     }
 
-    private static void deleteSidecars(File target) {
+    private static void moveSidecars(File from, File to) {
         for (String suffix : SIDECARS) {
-            new File(target.getParentFile(), target.getName() + suffix).delete();
+            File src = sibling(from, suffix);
+            if (src.exists()) {
+                src.renameTo(sibling(to, suffix));
+            }
         }
+    }
+
+    /** Returns the name of the first sidecar that survives, or null. */
+    private static String deleteSidecars(File target) {
+        for (String suffix : SIDECARS) {
+            File f = sibling(target, suffix);
+            if (f.exists() && !f.delete() && f.exists()) {
+                return f.getName();
+            }
+        }
+        return null;
     }
 }
