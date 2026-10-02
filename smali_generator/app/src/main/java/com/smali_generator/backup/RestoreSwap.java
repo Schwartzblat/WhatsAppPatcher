@@ -114,7 +114,22 @@ public final class RestoreSwap {
             return new Result(false, "Could not move the current database aside."
                     + " Nothing was changed.");
         }
+        // The log belongs to the displaced database, so it leaves before the new
+        // file arrives: a crash after the next rename must not find the new
+        // database beside the old -wal, which SQLite would replay into it.
+        if (scratch.isFile() && moveSidecars(target, scratch) != null) {
+            moveSidecars(scratch, target);
+            if (scratch.renameTo(target)) {
+                return new Result(false, "Could not move the current database's log aside."
+                        + " Nothing was changed.");
+            }
+            return new Result(false, "Could not move the current database's log aside, and could"
+                    + " not put the database back. It is at " + scratch.getAbsolutePath());
+        }
         if (!staged.renameTo(target)) {
+            // The log goes back with the database, or the old one returns
+            // without its recent transactions.
+            moveSidecars(scratch, target);
             if (scratch.isFile() && scratch.renameTo(target)) {
                 return new Result(false, "Could not put the restored database in place."
                         + " The database you had is back where it was.");
@@ -129,16 +144,18 @@ public final class RestoreSwap {
         if (keepAsWayBack && scratch.isFile()) {
             if (!scratch.renameTo(aside)) {
                 // The restore succeeded; only the way back could not be recorded.
-                deleteSidecars(target);
                 return new Result(false, "Restored, but the previous database could not be kept"
                         + " as a way back. It is at " + scratch.getAbsolutePath());
             }
             // Committed transactions live in the -wal until checkpointed, so the
             // way back is incomplete without the log that belongs to it.
-            moveSidecars(target, aside);
+            moveSidecars(scratch, aside);
         } else {
             scratch.delete();
+            deleteSidecars(scratch);
         }
+        // Belt and braces: the log left before the new file arrived, so this
+        // should find nothing.
         String stale = deleteSidecars(target);
         if (stale != null) {
             return new Result(false, "Restored, but " + stale + " could not be removed."
@@ -172,7 +189,17 @@ public final class RestoreSwap {
             return new Result(false, "Could not move the restored database aside."
                     + " Nothing was changed.");
         }
+        if (scratch.isFile() && moveSidecars(target, scratch) != null) {
+            moveSidecars(scratch, target);
+            if (scratch.renameTo(target)) {
+                return new Result(false, "Could not move the restored database's log aside."
+                        + " Nothing was changed.");
+            }
+            return new Result(false, "Could not move the restored database's log aside, and could"
+                    + " not put the database back. It is at " + scratch.getAbsolutePath());
+        }
         if (!aside.renameTo(target)) {
+            moveSidecars(scratch, target);
             if (scratch.isFile() && scratch.renameTo(target)) {
                 return new Result(false, "Could not put the earlier database back."
                         + " The current one is back where it was.");
@@ -181,8 +208,10 @@ public final class RestoreSwap {
                     + " The current one is at " + scratch.getAbsolutePath());
         }
         scratch.delete();
-        // The restored database's own log must not be replayed into the one now
-        // in place; then the earlier database's log comes back with it.
+        // The restored database's log already left with it, so nothing stale
+        // sits beside the earlier database; its own log comes back now.
+        deleteSidecars(scratch);
+        // Checked before the earlier log is moved in, or it would be deleted as stale.
         String stale = deleteSidecars(target);
         if (stale != null) {
             return new Result(false, "Went back, but " + stale + " could not be removed."
@@ -192,13 +221,15 @@ public final class RestoreSwap {
         return new Result(true, "Put the earlier database back.");
     }
 
-    private static void moveSidecars(File from, File to) {
+    /** Returns the name of the first sidecar that could not be moved, or null. */
+    private static String moveSidecars(File from, File to) {
         for (String suffix : SIDECARS) {
             File src = sibling(from, suffix);
-            if (src.exists()) {
-                src.renameTo(sibling(to, suffix));
+            if (src.exists() && !src.renameTo(sibling(to, suffix))) {
+                return src.getName();
             }
         }
+        return null;
     }
 
     /** Returns the name of the first sidecar that survives, or null. */

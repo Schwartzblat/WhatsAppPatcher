@@ -190,17 +190,18 @@ public class RestoreSwapTest {
     }
 
     @Test
-    public void a_sidecar_that_cannot_be_removed_fails_the_swap() throws Exception {
+    public void a_log_that_cannot_be_moved_aside_fails_the_swap_and_changes_nothing() throws Exception {
         File target = file("msgstore.db", "OLD");
-        assertTrue(RestoreSwap.swap(file("msgstore.db.restoring", "FIRST"), target).ok);
-        // A second swap deletes rather than keeps the sidecars; a non-empty
-        // directory cannot be deleted.
-        File wal = new File(tmp.getRoot(), "msgstore.db-wal");
-        assertTrue(wal.mkdir());
-        file("msgstore.db-wal/x", "x");
-        RestoreSwap.Result r = RestoreSwap.swap(file("msgstore.db.restoring", "SECOND"), target);
+        file("msgstore.db-wal", "OLDWAL");
+        // A non-empty directory where the log would go blocks the move.
+        File blocker = new File(tmp.getRoot(), "msgstore.db.replaced-wal");
+        assertTrue(blocker.mkdir());
+        new FileOutputStream(new File(blocker, "x")).close();
+        RestoreSwap.Result r = RestoreSwap.swap(file("msgstore.db.restoring", "NEW"), target);
         assertFalse(r.ok);
-        assertTrue(r.message, r.message.contains("msgstore.db-wal"));
+        assertTrue(r.message, r.message.contains("log"));
+        assertEquals("OLD", read(target));
+        assertEquals("OLDWAL", read(new File(tmp.getRoot(), "msgstore.db-wal")));
     }
 
     @Test
@@ -255,5 +256,32 @@ public class RestoreSwapTest {
         // Without the guard the rollback also leaves OLD in place, so name the guard.
         assertTrue(r.message, r.message.contains("different files"));
         assertEquals("OLD", read(target));
+    }
+
+    @Test
+    public void no_log_is_left_beside_the_new_database_and_the_old_one_is_kept() throws Exception {
+        File target = file("msgstore.db", "OLD");
+        file("msgstore.db-wal", "OLDWAL");
+        file("msgstore.db-shm", "OLDSHM");
+        file("msgstore.db-journal", "OLDJ");
+        assertTrue(RestoreSwap.swap(file("msgstore.db.restoring", "NEW"), target).ok);
+        for (String s : new String[] {"-wal", "-shm", "-journal"}) {
+            assertFalse(s, new File(tmp.getRoot(), "msgstore.db" + s).exists());
+        }
+        assertEquals("OLDWAL", read(new File(tmp.getRoot(), "msgstore.db.pre-restore-wal")));
+    }
+
+    @Test
+    public void a_failed_swap_returns_the_old_database_with_its_log() throws Exception {
+        File target = file("msgstore.db", "OLD");
+        file("msgstore.db-wal", "OLDWAL");
+        File staged = unmovableStaged("NEW");
+        try {
+            assertFalse(RestoreSwap.swap(staged, target).ok);
+            assertEquals("OLD", read(target));
+            assertEquals("OLDWAL", read(new File(tmp.getRoot(), "msgstore.db-wal")));
+        } finally {
+            unlock();
+        }
     }
 }
