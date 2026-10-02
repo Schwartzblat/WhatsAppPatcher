@@ -6,6 +6,7 @@ import android.content.Context;
 import android.content.DialogInterface;
 import android.graphics.Insets;
 import android.os.Bundle;
+import android.util.Log;
 import android.text.format.DateUtils;
 import android.text.InputType;
 import android.view.Gravity;
@@ -18,6 +19,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import com.smali_generator.backup.BackupManifest;
+import com.smali_generator.BootHealth;
 import com.smali_generator.backup.BackupRunner;
 import com.smali_generator.backup.Crypt14;
 import com.smali_generator.backup.Crypt14Restore;
@@ -45,7 +47,11 @@ import java.util.List;
  */
 public class DriveRestoreActivity extends Activity {
 
+    private static final String TAG = "PATCH";
+
     private LinearLayout content;
+    /** Filled off the main thread: listing /sdcard is a stat per file. */
+    private LinearLayout localBox;
     /** The Drive half, kept apart so its reload cannot wipe the local sections. */
     private LinearLayout driveBox;
 
@@ -61,8 +67,17 @@ public class DriveRestoreActivity extends Activity {
         insetBelowSystemBars(scroller);
         setContentView(scroller);
         setTitle("Restore");
+        // What startup last did to the database, which has no screen of its own:
+        // the sentence that says where somebody's chat history is must reach them.
+        String last = PatchDb.getString(RestoreSwap.RESULT_KEY, "");
+        if (last != null && !last.isEmpty()) {
+            content.addView(line("Last restore step: " + last));
+        }
         // Local first and independent of the network: a local restore needs
         // neither Drive nor a token, so it must not wait on them.
+        localBox = new LinearLayout(this);
+        localBox.setOrientation(LinearLayout.VERTICAL);
+        content.addView(localBox);
         addLocalSection();
         addUndoSection();
         driveBox = new LinearLayout(this);
@@ -73,25 +88,50 @@ public class DriveRestoreActivity extends Activity {
     }
 
     private void addLocalSection() {
-        content.addView(line("On this phone"));
-        File databases = new File(BackupRunner.DATABASES_DIR);
-        List<LocalBackups.Entry> local = LocalBackups.list(databases);
-        if (local.isEmpty()) {
-            content.addView(line("No backup files in WhatsApp's own folder."));
-            return;
-        }
-        for (final LocalBackups.Entry entry : local) {
-            String when = DateUtils.getRelativeTimeSpanString(entry.modifiedAtMs).toString();
-            content.addView(row(entry.name + "\n" + (entry.bytes / (1024 * 1024)) + " MB, " + when,
-                    v -> confirmLocalRestore(entry)));
-        }
+        localBox.addView(line("On this phone"));
+        final TextView loading = line("Looking for backup files\u2026");
+        localBox.addView(loading);
+        new Thread(() -> {
+            List<LocalBackups.Entry> local;
+            try {
+                local = LocalBackups.list(new File(BackupRunner.DATABASES_DIR));
+            } catch (Throwable t) {
+                Log.e(TAG, "DriveRestoreActivity: could not list local backups", t);
+                local = java.util.Collections.emptyList();
+            }
+            final List<LocalBackups.Entry> found = local;
+            runOnUiThread(() -> {
+                if (isFinishing() || isDestroyed()) {
+                    return;
+                }
+                localBox.removeView(loading);
+                if (found.isEmpty()) {
+                    localBox.addView(line("No backup files in WhatsApp's own folder."));
+                    return;
+                }
+                for (final LocalBackups.Entry entry : found) {
+                    String when = DateUtils.getRelativeTimeSpanString(entry.modifiedAtMs).toString();
+                    localBox.addView(row(entry.name + "\n" + (entry.bytes / (1024 * 1024)) + " MB, "
+                            + when, v -> confirmLocalRestore(entry)));
+                }
+            });
+        }, "local-restore-list").start();
     }
 
     private void confirmLocalRestore(final LocalBackups.Entry entry) {
+        // A second restore keeps nothing of the database it replaces: the copy
+        // for Undo is only ever written by the first one. The sentence has to
+        // say which of the two this is.
+        boolean again = RestoreSwap.hasUndo(getApplicationContext().getDatabasePath("msgstore.db"));
+        String kept = again
+                ? "Your current messages will NOT be kept. The copy kept for Undo is still the"
+                + " one from before your first restore, so undoing goes back to that, not to"
+                + " what is on this phone now."
+                : "Your current messages are kept, so you can undo it.";
         new AlertDialog.Builder(this)
                 .setTitle("Restore this backup?")
                 .setMessage("This replaces the messages on this phone with the ones in "
-                        + entry.name + ". Your current messages are kept, so you can undo it."
+                        + entry.name + ". " + kept
                         + "\n\nNothing changes until you restart WhatsApp.")
                 .setNegativeButton("Cancel", null)
                 .setPositiveButton("Restore", (d, which) -> stageLocalRestore(entry))
@@ -99,12 +139,31 @@ public class DriveRestoreActivity extends Activity {
     }
 
     private void stageLocalRestore(final LocalBackups.Entry entry) {
+        if (!PendingRestore.beginPreparing()) {
+            new AlertDialog.Builder(this)
+                    .setTitle("Restore")
+                    .setMessage("A restore is already being prepared. Nothing was changed.")
+                    .setPositiveButton("OK", null)
+                    .show();
+            return;
+        }
         final AlertDialog working = new AlertDialog.Builder(this)
                 .setMessage("Decrypting and checking " + entry.name + "\u2026")
                 .setCancelable(false)
                 .show();
         new Thread(() -> {
-            final String outcome = stageAndVerify(entry);
+            String result;
+            try {
+                result = stageAndVerify(entry);
+            } catch (Throwable t) {
+                // An Error escaping a bare thread takes the host app down, and
+                // that crash is counted as a bad exit by BootHealth.
+                Log.e(TAG, "DriveRestoreActivity: staging failed", t);
+                result = "The restore could not be prepared: " + t + ". Nothing was changed.";
+            } finally {
+                PendingRestore.endPreparing();
+            }
+            final String outcome = result;
             runOnUiThread(() -> {
                 // The staged file and the pending record are the work and they
                 // outlive the screen, so a dead activity just has nowhere to
@@ -128,15 +187,16 @@ public class DriveRestoreActivity extends Activity {
     private String stageAndVerify(LocalBackups.Entry entry) {
         Context context = getApplicationContext();
         File target = context.getDatabasePath("msgstore.db");
+        String refusal = PendingRestore.stagingRefusal(BootHealth.inSafeMode(),
+                PatchDb.getString(RestoreSwap.PENDING_UNDO_KEY, "").length() > 0);
+        if (refusal != null) {
+            return refusal;
+        }
         // WhatsApp rewrites this folder nightly, so the entry is a snapshot:
         // size and existence are read again here, at the moment of use.
         long length = entry.file.length();
         if (!entry.file.isFile() || length <= 0) {
             return "That backup file is gone or empty now. Nothing was changed.";
-        }
-        if (PatchDb.getString(RestoreSwap.PENDING_UNDO_KEY, "").length() > 0) {
-            return "An undo is already waiting for the next start. Restart WhatsApp first."
-                    + " Nothing was changed.";
         }
         File parent = target.getParentFile();
         long needed = Crypt14Restore.requiredFreeBytes(length);
@@ -194,7 +254,11 @@ public class DriveRestoreActivity extends Activity {
             staged.delete();
             return report.reason + " Nothing was changed.";
         }
-        PendingRestore.record(staged, target);
+        if (!PendingRestore.record(staged, target)) {
+            staged.delete();
+            return "An undo was queued while this was being prepared, so the restore was"
+                    + " dropped. Restart WhatsApp first. Nothing was changed.";
+        }
         return report.reason + "\n\nNow close WhatsApp completely and open it again."
                 + " The restore is applied as it starts, and nothing changes until then.";
     }
@@ -205,7 +269,7 @@ public class DriveRestoreActivity extends Activity {
             return;
         }
         content.addView(line("Undo"));
-        content.addView(row("Put back the messages from before the last restore",
+        content.addView(row("Put back the messages from before the first restore",
                 v -> confirmUndo()));
     }
 
@@ -217,17 +281,16 @@ public class DriveRestoreActivity extends Activity {
      */
     private void confirmUndo() {
         new AlertDialog.Builder(this)
-                .setTitle("Undo the last restore?")
+                .setTitle("Undo the restore?")
                 .setMessage("This puts back the messages that were on this phone before the"
-                        + " restore.\n\nClose WhatsApp completely and open it again;"
+                        + " first restore. Anything received since is not kept."
+                        + "\n\nClose WhatsApp completely and open it again;"
                         + " nothing changes until then.")
                 .setNegativeButton("Cancel", null)
                 .setPositiveButton("Undo", (d, which) -> {
-                    String message;
-                    if (PatchDb.getString(RestoreSwap.PENDING_STAGED_KEY, "").length() > 0) {
-                        message = "A restore is already waiting for the next start, and an undo"
-                                + " cannot be queued beside it. Restart WhatsApp first.";
-                    } else {
+                    String message = PendingRestore.undoRefusal(BootHealth.inSafeMode(),
+                            PatchDb.getString(RestoreSwap.PENDING_STAGED_KEY, "").length() > 0);
+                    if (message == null) {
                         PendingRestore.recordUndo(
                                 getApplicationContext().getDatabasePath("msgstore.db"));
                         message = "Undo recorded.\n\nNow close WhatsApp completely and open it"

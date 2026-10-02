@@ -20,9 +20,10 @@ import javax.crypto.spec.SecretKeySpec;
  * in particular it never touches the live database. Committing the result is
  * RestoreSwap's job, and only after the staged file has been verified.
  *
- * android.util.Log is the one android reference here and it is reached only on
- * a real device; the tests do not call the logging paths. Nothing logged is ever
- * key material: lengths and booleans only.
+ * android.util.Log is the one android reference here. It is reached through
+ * log(), which swallows the stub's "not mocked" failure so the desktop tests can
+ * run stage(); on a device it is the only way to see how far a decrypt got.
+ * Nothing logged is ever key material: counts only.
  */
 public final class Crypt14Restore {
 
@@ -40,6 +41,16 @@ public final class Crypt14Restore {
      */
     static final String NO_PLAINTEXT = "This phone's crypto provider returned no data,"
             + " which should not happen on Android. Nothing was changed.";
+
+    /**
+     * Shown when the staged file could not be written. Kept apart from a wrong
+     * key: sending somebody to re-register their number over a full disk is the
+     * worst available advice. INFLATION_FACTOR is an estimate over a measured
+     * ~4x and the free-space check is made before the write, not during it.
+     */
+    static final String DISK_FULL = "The database could not be written to this phone's storage,"
+            + " most likely because it is full. Free some space and try again."
+            + " Nothing was changed.";
 
     private Crypt14Restore() {
     }
@@ -89,13 +100,16 @@ public final class Crypt14Restore {
         staged.delete();
         long written;
         String decryptError = null;
+        long[] counts = {0, -1};
         try {
-            written = decrypt(crypt14, key, header, staged);
+            written = decrypt(crypt14, key, header, staged, counts);
+            log(true, counts);
         } catch (IOException e) {
             staged.delete();
+            log(false, counts);
             decryptError = e.getMessage();
             // A silent cipher is a provider fault, not a wrong key; keep them apart.
-            if (NO_PLAINTEXT.equals(decryptError)) {
+            if (NO_PLAINTEXT.equals(decryptError) || DISK_FULL.equals(decryptError)) {
                 return new Outcome(false, decryptError, 0);
             }
             return new Outcome(false, "That backup did not decrypt with the key on this phone."
@@ -104,6 +118,7 @@ public final class Crypt14Restore {
                     + " Nothing was changed.", 0);
         } catch (RuntimeException e) {
             staged.delete();
+            log(false, counts);
             return new Outcome(false, "That backup did not decrypt with the key on this phone."
                     + " The key on this phone does not match it -- that happens when the"
                     + " backup predates the last time this number was registered."
@@ -128,8 +143,28 @@ public final class Crypt14Restore {
         return new Outcome(true, "Decrypted and verified as a database.", written);
     }
 
-    private static long decrypt(File crypt14, byte[] key, Crypt14.Header header, File staged)
-            throws IOException {
+    /**
+     * What the cipher released against what the inflater made of it is the only
+     * way to tell a provider that yields nothing from a key that yields noise,
+     * and only a device can show it. -1 means the inflater was never reached.
+     */
+    static String countsLine(boolean ok, long released, long written) {
+        return "Crypt14Restore: " + (ok ? "staged" : "failed") + ", released=" + released
+                + ", written=" + written;
+    }
+
+    private static void log(boolean ok, long[] counts) {
+        try {
+            Log.i(TAG, countsLine(ok, counts[0], counts[1]));
+        } catch (RuntimeException ignored) {
+            // A log line must never be what fails a restore; on a desktop JVM
+            // the framework stub throws here.
+        }
+    }
+
+    /** counts receives {released, written}, filled in as far as the run got. */
+    private static long decrypt(File crypt14, byte[] key, Crypt14.Header header, File staged,
+                                long[] counts) throws IOException {
         Cipher cipher;
         try {
             cipher = Cipher.getInstance("AES/GCM/NoPadding");
@@ -141,8 +176,14 @@ public final class Crypt14Restore {
 
         try (InputStream cipherIn = new FileInputStream(crypt14);
              CipherUpdateStream plainIn = new CipherUpdateStream(cipherIn, cipher, header.cipherOffset);
-             OutputStream out = new FileOutputStream(staged)) {
-            long written = inflateTo(plainIn, out);
+             FileOutputStream out = new FileOutputStream(staged)) {
+            long written;
+            try {
+                written = inflateTo(plainIn, out);
+            } finally {
+                counts[0] = plainIn.released();
+            }
+            counts[1] = written;
             // Two different quantities: what the cipher released says whether the
             // provider works; what the inflater made of it says whether the key did.
             if (plainIn.released() == 0) {
@@ -151,6 +192,9 @@ public final class Crypt14Restore {
             if (written == 0) {
                 throw new IOException("the released bytes inflated to nothing");
             }
+            // The swap happens in a later process: a power loss between the two
+            // would otherwise commit a database whose tail never reached the disk.
+            out.getFD().sync();
             return written;
         }
     }
@@ -267,7 +311,12 @@ public final class Crypt14Restore {
             if (n <= 0) {
                 break;
             }
-            out.write(buffer, 0, n);
+            try {
+                out.write(buffer, 0, n);
+            } catch (IOException e) {
+                // Not the stream's fault and not the key's: the disk refused.
+                throw new IOException(DISK_FULL, e);
+            }
             written += n;
         }
         return written;

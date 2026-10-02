@@ -2,6 +2,8 @@ package com.smali_generator.backup;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
@@ -142,5 +144,41 @@ public class PendingRestoreTest {
         assertEquals(NOTHING, PendingRestore.plan(true, true, "", false, false, false));
         // A live probation on a clean run is not a reason to move anything.
         assertEquals(NOTHING, PendingRestore.plan(false, false, "1", true, false, false));
+    }
+
+    @Test
+    public void a_swap_that_landed_its_database_is_put_on_probation_whatever_it_reported() {
+        assertTrue(PendingRestore.shouldMarkCommitted(true, false));
+        // The aside could not be recorded, or a stale log survived: the staged file
+        // is gone because it is now the live database.
+        assertTrue(PendingRestore.shouldMarkCommitted(false, false));
+        // Refused before anything moved: the staged file is still there.
+        assertFalse(PendingRestore.shouldMarkCommitted(false, true));
+    }
+
+    @Test
+    public void staging_is_refused_in_safe_mode_and_beside_a_queued_undo_but_not_otherwise() {
+        assertNotNull(PendingRestore.stagingRefusal(true, false));
+        assertNotNull(PendingRestore.stagingRefusal(false, true));
+        assertNull(PendingRestore.stagingRefusal(false, false));
+    }
+
+    @Test
+    public void an_undo_is_refused_in_safe_mode_and_beside_a_queued_restore_but_not_otherwise() {
+        assertNotNull(PendingRestore.undoRefusal(true, false));
+        assertNotNull(PendingRestore.undoRefusal(false, true));
+        assertNull(PendingRestore.undoRefusal(false, false));
+    }
+
+    @Test
+    public void only_one_restore_is_prepared_at_a_time() {
+        assertTrue(PendingRestore.beginPreparing());
+        try {
+            assertFalse(PendingRestore.beginPreparing());
+        } finally {
+            PendingRestore.endPreparing();
+        }
+        assertTrue(PendingRestore.beginPreparing());
+        PendingRestore.endPreparing();
     }
 }

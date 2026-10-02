@@ -12,6 +12,8 @@ import java.io.File;
  * The displaced database is kept as msgstore.db.pre-restore and is never
  * overwritten by a later swap, so the way back always reaches the database the
  * user actually started with rather than the result of their previous attempt.
+ * The corollary is that a LATER swap keeps nothing of the database it replaces:
+ * every sentence shown to the user has to say which of the two happened.
  */
 public final class RestoreSwap {
 
@@ -33,6 +35,12 @@ public final class RestoreSwap {
      * ends well. Its own pair of keys, never the pending ones: those are cleared
      * on purpose before the move, and this has to outlive the move.
      */
+    /**
+     * What startup last did to the database, in words for the screen. Startup
+     * has no UI, so without this the sentence naming where somebody's chats
+     * went would exist only in logcat.
+     */
+    public static final String RESULT_KEY = "restore_last_result";
     public static final String COMMITTED_AT_KEY = "restore_committed_at";
     public static final String COMMITTED_TARGET_KEY = "restore_committed_target";
 
@@ -101,12 +109,6 @@ public final class RestoreSwap {
         if (sameFile(staged, target) || sameFile(staged, aside) || sameFile(target, aside)) {
             return new Result(false, "The staged, live and kept databases must be different files.");
         }
-        // Only the FIRST swap writes the way back; a later one would replace the
-        // user's original with the result of their previous restore. Decided with
-        // hasUndo, the same test the UI uses, so a zero-byte or non-file aside
-        // cannot send this down a branch that reports no way back.
-        boolean keepAsWayBack = !hasUndo(target);
-
         if (scratch.exists()) {
             if (!target.exists() && scratch.isFile()) {
                 // A crash between the two renames below leaves the live database
@@ -118,10 +120,32 @@ public final class RestoreSwap {
                 // The recovered database keeps its own log; leaving it behind would
                 // either orphan it or hand it to the delete below.
                 moveSidecars(scratch, target);
+            } else if (scratch.isFile() && !hasUndo(target)) {
+                // With a target present and no way back recorded, the scratch is the
+                // database that was live before a swap that died after landing its
+                // staged file and before recording this one: the user's original,
+                // which is exactly what the aside is for. Deleting it would make the
+                // first restore's result the way back. It travels with its own log.
+                if (!scratch.renameTo(aside)) {
+                    return new Result(false, "An earlier restore was interrupted and the database"
+                            + " it displaced could not be kept. It is at " + scratch.getAbsolutePath()
+                            + ". Nothing was changed.");
+                }
+                moveSidecars(scratch, aside);
             } else {
+                // A way back already exists, and the true original outranks an
+                // intermediate left by an interrupted later swap.
                 scratch.delete();
             }
         }
+        // Only the FIRST swap writes the way back; a later one would replace the
+        // user's original with the result of their previous restore. Decided with
+        // hasUndo, the same test the UI uses, so a zero-byte or non-file aside
+        // cannot send this down a branch that reports no way back. Read AFTER the
+        // rescue above, which may just have created the aside: the answer from
+        // before it would let this swap rename the intermediate over the original.
+        boolean keepAsWayBack = !hasUndo(target);
+        boolean hadLiveDatabase = target.isFile();
         // scratch is resolved by now (recovered to target, or deleted), so a log
         // still at scratch-* is from an interrupted run and is not the live
         // database's. Left there, the next move into scratch would pair it with a
@@ -163,6 +187,7 @@ public final class RestoreSwap {
             return new Result(false, "Could not put the restored database in place, and could"
                     + " not put the previous one back either. It is at " + scratch.getAbsolutePath());
         }
+        boolean kept = false;
         if (keepAsWayBack && scratch.isFile()) {
             if (!scratch.renameTo(aside)) {
                 // The restore succeeded; only the way back could not be recorded.
@@ -172,6 +197,7 @@ public final class RestoreSwap {
             // Committed transactions live in the -wal until checkpointed, so the
             // way back is incomplete without the log that belongs to it.
             moveSidecars(scratch, aside);
+            kept = true;
         } else {
             scratch.delete();
             deleteSidecars(scratch);
@@ -183,8 +209,53 @@ public final class RestoreSwap {
             return new Result(false, "Restored, but " + stale + " could not be removed."
                     + " Close and reopen WhatsApp before using it.");
         }
-        return new Result(true, "Restored. The database you had is kept as "
-                + aside.getName() + " in case you want it back.");
+        return new Result(true, successMessage(kept, hadLiveDatabase, aside.getName()));
+    }
+
+    /**
+     * Worded from what is on disk, not from what the dialog promised: the three
+     * outcomes leave different things behind and a sentence that fits only the
+     * first sends somebody to look for a copy that is not there.
+     */
+    static String successMessage(boolean keptAsWayBack, boolean hadLiveDatabase, String asideName) {
+        if (keptAsWayBack) {
+            return "Restored. The database you had is kept as " + asideName
+                    + " in case you want it back.";
+        }
+        if (!hadLiveDatabase) {
+            return "Restored. There was no database on this phone to keep, so there is"
+                    + " nothing to undo back to.";
+        }
+        return "Restored. The copy kept for Undo is still the one from before your first"
+                + " restore (" + asideName + "); the database this replaced was not kept.";
+    }
+
+    /**
+     * Puts a database stranded by a swap that died between its two renames back
+     * where WhatsApp looks for it. Idempotent and total: it acts only when there
+     * is no database at all and one sits in the scratch slot, a state no
+     * completed run leaves. The pending record was cleared before that swap, on
+     * purpose, so nothing else would ever look; without this WhatsApp creates a
+     * fresh empty database and the user's chats appear gone.
+     * Returns true only when it moved something.
+     */
+    public static boolean rescueStranded(File target) {
+        try {
+            if (target == null) {
+                return false;
+            }
+            File scratch = sibling(target, SCRATCH_SUFFIX);
+            if (target.exists() || !scratch.isFile()) {
+                return false;
+            }
+            if (!scratch.renameTo(target)) {
+                return false;
+            }
+            moveSidecars(scratch, target);
+            return true;
+        } catch (RuntimeException e) {
+            return false;
+        }
     }
 
     public static Result undo(File target) {

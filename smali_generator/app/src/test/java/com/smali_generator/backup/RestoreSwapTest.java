@@ -274,22 +274,88 @@ public class RestoreSwapTest {
     }
 
     @Test
-    public void a_log_left_in_the_scratch_slot_by_a_killed_swap_never_becomes_the_way_backs_log()
+    public void a_killed_swap_neither_loses_the_original_nor_lets_its_log_follow_the_wrong_file()
             throws Exception {
         // The state a kill after staged-to-target and before scratch-to-aside
         // leaves: the new database is live and the old one, with its log, is
-        // still in the scratch slot. The old log must not follow the live
-        // database into the next swap's way back, nor sit beside it.
+        // still in the scratch slot. Covers two things. The user's original (OLD)
+        // must become the way back rather than be deleted as stale, and the live
+        // database's own log must not follow into it. OLD's log belongs to OLD,
+        // so it travels with it.
         File target = file("msgstore.db", "NEW");
         file("msgstore.db.replaced", "OLD");
         file("msgstore.db.replaced-wal", "OLDWAL");
+        file("msgstore.db-wal", "NEWWAL");
         RestoreSwap.Result r = RestoreSwap.swap(file("msgstore.db.restoring", "NEWER"), target);
         assertTrue(r.message, r.ok);
         assertEquals("NEWER", read(target));
         assertFalse(sidecar("-wal").exists());
-        assertEquals("NEW", read(RestoreSwap.asideFile(target)));
-        assertFalse(sidecar(".pre-restore-wal").exists());
+        assertEquals("OLD", read(RestoreSwap.asideFile(target)));
+        assertEquals("OLDWAL", read(sidecar(".pre-restore-wal")));
         assertFalse(sidecar(".replaced-wal").exists());
+        assertFalse(new File(tmp.getRoot(), "msgstore.db.replaced").exists());
+        assertTrue(RestoreSwap.undo(target).ok);
+        assertEquals("OLD", read(target));
+        assertEquals("OLDWAL", read(sidecar("-wal")));
+    }
+
+    @Test
+    public void a_scratch_left_beside_an_existing_way_back_is_the_intermediate_and_is_dropped()
+            throws Exception {
+        // The true original outranks whatever an interrupted LATER swap left.
+        File target = file("msgstore.db", "A");
+        file("msgstore.db.pre-restore", "ORIGINAL");
+        file("msgstore.db.replaced", "INTERMEDIATE");
+        assertTrue(RestoreSwap.swap(file("msgstore.db.restoring", "B"), target).ok);
+        assertEquals("B", read(target));
+        assertEquals("ORIGINAL", read(RestoreSwap.asideFile(target)));
+        assertFalse(new File(tmp.getRoot(), "msgstore.db.replaced").exists());
+    }
+
+    @Test
+    public void a_later_swap_says_that_nothing_was_kept_and_the_first_says_what_was() throws Exception {
+        File target = file("msgstore.db", "ORIGINAL");
+        RestoreSwap.Result first = RestoreSwap.swap(file("msgstore.db.restoring", "A"), target);
+        assertTrue(first.message, first.message.contains("kept as msgstore.db.pre-restore"));
+        RestoreSwap.Result second = RestoreSwap.swap(file("msgstore.db.restoring", "B"), target);
+        assertTrue(second.message, second.message.contains("before your first restore"));
+        assertTrue(second.message, second.message.contains("was not kept"));
+        assertFalse(second.message, second.message.contains("The database you had is kept"));
+    }
+
+    @Test
+    public void a_swap_with_no_database_to_displace_does_not_claim_to_have_kept_one() throws Exception {
+        File target = new File(tmp.getRoot(), "msgstore.db");
+        RestoreSwap.Result r = RestoreSwap.swap(file("msgstore.db.restoring", "A"), target);
+        assertTrue(r.message, r.ok);
+        assertTrue(r.message, r.message.contains("nothing to undo back to"));
+        assertFalse(RestoreSwap.hasUndo(target));
+    }
+
+    @Test
+    public void a_swap_killed_between_its_renames_is_rescued_at_startup() throws Exception {
+        // No msgstore.db and no record: the swap cleared its record on purpose.
+        File target = new File(tmp.getRoot(), "msgstore.db");
+        file("msgstore.db.replaced", "MINE");
+        file("msgstore.db.replaced-wal", "MINEWAL");
+        assertTrue(RestoreSwap.rescueStranded(target));
+        assertEquals("MINE", read(target));
+        assertEquals("MINEWAL", read(sidecar("-wal")));
+        assertFalse(new File(tmp.getRoot(), "msgstore.db.replaced").exists());
+        // Idempotent: a second launch finds nothing to do.
+        assertFalse(RestoreSwap.rescueStranded(target));
+        assertEquals("MINE", read(target));
+    }
+
+    @Test
+    public void the_rescue_never_touches_a_scratch_when_a_database_is_in_place() throws Exception {
+        File target = file("msgstore.db", "LIVE");
+        file("msgstore.db.replaced", "OTHER");
+        assertFalse(RestoreSwap.rescueStranded(target));
+        assertEquals("LIVE", read(target));
+        assertEquals("OTHER", read(new File(tmp.getRoot(), "msgstore.db.replaced")));
+        assertFalse(RestoreSwap.rescueStranded(new File(tmp.getRoot(), "nothing.db")));
+        assertFalse(RestoreSwap.rescueStranded(null));
     }
 
     @Test

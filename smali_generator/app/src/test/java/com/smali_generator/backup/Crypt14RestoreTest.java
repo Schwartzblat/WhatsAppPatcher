@@ -223,4 +223,32 @@ public class Crypt14RestoreTest {
         assertEquals(0L, Crypt14Restore.requiredFreeBytes(0L));
         assertTrue(Crypt14Restore.requiredFreeBytes(13_000_000L) > 13_000_000L);
     }
+
+    @Test
+    public void a_full_disk_is_reported_as_one_and_not_as_a_wrong_key() throws Exception {
+        java.io.ByteArrayOutputStream z = new java.io.ByteArrayOutputStream();
+        try (java.util.zip.DeflaterOutputStream d = new java.util.zip.DeflaterOutputStream(z)) {
+            d.write(new byte[100000]);
+        }
+        OutputStream full = new OutputStream() {
+            @Override
+            public void write(int b) throws IOException {
+                throw new IOException("No space left on device");
+            }
+        };
+        try {
+            Crypt14Restore.inflateTo(new ByteArrayInputStream(z.toByteArray()), full);
+            fail("a refused write must surface");
+        } catch (IOException e) {
+            assertEquals(Crypt14Restore.DISK_FULL, e.getMessage());
+        }
+    }
+
+    @Test
+    public void the_log_line_carries_both_counts_and_nothing_else() {
+        String line = Crypt14Restore.countsLine(false, 0, 123);
+        assertTrue(line, line.contains("released=0"));
+        assertTrue(line, line.contains("written=123"));
+        assertTrue(Crypt14Restore.countsLine(true, 5, 6).contains("staged"));
+    }
 }

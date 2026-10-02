@@ -1,11 +1,14 @@
 package com.smali_generator.backup;
 
+import android.content.Context;
 import android.util.Log;
 
+import com.smali_generator.ActivityResume;
 import com.smali_generator.BootHealth;
 import com.smali_generator.db.PatchDb;
 
 import java.io.File;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Carries a verified restore, and its undo, across a process restart.
@@ -131,10 +134,76 @@ public final class PendingRestore {
         return undoRecorded ? Action.UNDO : Action.SWAP;
     }
 
-    public static void record(File staged, File target) {
+    /**
+     * Whether a swap that did not report success still put the restored database
+     * in place. Decided from the disk, not from the flag: two failures come after
+     * the staged file has already become the live database (the way back could
+     * not be recorded; a stale log could not be removed), and a restored database
+     * left live with no probation has no automatic way out if it stops WhatsApp
+     * starting. The staged file is consumed only by the rename that lands it.
+     */
+    static boolean shouldMarkCommitted(boolean swapOk, boolean stagedStillThere) {
+        return swapOk || !stagedStillThere;
+    }
+
+    /**
+     * The sentence for the screen when staging a restore must be refused, or null.
+     * Safe mode is sticky and plan() stands aside in it for ever, so accepting a
+     * request there would promise "the next start" and never keep it.
+     */
+    public static String stagingRefusal(boolean safeMode, boolean undoRecorded) {
+        if (safeMode) {
+            return "The patch is in safe mode, which does not apply restores."
+                    + " Leave safe mode first. Nothing was changed.";
+        }
+        if (undoRecorded) {
+            return "An undo is already waiting for the next start. Restart WhatsApp first."
+                    + " Nothing was changed.";
+        }
+        return null;
+    }
+
+    /** The sentence when an undo must be refused, or null. */
+    public static String undoRefusal(boolean safeMode, boolean swapRecorded) {
+        if (safeMode) {
+            return "The patch is in safe mode, which does not apply an undo."
+                    + " Leave safe mode first. Nothing was changed.";
+        }
+        if (swapRecorded) {
+            return "A restore is already waiting for the next start, and an undo"
+                    + " cannot be queued beside it. Restart WhatsApp first.";
+        }
+        return null;
+    }
+
+    /**
+     * One staging at a time. Two threads would write the same staged path, and
+     * the first could verify and record a file the second is still extending: a
+     * database committed without a whole-file integrity_check.
+     */
+    private static final AtomicBoolean PREPARING = new AtomicBoolean();
+
+    public static boolean beginPreparing() {
+        return PREPARING.compareAndSet(false, true);
+    }
+
+    public static void endPreparing() {
+        PREPARING.set(false);
+    }
+
+    /**
+     * Records the intent, unless an undo was recorded in the meantime. The check
+     * belongs here and not only at the start of staging: staging takes minutes,
+     * and the plan() conflict rule would then discard both requests.
+     */
+    public static boolean record(File staged, File target) {
+        if (get(RestoreSwap.PENDING_UNDO_KEY).length() > 0) {
+            return false;
+        }
         PatchDb.setString(RestoreSwap.PENDING_STAGED_KEY, staged.getAbsolutePath());
         PatchDb.setString(RestoreSwap.PENDING_TARGET_KEY, target.getAbsolutePath());
         PatchDb.setString(RestoreSwap.PENDING_AT_KEY, String.valueOf(System.currentTimeMillis()));
+        return true;
     }
 
     public static void recordUndo(File target) {
@@ -170,17 +239,28 @@ public final class PendingRestore {
      * that: the clear-before-move rule is about attempts, and standing aside is
      * not one.
      */
-    public static void applyPending(BootHealth.Mode mode) {
+    public static void applyPending(Context context, BootHealth.Mode mode) {
         try {
-            doApply(mode);
+            doApply(context, mode);
         } catch (Throwable t) {
             Log.e(TAG, "PendingRestore: failed", t);
         }
     }
 
-    private static void doApply(BootHealth.Mode mode) {
+    private static void doApply(Context context, BootHealth.Mode mode) {
         if (mode == null) {
             return;
+        }
+        // Whatever is pending, and before plan(): a swap killed between its two
+        // renames leaves no database and no record (the record was cleared on
+        // purpose), so with nothing pending nothing else would look for it, and
+        // WhatsApp would create an empty one over the user's chats. The Context
+        // is for this alone -- the target is always this path -- so do not drop it.
+        if (context != null
+                && RestoreSwap.rescueStranded(context.getDatabasePath("msgstore.db"))) {
+            Log.e(TAG, "PendingRestore: an interrupted restore had left no database; put it back");
+            PatchDb.setString(RestoreSwap.RESULT_KEY, "An earlier restore was interrupted."
+                    + " The database you had was put back.");
         }
         boolean badly = mode != BootHealth.Mode.NORMAL;
         String committedAt = get(RestoreSwap.COMMITTED_AT_KEY);
@@ -209,8 +289,13 @@ public final class PendingRestore {
                 clearCommitted();
                 clearUndo();
                 RestoreSwap.Result r = RestoreSwap.undo(new File(committedTarget));
-                Log.e(TAG, "PendingRestore: the app did not start after a restore, so the"
-                        + " earlier database was put back. ok=" + r.ok + " -- " + r.message);
+                String said = r.ok
+                        ? "The app did not start after a restore, so the earlier database was"
+                        + " put back. " + r.message
+                        : "The app did not start after a restore, and the earlier database"
+                        + " could not be put back. " + r.message;
+                Log.e(TAG, "PendingRestore: " + said);
+                PatchDb.setString(RestoreSwap.RESULT_KEY, said);
                 return;
             }
             case STAND_ASIDE:
@@ -224,6 +309,8 @@ public final class PendingRestore {
                 }
                 Log.e(TAG, "PendingRestore: both a restore and an undo were requested;"
                         + " doing neither");
+                PatchDb.setString(RestoreSwap.RESULT_KEY, "A restore and an undo were both"
+                        + " waiting, so neither was done. Nothing was changed.");
                 return;
             case UNDO: {
                 clearUndo();
@@ -231,6 +318,7 @@ public final class PendingRestore {
                 clearCommitted();
                 RestoreSwap.Result r = RestoreSwap.undo(new File(undoTarget));
                 Log.i(TAG, "PendingRestore: undo ok=" + r.ok + " -- " + r.message);
+                PatchDb.setString(RestoreSwap.RESULT_KEY, r.message);
                 return;
             }
             case SWAP:
@@ -248,6 +336,8 @@ public final class PendingRestore {
                 parent != null && parent.canWrite());
         if (!decision.shouldSwap) {
             Log.w(TAG, "PendingRestore: not swapping -- " + decision.reason);
+            PatchDb.setString(RestoreSwap.RESULT_KEY, "The restore was not applied: "
+                    + decision.reason + ". Nothing was changed.");
             if (pairBelongs(stagedPath, targetPath)) {
                 staged.delete();
             }
@@ -259,9 +349,37 @@ public final class PendingRestore {
         clear();
         RestoreSwap.Result result = RestoreSwap.swap(staged, target);
         Log.i(TAG, "PendingRestore: swap ok=" + result.ok + " -- " + result.message);
-        if (result.ok) {
+        PatchDb.setString(RestoreSwap.RESULT_KEY, result.message);
+        if (shouldMarkCommitted(result.ok, staged.exists())) {
             PatchDb.setString(RestoreSwap.COMMITTED_TARGET_KEY, target.getAbsolutePath());
             PatchDb.setString(RestoreSwap.COMMITTED_AT_KEY, String.valueOf(System.currentTimeMillis()));
+            endProbationAtFirstScreen();
+        }
+    }
+
+    private static final AtomicBoolean PROBATION_ENDED = new AtomicBoolean();
+
+    /**
+     * The probation is a start-up, not a session. BootHealth answers "was there
+     * a bad exit" for the whole of a launch, which can be days, so an unrelated
+     * ANR hours later would roll the restore back and delete everything received
+     * since. What the rollback exists for is a restored database that stops the
+     * app reaching a screen, so the first resumed activity is the proof. Not a
+     * timer: that is the rule against deciding a launch healthy by elapsed time.
+     * A background push launch has no activity and leaves the marker in place.
+     * No unit test reaches this (the dispatch is a framework callback); it is a
+     * device check.
+     */
+    private static void endProbationAtFirstScreen() {
+        boolean listening = ActivityResume.addListener(activity -> {
+            if (PROBATION_ENDED.compareAndSet(false, true)) {
+                clearCommitted();
+                Log.i(TAG, "PendingRestore: a screen opened on the restored database,"
+                        + " so it is out of probation");
+            }
+        });
+        if (!listening) {
+            Log.w(TAG, "PendingRestore: cannot watch for a screen; probation lasts until the next launch");
         }
     }
 }

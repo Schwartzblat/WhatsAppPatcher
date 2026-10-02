@@ -28,13 +28,6 @@ public final class DatabaseCheck {
     /** A real msgstore has hundreds of tables; a handful means something is wrong. */
     private static final int MINIMUM_TABLES = 50;
     /**
-     * Tables only a message store has, all attested in msgstore.db. A sound
-     * SQLite file is not enough: WhatsApp writes other .crypt14 databases too
-     * (wa.db is the contacts), and this is the last check before one could be
-     * committed over somebody's chat history. Three of five tolerates a rename
-     * or two across releases without refusing a good backup.
-     */
-    /**
      * Tables only a message store has. Every one of these is a name this project
      * has measured on a real msgstore, not one taken from general knowledge: a
      * guess here either refuses good backups or waves a wrong database through.
