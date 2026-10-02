@@ -84,4 +84,22 @@ public class LocalBackupsTest {
         assertFalse(LocalBackups.isCrypt14("msgstore.db.crypt14.tmp"));
         assertFalse(LocalBackups.isCrypt14(null));
     }
+
+    @Test
+    public void whatsapps_other_crypt14_files_are_not_offered_as_chat_backups() throws Exception {
+        // Measured on the test device: WhatsApp writes all of these. wa.db.crypt14 is
+        // the contacts database -- genuine SQLite, so it would pass the magic-byte and
+        // integrity checks downstream and be written over the user's chats.
+        write("wa.db.crypt14", 10, 5000);
+        write("chatsettingsbackup.db.crypt14", 10, 5000);
+        write("commerce_backup.db.crypt14", 10, 5000);
+        write("status_backup.db.crypt14", 10, 5000);
+        write("stickers_db.bak.crypt14", 10, 5000);
+        write("offloaded-media.db.crypt14", 10, 5000);
+        write("backup_settings.json.crypt14", 10, 5000);
+        write("msgstore.db.crypt14", 10, 6000);
+        List<LocalBackups.Entry> found = LocalBackups.list(tmp.getRoot());
+        assertEquals(1, found.size());
+        assertEquals("msgstore.db.crypt14", found.get(0).name);
+    }
 }

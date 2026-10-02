@@ -16,6 +16,7 @@ import java.util.List;
  */
 public final class LocalBackups {
 
+    private static final String PREFIX = "msgstore";
     private static final String SUFFIX = ".crypt14";
 
     private LocalBackups() {
@@ -36,7 +37,11 @@ public final class LocalBackups {
     }
 
     public static boolean isCrypt14(String name) {
-        return name != null && name.endsWith(SUFFIX);
+        // The suffix alone is not enough: WhatsApp writes seven other .crypt14 files
+        // (wa.db, commerce_backup.db, offloaded-media.db, stickers_db.bak, backup_settings.json,
+        // chatsettingsbackup.db, status_backup.db), and wa.db.crypt14 is the contacts database --
+        // genuine SQLite that would pass downstream integrity checks and be written over the user's chats.
+        return name != null && name.startsWith(PREFIX) && name.endsWith(SUFFIX);
     }
 
     public static List<Entry> list(File databasesDir) {
@@ -56,7 +61,11 @@ public final class LocalBackups {
         Collections.sort(out, new Comparator<Entry>() {
             @Override
             public int compare(Entry a, Entry b) {
-                return Long.compare(b.modifiedAtMs, a.modifiedAtMs);
+                int mtimeOrder = Long.compare(b.modifiedAtMs, a.modifiedAtMs);
+                if (mtimeOrder != 0) {
+                    return mtimeOrder;
+                }
+                return a.name.compareTo(b.name);
             }
         });
         return out;
