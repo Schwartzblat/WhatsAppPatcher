@@ -2,6 +2,8 @@ package com.smali_generator.backup;
 
 import android.util.Log;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -119,29 +121,56 @@ public final class Crypt14Restore {
             throw new IOException("cipher refused the key or IV", e);
         }
 
-        Inflater inflater = new Inflater();
         long written = 0;
-        byte[] cipherChunk = new byte[128];  // Tiny chunks force update() to release blocks
+        byte[] cipherChunk = new byte[128];
         byte[] plainChunk;
-        byte[] inflated = new byte[1 << 16];
+        ByteArrayInputStream plainIn = new ByteArrayInputStream(new byte[0]);
         try (InputStream in = new FileInputStream(crypt14);
              OutputStream out = new FileOutputStream(staged)) {
             skipFully(in, header.cipherOffset);
             int read;
+            ByteArrayOutputStream plainBuffer = new ByteArrayOutputStream();
             while ((read = in.read(cipherChunk)) > 0) {
-                // update() and never doFinal: WhatsApp's crypt14 carries no GCM tag
-                // Java can verify, and doFinal throws away a good database. Feed in
-                // chunks so intermediate blocks are processed and released.
+                // update() only, never doFinal. On Conscrypt (Android) this releases
+                // plaintext incrementally. On SunJCE (desktop) it buffers until
+                // doFinal, so desktop tests cannot exercise the cipher seam.
                 plainChunk = cipher.update(cipherChunk, 0, read);
                 if (plainChunk != null && plainChunk.length > 0) {
-                    inflater.setInput(plainChunk);
-                    written += drain(inflater, inflated, out);
+                    plainBuffer.write(plainChunk);
                 }
             }
-            // No doFinal, so the last 16 bytes of plaintext stay in the cipher's
-            // buffer for a tag that never comes. The stream therefore ends a
-            // little early and the inflater simply runs out of input; that is
-            // expected, and the SQLite check above is what proves the result good.
+            byte[] allPlain = plainBuffer.toByteArray();
+            if (allPlain.length == 0) {
+                throw new IOException("cipher released no plaintext (desktop JVM with SunJCE)");
+            }
+            plainIn = new ByteArrayInputStream(allPlain);
+            written = inflateTo(plainIn, out);
+        }
+        return written;
+    }
+
+    /**
+     * Inflates an already-decrypted stream to the staged file. Separated from the
+     * cipher because AES/GCM cannot be exercised on a desktop JVM at all: SunJCE
+     * buffers every byte until doFinal, while Android's Conscrypt releases
+     * incrementally. Everything below this line is therefore testable; the cipher
+     * seam above it is verified on the device.
+     */
+    public static long inflateTo(InputStream plain, OutputStream staged) throws IOException {
+        Inflater inflater = new Inflater();
+        long written = 0;
+        byte[] inflated = new byte[1 << 16];
+        try {
+            int read;
+            byte[] plainChunk = new byte[4096];
+            while ((read = plain.read(plainChunk)) > 0) {
+                inflater.setInput(plainChunk, 0, read);
+                written += drain(inflater, inflated, staged);
+            }
+        } finally {
+            // The stream has ended. If the inflater is not finished, it means the
+            // ciphertext was truncated (by design: update() withholds the last 16
+            // bytes when no tag is present). This is expected and correct.
             inflater.end();
         }
         return written;
