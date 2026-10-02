@@ -5,6 +5,9 @@ import android.database.sqlite.SQLiteDatabase;
 import android.util.Log;
 
 import java.io.File;
+import java.util.HashSet;
+import java.util.Locale;
+import java.util.Set;
 
 /**
  * Opens a staged database read-only and asks SQLite whether it is sound, before
@@ -24,6 +27,16 @@ public final class DatabaseCheck {
     private static final String TAG = "PATCH";
     /** A real msgstore has hundreds of tables; a handful means something is wrong. */
     private static final int MINIMUM_TABLES = 50;
+    /**
+     * Tables only a message store has, all attested in msgstore.db. A sound
+     * SQLite file is not enough: WhatsApp writes other .crypt14 databases too
+     * (wa.db is the contacts), and this is the last check before one could be
+     * committed over somebody's chat history. Three of five tolerates a rename
+     * or two across releases without refusing a good backup.
+     */
+    private static final String[] MESSAGE_STORE_TABLES = {
+            "message", "chat", "jid", "message_media", "receipt_user"};
+    private static final int REQUIRED_MESSAGE_STORE_TABLES = 3;
     /** What SQLite may create beside a database it opens, even read-only. */
     private static final String[] SIDECARS = {"-wal", "-shm", "-journal"};
 
@@ -55,10 +68,17 @@ public final class DatabaseCheck {
                 return new Report(false, "SQLite reports this database as damaged.", 0, 0);
             }
 
-            int tables = (int) count(db, "SELECT count(*) FROM sqlite_master WHERE type='table'");
+            Set<String> names = tableNames(db);
+            int tables = names.size();
             if (tables < MINIMUM_TABLES) {
                 return new Report(false, "That database has only " + tables
                         + " tables, so it is not a WhatsApp message store.", tables, 0);
+            }
+            if (!looksLikeMessageStore(names)) {
+                return new Report(false, "That database is sound but does not look like a message"
+                        + " store: it has " + recognised(names) + " of the " + MESSAGE_STORE_TABLES.length
+                        + " tables a message store has (need " + REQUIRED_MESSAGE_STORE_TABLES + ").",
+                        tables, 0);
             }
 
             // The one number here that is allowed to be unknown: a sound store
@@ -94,12 +114,48 @@ public final class DatabaseCheck {
             // databases/ for good. Tidying, not a gate: failures change nothing.
             for (String suffix : SIDECARS) {
                 try {
-                    new File(database.getPath() + suffix).delete();
+                    // Derived the way the open was: a relative path resolves
+                    // against a CWD of "/" in an app and would miss the orphan.
+                    new File(database.getAbsolutePath() + suffix).delete();
                 } catch (Throwable ignored) {
                     // See above.
                 }
             }
         }
+    }
+
+    /**
+     * Package-private so the decision is testable; the SQLite call that feeds it is not.
+     * Case-insensitive, because SQLite table names are for ASCII.
+     */
+    static boolean looksLikeMessageStore(Set<String> tableNames) {
+        return tableNames != null && recognised(tableNames) >= REQUIRED_MESSAGE_STORE_TABLES;
+    }
+
+    private static int recognised(Set<String> tableNames) {
+        Set<String> lower = new HashSet<>();
+        for (String name : tableNames) {
+            if (name != null) {
+                lower.add(name.toLowerCase(Locale.ROOT));
+            }
+        }
+        int found = 0;
+        for (String wanted : MESSAGE_STORE_TABLES) {
+            if (lower.contains(wanted)) {
+                found++;
+            }
+        }
+        return found;
+    }
+
+    private static Set<String> tableNames(SQLiteDatabase db) {
+        Set<String> names = new HashSet<>();
+        try (Cursor c = db.rawQuery("SELECT name FROM sqlite_master WHERE type='table'", null)) {
+            while (c.moveToNext()) {
+                names.add(c.getString(0));
+            }
+        }
+        return names;
     }
 
     private static String one(SQLiteDatabase db, String sql) {
