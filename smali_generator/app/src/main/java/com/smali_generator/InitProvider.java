@@ -29,6 +29,8 @@ import com.smali_generator.patches.ReadReceipts;
 import com.smali_generator.patches.SharedMembers;
 import com.smali_generator.patches.SenderSearch;
 import com.smali_generator.patches.SettingsEntryHook;
+import com.smali_generator.patches.StoreUpdateLinks;
+import com.smali_generator.patches.StoreUpdates;
 import com.smali_generator.patches.WhatsAppPlus;
 import com.smali_generator.patches.ZipFileHook;
 import com.smali_generator.utils.Utils;
@@ -81,6 +83,8 @@ public class InitProvider extends ContentProvider {
             // After AbProps, which owns the funnel it asks to have hooked.
             new GroupHistorySharing(),
             new SettingsEntryHook(),
+            new StoreUpdates(),
+            new StoreUpdateLinks(),
             new GroupStats(),
             new SharedMembers(),
             // Last: it needs nothing from the other hooks, and a failure here

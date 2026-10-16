@@ -213,6 +213,15 @@
         "CONTACT_INFO_ACTIVITY_CLASS_NAME",
         "CONTACT_INFO_JID_EXTRA"
       ]
+    },
+    {
+      "id": "store_updates",
+      "title": "Updates through the store",
+      "keys": [
+        "UPGRADE_CHECK_CLASS_NAME",
+        "UPGRADE_CHECK_METHOD_NAME",
+        "UPGRADE_CHECK_METHOD_SIG"
+      ]
     }
   ]
 }
