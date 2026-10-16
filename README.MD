@@ -58,6 +58,25 @@ You don't have to provide a Google API key, only if you want to patch the OAuth 
 
 This will determinate if you could use the Google Maps features inside WhatsApp.
 
+## Patch bundle (on-device patching)
+
+`bundle.py` builds the signed patch bundle the on-device patcher downloads, written to
+`bundle-com.whatsapp-<PATCHER_VERSION>.zip` (`-o` to change):
+
+```bash
+python bundle.py --paywall ../PatchPaywall --signing-key /outside/the/repo/bundle-signing-key.pem
+```
+
+- `--paywall`: the PatchPaywall checkout.
+- `--signing-key`: the EC P-256 private key (PEM) that signs the bundle. Keep it outside the repository and
+  never commit it.
+- `--upload`: after building, check the bundle against the signing key's public key and upload it to
+  `$PATCH_SERVER_URL/api/internal/bundles` with `$BUNDLE_UPLOAD_SECRET` (the server's
+  `BUNDLE_UPLOAD_SECRET`). Set both in the environment, not on the command line.
+
+Upload the bundle of a new `PATCHER_VERSION` before the crawler's patcher checkout is updated to it: the
+server's `latest` ignores records of a patcher version that has no bundle.
+
 ## Google API Key
 
 To get a Google API key, follow these steps:
