@@ -22,7 +22,7 @@ def get_args_from(argv: List[str]):
     parser.add_argument('--min-store-version-code', dest='min_store_version_code', type=int, default=0,
                         help='Oldest store version code that may install this bundle')
     parser.add_argument('--work', default='./.bundle-work', help='Work dir (must not exist; removed afterwards)')
-    args, _ = parser.parse_known_args(argv)
+    args = parser.parse_args(argv)
     return args
 
 

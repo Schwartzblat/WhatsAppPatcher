@@ -58,3 +58,9 @@ def test_bundle_cli_builds_a_verifiable_bundle(tmp_path, monkeypatch):
                     ('PatchPaywall', {'PAYWALL_PROVIDER_CLASS': 'InitProviderPaywallWhatsApp'})]
     assert zipfile.ZipFile(out).read('features.json') == FEATURES_PATH.read_bytes()
     assert not (tmp_path / 'work').exists()
+
+
+def test_unknown_flag_is_an_error():
+    import pytest
+    with pytest.raises(SystemExit):
+        bundle.get_args_from(['--paywall', 'p', '--signing-key', 'k', '--bogus'])

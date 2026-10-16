@@ -28,7 +28,7 @@ public class SettingsEntryHook implements Hook {
     }
 
     private static void onResumed(Activity activity) {
-        if (!settingsActivity().equals(activity.getClass().getName())) {
+        if (!activity.getClass().getName().equals(settingsActivity())) {
             return;
         }
         final View decor = activity.getWindow().getDecorView();

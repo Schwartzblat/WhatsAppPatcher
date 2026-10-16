@@ -182,7 +182,7 @@ public final class GroupInfoRows {
     }
 
     private static void onResumed(Activity activity) {
-        if (!groupInfoActivity().equals(activity.getClass().getName())) {
+        if (!activity.getClass().getName().equals(groupInfoActivity())) {
             return;
         }
         String gid = gidOf(activity);

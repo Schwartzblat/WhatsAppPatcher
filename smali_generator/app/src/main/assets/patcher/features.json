@@ -193,6 +193,7 @@
       "id": "group_history",
       "title": "Send more group history",
       "keys": [
+        "AB_PROPS_BOOL_METHOD_NAME",
         "AB_PROPS_CLASS_NAME",
         "AB_PROPS_FUNNEL_METHOD_NAME",
         "AB_PROPS_FUNNEL_METHOD_SIG"

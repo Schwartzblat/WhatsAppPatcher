@@ -3,7 +3,6 @@ agp = "8.10.0"
 annotationJvm = "1.9.1"
 arthooks = "1.1.2"
 junit = "4.13.2"
-json = { group = "org.json", name = "json", version = "20240303" }
 [libraries]
 androidx-annotation-jvm = { group = "androidx.annotation", name = "annotation-jvm", version.ref = "annotationJvm" }
 arthooks = { module = "com.github.Schwartzblat:ArtHooks", version.ref = "arthooks" }
