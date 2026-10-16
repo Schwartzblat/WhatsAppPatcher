@@ -22,6 +22,7 @@ from artifactory_generator.mention_everyone import MentionEveryoneFinder
 from artifactory_generator.contact_info import ContactInfoFinder
 from artifactory_generator.group_info import GroupInfoFinder
 from artifactory_generator.delete_for_everyone import DeleteForEveryoneFinder
+from artifactory_generator.pinned_chats import PinnedChatsFinder
 
 
 # Stitch writes this into the target's manifest as the provider's android:name,
@@ -82,7 +83,8 @@ def main():
         MentionEveryoneFinder(args),
         GroupInfoFinder(args),
         ContactInfoFinder(args),
-        DeleteForEveryoneFinder(args)
+        DeleteForEveryoneFinder(args),
+        PinnedChatsFinder(args)
     ]
     with Stitch(
             apk_path=args.apk_path,
