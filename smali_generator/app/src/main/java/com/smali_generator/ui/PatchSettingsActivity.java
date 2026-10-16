@@ -258,12 +258,19 @@ public class PatchSettingsActivity extends Activity {
         TextView title = new TextView(this);
         title.setText(hook.title());
         title.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f);
-        title.setTextColor(Palette.primaryText(this));
+        boolean available = hook.isAvailable();
+        title.setTextColor(available ? Palette.primaryText(this) : Palette.secondaryText(this));
         text.addView(title);
 
         // No "Required." here any more: the Mandatory section says it once,
         // for all of them.
-        if (!hook.description().isEmpty()) {
+        if (!available) {
+            TextView subtitle = new TextView(this);
+            subtitle.setText("Not available on this WhatsApp version yet");
+            subtitle.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f);
+            subtitle.setTextColor(Palette.secondaryText(this));
+            text.addView(subtitle);
+        } else if (!hook.description().isEmpty()) {
             TextView subtitle = new TextView(this);
             subtitle.setText(hook.description());
             subtitle.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f);
@@ -274,10 +281,10 @@ public class PatchSettingsActivity extends Activity {
                 ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
         Switch toggle = new Switch(this);
-        toggle.setChecked(hook.isEnabled());
-        toggle.setEnabled(hook.toggleable());
+        toggle.setChecked(available && hook.isEnabled());
+        toggle.setEnabled(available && hook.toggleable());
         Palette.paintSwitch(toggle);
-        if (hook.toggleable()) {
+        if (available && hook.toggleable()) {
             toggle.setOnCheckedChangeListener((button, checked) -> onToggled(hook, checked));
         }
         row.addView(toggle);

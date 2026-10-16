@@ -72,6 +72,15 @@ public interface Hook {
     }
 
     /**
+     * Whether every artifact this hook needs was found for this WhatsApp
+     * version. A hook that is not available is never installed, whatever its
+     * switch says, and the settings screen shows it as such.
+     */
+    default boolean isAvailable() {
+        return Artifacts.hasAll(Features.keysFor(id()));
+    }
+
+    /**
      * Whether {@link InitProvider} should install this hook.
      *
      * Read once per hook at startup, which is why turning one off only takes

@@ -97,6 +97,8 @@ public class InitProvider extends ContentProvider {
 
         Log.i("PATCH", "Patch loaded!");
         PatchDb.init(Utils.getApplicationContext());
+        Artifacts.init(Utils.getApplicationContext());
+        Features.init(Utils.getApplicationContext());
 
         // Before the wrappers and before any hook: this counts the launch as
         // failed until it proves otherwise, so a start that dies inside one of
@@ -140,6 +142,10 @@ public class InitProvider extends ContentProvider {
                 // in to turn it back off.
                 if (mode == BootHealth.Mode.SAFE && hook.toggleable()) {
                     Log.i("PATCH", "Safe mode: " + hook.getClass().getSimpleName() + " not loaded");
+                    continue;
+                }
+                if (!hook.isAvailable()) {
+                    Log.w("PATCH", "Hook " + hook.id() + " not available on this version, missing keys");
                     continue;
                 }
                 // Read here rather than inside the hook: a hook that is off is

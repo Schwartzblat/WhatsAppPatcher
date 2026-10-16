@@ -1,0 +1,218 @@
+{
+  "required_keys": [
+    "PACKAGE_SIGNATURE",
+    "FMESSAGE_CLASS",
+    "SETTINGS_ACTIVITY_CLASS_NAME"
+  ],
+  "official_cert_sha256": [
+    "fb920d381bee1b2093f27dc8f13d994da629dc91887d0529b35c9a2dc4f4a6c2",
+    "3987d043d10aefaf5a8710b3671418fe57e0e19b653c9df82558feb5ffce5d44"
+  ],
+  "features": [
+    {
+      "id": "package_manager",
+      "title": "Passes WhatsApp's signature check",
+      "keys": [
+        "PACKAGE_SIGNATURE"
+      ]
+    },
+    {
+      "id": "settings_entry",
+      "title": "Settings shortcut",
+      "keys": [
+        "SETTINGS_ACTIVITY_CLASS_NAME"
+      ]
+    },
+    {
+      "id": "firebase_params",
+      "title": "Push notifications",
+      "keys": [
+        "FIREBASE_PARAMS_CLASS_NAME",
+        "ORIGINAL_API_KEY"
+      ],
+      "visible": false
+    },
+    {
+      "id": "decrypt_protobuf",
+      "title": "Keep deleted and view-once messages",
+      "keys": [
+        "DECRYPT_PROTOBUF_CLASS_NAME",
+        "PARSE_PARAMS_BUILDER_CLASS_NAME",
+        "PARSE_PARAMS_BUILDER_METHOD_NAME",
+        "PARSE_PARAMS_BUILDER_METHOD_SIG"
+      ]
+    },
+    {
+      "id": "deleted_indicator",
+      "title": "Mark deleted messages",
+      "keys": [
+        "FMESSAGE_CLASS",
+        "ROW_BINDER_CLASS_NAME",
+        "ROW_BINDER_METHOD_NAME",
+        "ROW_BINDER_METHOD_SIG",
+        "ROW_ITEM_METHOD_NAME",
+        "ROW_ITEM_METHOD_SIG"
+      ]
+    },
+    {
+      "id": "delete_for_everyone",
+      "title": "Delete for everyone, any time",
+      "keys": [
+        "MESSAGE_TIMESTAMP_CLASS_NAME",
+        "MESSAGE_TIMESTAMP_FIELD_NAME",
+        "REVOKE_DIALOG_CLASS_NAME",
+        "REVOKE_DIALOG_METHOD_NAME",
+        "REVOKE_DIALOG_METHOD_SIG"
+      ]
+    },
+    {
+      "id": "read_receipts",
+      "title": "Hide my blue ticks",
+      "keys": [
+        "JID_CLASS_NAME",
+        "JID_RAW_STRING_METHOD_NAME",
+        "PLAYED_RECEIPT_GATE_METHOD_NAME",
+        "PLAYED_RECEIPT_GATE_METHOD_SIG",
+        "PLAYED_RECEIPT_JOB_CLASS_NAME",
+        "PLAYED_RECEIPT_JOB_METHOD_NAME",
+        "PLAYED_RECEIPT_JOB_METHOD_SIG",
+        "READ_RECEIPT_UTILS_CLASS_NAME",
+        "RECEIPT_TYPE_METHOD_NAME",
+        "RECEIPT_TYPE_METHOD_SIG"
+      ]
+    },
+    {
+      "id": "contact_search_duplicates",
+      "title": "No duplicate contacts in search",
+      "keys": [
+        "CONTACT_JID_CLASS_NAME",
+        "CONTACT_JID_METHOD_NAME",
+        "CONTACT_RAW_ID_METHOD_NAME",
+        "CONTACT_SEARCH_CLASS_NAME",
+        "CONTACT_SEARCH_METHOD_NAME",
+        "CONTACT_SEARCH_METHOD_SIG"
+      ]
+    },
+    {
+      "id": "sender_search",
+      "title": "Search by sender",
+      "keys": [
+        "MESSAGE_SEARCH_CLASS_NAME",
+        "MESSAGE_SEARCH_METHOD_NAME",
+        "MESSAGE_SEARCH_METHOD_SIG",
+        "MESSAGE_SEARCH_TOKEN_OFFSET",
+        "MESSAGE_SEARCH_TOKEN_RADIX"
+      ]
+    },
+    {
+      "id": "meta_ai_button",
+      "title": "Remove Meta AI",
+      "keys": [
+        "META_AI_BUTTON_GATE_CLASS_NAME",
+        "META_AI_BUTTON_GATE_METHOD_NAME",
+        "META_AI_BUTTON_GATE_METHOD_SIG",
+        "META_AI_CALLS_GATE_CLASS_NAME",
+        "META_AI_CALLS_GATE_METHOD_NAME",
+        "META_AI_CALLS_GATE_METHOD_SIG",
+        "META_AI_TABS_CLASS_NAME",
+        "META_AI_TABS_METHOD_NAME",
+        "META_AI_TABS_METHOD_SIG",
+        "META_AI_TAB_ID"
+      ]
+    },
+    {
+      "id": "mention_everyone",
+      "title": "Tag everyone",
+      "keys": [
+        "MENTION_ENTRY_CLASS_NAME",
+        "MENTION_EVERYONE_CLASS_NAME",
+        "MENTION_EVERYONE_FIELD_NAME",
+        "MENTION_GET_METHOD_NAME",
+        "MENTION_GET_METHOD_SIG"
+      ]
+    },
+    {
+      "id": "unlimited_pinned_chats",
+      "title": "Unlimited pinned chats",
+      "keys": [
+        "PIN_BENEFIT_CLASS_NAME",
+        "PIN_BENEFIT_METHOD_NAME",
+        "PIN_BENEFIT_METHOD_SIG",
+        "PIN_CLOCK_METHOD_NAME",
+        "PIN_CLOCK_METHOD_SIG",
+        "PIN_GATE_CASE",
+        "PIN_GATE_CASE_FIELD",
+        "PIN_GATE_CLASS_NAME",
+        "PIN_GATE_DONE_FIELD",
+        "PIN_GATE_HELPER_FIELD",
+        "PIN_GATE_METHOD_NAME",
+        "PIN_GATE_METHOD_SIG",
+        "PIN_GATE_SELECTION_FIELD",
+        "PIN_HELPER_CLASS_NAME",
+        "PIN_HELPER_CLOCK_FIELD",
+        "PIN_HELPER_PINNER_FIELD",
+        "PIN_HELPER_STORE_FIELD",
+        "PIN_HELPER_TOAST_FIELD",
+        "PIN_PINNED_METHOD_NAME",
+        "PIN_PINNED_METHOD_SIG",
+        "PIN_PINNER_METHOD_NAME",
+        "PIN_PINNER_METHOD_SIG",
+        "PIN_STORE_GETTER_CLASS_NAME",
+        "PIN_STORE_GETTER_METHOD_NAME",
+        "PIN_STORE_GETTER_METHOD_SIG",
+        "PIN_TOAST_MANY",
+        "PIN_TOAST_METHOD_NAME",
+        "PIN_TOAST_ONE",
+        "PIN_TRIM_CASE",
+        "PIN_TRIM_CASE_FIELD",
+        "PIN_TRIM_CLASS_NAME",
+        "PIN_TRIM_METHOD_NAME",
+        "PIN_TRIM_METHOD_SIG"
+      ]
+    },
+    {
+      "id": "whatsapp_plus",
+      "title": "WhatsApp Premium",
+      "keys": [
+        "WHATSAPP_PLUS_CLASS_NAME",
+        "WHATSAPP_PLUS_METHOD_NAME",
+        "WHATSAPP_PLUS_METHOD_SIG"
+      ]
+    },
+    {
+      "id": "ab_props",
+      "title": "A/B property overrides",
+      "keys": [
+        "AB_PROPS_BOOL_METHOD_NAME",
+        "AB_PROPS_CLASS_NAME",
+        "AB_PROPS_FUNNEL_METHOD_NAME",
+        "AB_PROPS_FUNNEL_METHOD_SIG"
+      ]
+    },
+    {
+      "id": "group_history",
+      "title": "Send more group history",
+      "keys": [
+        "AB_PROPS_CLASS_NAME",
+        "AB_PROPS_FUNNEL_METHOD_NAME",
+        "AB_PROPS_FUNNEL_METHOD_SIG"
+      ]
+    },
+    {
+      "id": "group_stats",
+      "title": "Group statistics",
+      "keys": [
+        "GROUP_INFO_ACTIVITY_CLASS_NAME"
+      ]
+    },
+    {
+      "id": "shared_members",
+      "title": "Shared members",
+      "keys": [
+        "GROUP_INFO_ACTIVITY_CLASS_NAME",
+        "CONTACT_INFO_ACTIVITY_CLASS_NAME",
+        "CONTACT_INFO_JID_EXTRA"
+      ]
+    }
+  ]
+}
