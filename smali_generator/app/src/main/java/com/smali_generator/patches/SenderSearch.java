@@ -5,6 +5,7 @@ import android.util.Log;
 
 import com.arthooks.ArtHooks;
 
+import com.smali_generator.Artifacts;
 import com.smali_generator.Hook;
 import com.smali_generator.HookCategory;
 import com.smali_generator.db.PatchDb;
@@ -166,12 +167,12 @@ public class SenderSearch implements Hook {
             // Parsed rather than inlined: an unsubstituted placeholder then fails
             // here, before anything is hooked, instead of becoming an encoding
             // that silently names no message.
-            tokenOffset = Integer.parseInt("{{MESSAGE_SEARCH_TOKEN_OFFSET}}");
-            tokenRadix = Integer.parseInt("{{MESSAGE_SEARCH_TOKEN_RADIX}}");
-            Class<?> owner = Class.forName("{{MESSAGE_SEARCH_CLASS_NAME}}");
+            tokenOffset = Integer.parseInt(Artifacts.get("MESSAGE_SEARCH_TOKEN_OFFSET"));
+            tokenRadix = Integer.parseInt(Artifacts.get("MESSAGE_SEARCH_TOKEN_RADIX"));
+            Class<?> owner = Class.forName(Artifacts.get("MESSAGE_SEARCH_CLASS_NAME"));
 
             Executable funnel = ArtHooks.find_function(owner,
-                    "{{MESSAGE_SEARCH_METHOD_NAME}}", "{{MESSAGE_SEARCH_METHOD_SIG}}");
+                    Artifacts.get("MESSAGE_SEARCH_METHOD_NAME"), Artifacts.get("MESSAGE_SEARCH_METHOD_SIG"));
             // R8 staticizes an instance method whose receiver goes unused without
             // touching the descriptor the finder matches, so a staticized funnel
             // would hook cleanly with every argument shifted by one. Declining
@@ -193,7 +194,7 @@ public class SenderSearch implements Hook {
             }
 
             Log.i(TAG, "SenderSearch: hooked on " + owner.getName()
-                    + ".{{MESSAGE_SEARCH_METHOD_NAME}}, tokens are base " + tokenRadix
+                    + "." + Artifacts.get("MESSAGE_SEARCH_METHOD_NAME") + ", tokens are base " + tokenRadix
                     + " from " + tokenOffset + ", hooked=" + hooked);
         } catch (Throwable t) {
             Log.e(TAG, "SenderSearch: search was left as it was: " + t);

@@ -4,6 +4,7 @@ import android.util.Log;
 
 import com.arthooks.ArtHooks;
 
+import com.smali_generator.Artifacts;
 import com.smali_generator.Hook;
 import com.smali_generator.HookCategory;
 import com.smali_generator.db.LidJids;
@@ -366,12 +367,12 @@ public class ReadReceipts implements Hook {
 
     public void load() {
         try {
-            rawJidMethod = Class.forName("{{JID_CLASS_NAME}}")
-                    .getMethod("{{JID_RAW_STRING_METHOD_NAME}}");
-            Class<?> read_receipt_utils = Class.forName("{{READ_RECEIPT_UTILS_CLASS_NAME}}");
+            rawJidMethod = Class.forName(Artifacts.get("JID_CLASS_NAME"))
+                    .getMethod(Artifacts.get("JID_RAW_STRING_METHOD_NAME"));
+            Class<?> read_receipt_utils = Class.forName(Artifacts.get("READ_RECEIPT_UTILS_CLASS_NAME"));
 
             Executable receipt_type = ArtHooks.find_function(read_receipt_utils,
-                    "{{RECEIPT_TYPE_METHOD_NAME}}", "{{RECEIPT_TYPE_METHOD_SIG}}");
+                    Artifacts.get("RECEIPT_TYPE_METHOD_NAME"), Artifacts.get("RECEIPT_TYPE_METHOD_SIG"));
             Method receipt_type_replacement = ReadReceipts.class.getDeclaredMethod(
                     "receipt_type_hook", Object.class, Object.class, boolean.class);
             Method receipt_type_original = ReadReceipts.class.getDeclaredMethod(
@@ -380,7 +381,7 @@ public class ReadReceipts implements Hook {
                     receipt_type, receipt_type_replacement, receipt_type_original);
 
             Executable played_gate = ArtHooks.find_function(read_receipt_utils,
-                    "{{PLAYED_RECEIPT_GATE_METHOD_NAME}}", "{{PLAYED_RECEIPT_GATE_METHOD_SIG}}");
+                    Artifacts.get("PLAYED_RECEIPT_GATE_METHOD_NAME"), Artifacts.get("PLAYED_RECEIPT_GATE_METHOD_SIG"));
             Method played_gate_replacement = ReadReceipts.class.getDeclaredMethod(
                     "played_gate_hook", Object.class, Object.class);
             Method played_gate_original = ReadReceipts.class.getDeclaredMethod(
@@ -388,9 +389,9 @@ public class ReadReceipts implements Hook {
             boolean played_hooked = ArtHooks.hook_function(
                     played_gate, played_gate_replacement, played_gate_original);
 
-            Class<?> played_job = Class.forName("{{PLAYED_RECEIPT_JOB_CLASS_NAME}}");
+            Class<?> played_job = Class.forName(Artifacts.get("PLAYED_RECEIPT_JOB_CLASS_NAME"));
             Executable played_run = ArtHooks.find_function(played_job,
-                    "{{PLAYED_RECEIPT_JOB_METHOD_NAME}}", "{{PLAYED_RECEIPT_JOB_METHOD_SIG}}");
+                    Artifacts.get("PLAYED_RECEIPT_JOB_METHOD_NAME"), Artifacts.get("PLAYED_RECEIPT_JOB_METHOD_SIG"));
             Method played_job_replacement = ReadReceipts.class.getDeclaredMethod(
                     "played_job_hook", Object.class);
             Method played_job_original = ReadReceipts.class.getDeclaredMethod(

@@ -9,6 +9,7 @@ import android.util.Log;
 
 import com.arthooks.ArtHooks;
 
+import com.smali_generator.Artifacts;
 import com.smali_generator.Hook;
 import com.smali_generator.HookCategory;
 import com.smali_generator.db.MessageKey;
@@ -211,13 +212,13 @@ public class DecryptProtobuf implements Hook {
 
     public void load() {
         try {
-            message_class = Class.forName("{{DECRYPT_PROTOBUF_CLASS_NAME}}");
-            Class<?> builder = Class.forName("{{PARSE_PARAMS_BUILDER_CLASS_NAME}}");
+            message_class = Class.forName(Artifacts.get("DECRYPT_PROTOBUF_CLASS_NAME"));
+            Class<?> builder = Class.forName(Artifacts.get("PARSE_PARAMS_BUILDER_CLASS_NAME"));
 
             Executable build = ArtHooks.find_function(builder,
-                    "{{PARSE_PARAMS_BUILDER_METHOD_NAME}}", "{{PARSE_PARAMS_BUILDER_METHOD_SIG}}");
+                    Artifacts.get("PARSE_PARAMS_BUILDER_METHOD_NAME"), Artifacts.get("PARSE_PARAMS_BUILDER_METHOD_SIG"));
             if (build == null) {
-                Log.e(TAG, "DecryptProtobuf: no {{PARSE_PARAMS_BUILDER_METHOD_NAME}} on " + builder.getName());
+                Log.e(TAG, "DecryptProtobuf: no " + Artifacts.get("PARSE_PARAMS_BUILDER_METHOD_NAME") + " on " + builder.getName());
                 return;
             }
             // R8 staticizes an instance method whose receiver goes unused, and a
@@ -225,7 +226,7 @@ public class DecryptProtobuf implements Hook {
             // on the first message, outside every try/catch, host app dead.
             if (Modifier.isStatic(build.getModifiers())) {
                 Log.e(TAG, "DecryptProtobuf: " + builder.getName()
-                        + ".{{PARSE_PARAMS_BUILDER_METHOD_NAME}} is static, declining to hook it");
+                        + "." + Artifacts.get("PARSE_PARAMS_BUILDER_METHOD_NAME") + " is static, declining to hook it");
                 return;
             }
             Method replacement = DecryptProtobuf.class.getDeclaredMethod("params_hook", Object.class);
@@ -233,7 +234,7 @@ public class DecryptProtobuf implements Hook {
             boolean hooked = ArtHooks.hook_function(build, replacement, original);
 
             Log.i(TAG, "DecryptProtobuf: hooked " + builder.getName()
-                    + ".{{PARSE_PARAMS_BUILDER_METHOD_NAME}}, message " + message_class.getName()
+                    + "." + Artifacts.get("PARSE_PARAMS_BUILDER_METHOD_NAME") + ", message " + message_class.getName()
                     + ", hooked=" + hooked);
         } catch (Throwable t) {
             Log.e(TAG, "DecryptProtobuf: not loaded: " + t);

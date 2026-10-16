@@ -6,6 +6,7 @@ import java.lang.reflect.Method;
 import android.util.Log;
 
 import com.arthooks.ArtHooks;
+import com.smali_generator.Artifacts;
 import com.smali_generator.Hook;
 import com.smali_generator.HookCategory;
 
@@ -30,9 +31,9 @@ public class WhatsAppPlus implements Hook {
     public void load() {
         Log.i("PATCH", "WhatsAppPlus: Patch loaded");
         try {
-            Class<?> whatsapp_plus_class = Class.forName("{{WHATSAPP_PLUS_CLASS_NAME}}");
+            Class<?> whatsapp_plus_class = Class.forName(Artifacts.get("WHATSAPP_PLUS_CLASS_NAME"));
             Method is_premium_method = WhatsAppPlus.class.getDeclaredMethod("is_premium", Object.class, Object.class);
-            Executable to_hook = ArtHooks.find_function(whatsapp_plus_class, "{{WHATSAPP_PLUS_METHOD_NAME}}", "{{WHATSAPP_PLUS_METHOD_SIG}}");
+            Executable to_hook = ArtHooks.find_function(whatsapp_plus_class, Artifacts.get("WHATSAPP_PLUS_METHOD_NAME"), Artifacts.get("WHATSAPP_PLUS_METHOD_SIG"));
             ArtHooks.hook_function(to_hook, is_premium_method);
         } catch (Exception e) {
             Log.e("PATCH", "WhatsAppPlus: Error: " + e.getMessage());

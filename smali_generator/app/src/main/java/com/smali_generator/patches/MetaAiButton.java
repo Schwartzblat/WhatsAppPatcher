@@ -4,6 +4,7 @@ import android.util.Log;
 
 import com.arthooks.ArtHooks;
 
+import com.smali_generator.Artifacts;
 import com.smali_generator.Hook;
 import com.smali_generator.HookCategory;
 
@@ -159,17 +160,17 @@ public class MetaAiButton implements Hook {
             // Parsed rather than inlined as a literal: an unsubstituted
             // placeholder then fails here, before anything is hooked, instead of
             // becoming a tab id nothing matches.
-            metaAiTab = Integer.parseInt("{{META_AI_TAB_ID}}");
-            Class<?> tabs = Class.forName("{{META_AI_TABS_CLASS_NAME}}");
+            metaAiTab = Integer.parseInt(Artifacts.get("META_AI_TAB_ID"));
+            Class<?> tabs = Class.forName(Artifacts.get("META_AI_TABS_CLASS_NAME"));
 
             Executable builder = ArtHooks.find_function(tabs,
-                    "{{META_AI_TABS_METHOD_NAME}}", "{{META_AI_TABS_METHOD_SIG}}");
+                    Artifacts.get("META_AI_TABS_METHOD_NAME"), Artifacts.get("META_AI_TABS_METHOD_SIG"));
             Method replacement = MetaAiButton.class.getDeclaredMethod("tabs_hook", Object.class);
             Method original = MetaAiButton.class.getDeclaredMethod("tabs_backup", Object.class);
             boolean hooked = ArtHooks.hook_function(builder, replacement, original);
 
             Log.i(TAG, "MetaAiButton: tab " + metaAiTab + " hooked on " + tabs.getName()
-                    + ".{{META_AI_TABS_METHOD_NAME}}, hooked=" + hooked);
+                    + "." + Artifacts.get("META_AI_TABS_METHOD_NAME") + ", hooked=" + hooked);
         } catch (Throwable t) {
             Log.e(TAG, "MetaAiButton: the Meta AI tab was left in place: " + t);
         }
@@ -177,16 +178,16 @@ public class MetaAiButton implements Hook {
 
     private void remove_button() {
         try {
-            Class<?> owner = Class.forName("{{META_AI_BUTTON_GATE_CLASS_NAME}}");
+            Class<?> owner = Class.forName(Artifacts.get("META_AI_BUTTON_GATE_CLASS_NAME"));
 
             Executable gate = ArtHooks.find_function(owner,
-                    "{{META_AI_BUTTON_GATE_METHOD_NAME}}", "{{META_AI_BUTTON_GATE_METHOD_SIG}}");
+                    Artifacts.get("META_AI_BUTTON_GATE_METHOD_NAME"), Artifacts.get("META_AI_BUTTON_GATE_METHOD_SIG"));
             Method replacement = MetaAiButton.class.getDeclaredMethod("button_gate_hook", Object.class);
             Method original = MetaAiButton.class.getDeclaredMethod("button_gate_backup", Object.class);
             boolean hooked = ArtHooks.hook_function(gate, replacement, original);
 
             Log.i(TAG, "MetaAiButton: button gate hooked on " + owner.getName()
-                    + ".{{META_AI_BUTTON_GATE_METHOD_NAME}}, hooked=" + hooked);
+                    + "." + Artifacts.get("META_AI_BUTTON_GATE_METHOD_NAME") + ", hooked=" + hooked);
         } catch (Throwable t) {
             Log.e(TAG, "MetaAiButton: the Meta AI button was left on the chats screen: " + t);
         }
@@ -194,16 +195,16 @@ public class MetaAiButton implements Hook {
 
     private void remove_calls_button() {
         try {
-            Class<?> calls = Class.forName("{{META_AI_CALLS_GATE_CLASS_NAME}}");
+            Class<?> calls = Class.forName(Artifacts.get("META_AI_CALLS_GATE_CLASS_NAME"));
 
             Executable gate = ArtHooks.find_function(calls,
-                    "{{META_AI_CALLS_GATE_METHOD_NAME}}", "{{META_AI_CALLS_GATE_METHOD_SIG}}");
+                    Artifacts.get("META_AI_CALLS_GATE_METHOD_NAME"), Artifacts.get("META_AI_CALLS_GATE_METHOD_SIG"));
             Method replacement = MetaAiButton.class.getDeclaredMethod("calls_gate_hook", Object.class);
             Method original = MetaAiButton.class.getDeclaredMethod("calls_gate_backup", Object.class);
             boolean hooked = ArtHooks.hook_function(gate, replacement, original);
 
             Log.i(TAG, "MetaAiButton: calls gate hooked on " + calls.getName()
-                    + ".{{META_AI_CALLS_GATE_METHOD_NAME}}, hooked=" + hooked);
+                    + "." + Artifacts.get("META_AI_CALLS_GATE_METHOD_NAME") + ", hooked=" + hooked);
         } catch (Throwable t) {
             Log.e(TAG, "MetaAiButton: the Meta AI button was left on the calls screen: " + t);
         }

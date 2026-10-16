@@ -2,6 +2,7 @@ package com.smali_generator.wrappers;
 
 import android.util.Log;
 
+import com.smali_generator.Artifacts;
 import com.smali_generator.Wrapper;
 import com.smali_generator.db.MessageKey;
 
@@ -50,7 +51,7 @@ public final class FMessageKey implements Wrapper {
     @SuppressWarnings("unused")
     public static void init() {
         try {
-            Class<?> fmessageClass = Class.forName("{{FMESSAGE_CLASS}}");
+            Class<?> fmessageClass = Class.forName(Artifacts.get("FMESSAGE_CLASS"));
             Class<?> jidClass = Class.forName(JID_CLASS);
 
             // Collect all structural candidates

@@ -4,6 +4,7 @@ import android.util.Log;
 
 import com.arthooks.ArtHooks;
 
+import com.smali_generator.Artifacts;
 import com.smali_generator.Hook;
 import com.smali_generator.HookCategory;
 import com.smali_generator.abprops.AbPropStore;
@@ -64,7 +65,9 @@ public class AbProps implements Hook {
 
     /** The boolean accessor. A receiver whose class declares it itself is the
      *  registration object above, and is left alone. */
-    private static final String BOOL_ACCESSOR = "{{AB_PROPS_BOOL_METHOD_NAME}}";
+    private static String boolAccessor() {
+        return Artifacts.get("AB_PROPS_BOOL_METHOD_NAME");
+    }
 
     private static Class<?> owner;
 
@@ -238,7 +241,7 @@ public class AbProps implements Hook {
     private static boolean declaresAccessor(Class<?> cls) {
         for (Class<?> c = cls; c != null && c != owner; c = c.getSuperclass()) {
             try {
-                c.getDeclaredMethod(BOOL_ACCESSOR, int.class);
+                c.getDeclaredMethod(boolAccessor(), int.class);
                 return true;
             } catch (NoSuchMethodException ignored) {
                 // Inherited here; keep walking up to the properties class.
@@ -315,9 +318,9 @@ public class AbProps implements Hook {
             return;
         }
         try {
-            owner = Class.forName("{{AB_PROPS_CLASS_NAME}}");
+            owner = Class.forName(Artifacts.get("AB_PROPS_CLASS_NAME"));
             Executable funnel = ArtHooks.find_function(owner,
-                    "{{AB_PROPS_FUNNEL_METHOD_NAME}}", "{{AB_PROPS_FUNNEL_METHOD_SIG}}");
+                    Artifacts.get("AB_PROPS_FUNNEL_METHOD_NAME"), Artifacts.get("AB_PROPS_FUNNEL_METHOD_SIG"));
             if (funnel == null) {
                 Log.e(TAG, "AbProps: " + owner.getName() + " has no funnel of the shape the finder saw");
                 return;
@@ -360,7 +363,7 @@ public class AbProps implements Hook {
             boolean hooked = ArtHooks.hook_function(funnel, replacement, original);
             funnelHooked = hooked;
             Log.i(TAG, "AbProps: hooked the funnel " + owner.getName() + "."
-                    + ((Method) funnel).getName() + "{{AB_PROPS_FUNNEL_METHOD_SIG}}, hooked=" + hooked);
+                    + ((Method) funnel).getName() + Artifacts.get("AB_PROPS_FUNNEL_METHOD_SIG") + ", hooked=" + hooked);
         } catch (Throwable t) {
             Log.e(TAG, "AbProps: the properties class was not reached, nothing is hooked: " + t);
         }

@@ -9,6 +9,7 @@ import android.content.pm.VersionedPackage;
 import android.os.Build;
 import android.util.Log;
 
+import com.smali_generator.Artifacts;
 import com.smali_generator.Hook;
 
 import java.lang.reflect.Field;
@@ -44,10 +45,10 @@ public class PackageManagerHook implements Hook {
         Log.i("PATCH", "PackageManagerHook: package_info: " + package_info + ", package_name: " + package_name + ", flags: " + flags.getValue());
         if (package_name.equals("com.whatsapp") && ((flags.getValue() & 64) != 0 || (flags.getValue() & 0x8000000) != 0) && package_info != null) {
             Log.i("PATCH", "PackageManagerHook: Replacing package info...");
-            package_info.signatures = new Signature[]{new Signature("{{PACKAGE_SIGNATURE}}")};
+            package_info.signatures = new Signature[]{new Signature(Artifacts.get("PACKAGE_SIGNATURE"))};
             try {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
-                    package_info.signingInfo = new SigningInfo(2, Collections.singletonList(new Signature("{{PACKAGE_SIGNATURE}}")), null, null);
+                    package_info.signingInfo = new SigningInfo(2, Collections.singletonList(new Signature(Artifacts.get("PACKAGE_SIGNATURE"))), null, null);
                 } else {
                     Class<?> SigningInfoClass = Class.forName("android.content.pm.SigningInfo");
                     // Is this field actually exist?
@@ -57,7 +58,7 @@ public class PackageManagerHook implements Hook {
                     assert signing_details != null;
                     Field signatures = signing_details.getClass().getDeclaredField("signatures");
                     signatures.setAccessible(true);
-                    signatures.set(signing_details, new Signature[]{new Signature("{{PACKAGE_SIGNATURE}}")});
+                    signatures.set(signing_details, new Signature[]{new Signature(Artifacts.get("PACKAGE_SIGNATURE"))});
                 }
             } catch (Exception e) {
                 Log.e("PATCH", "PackageManagerHook: Error: " + e.getMessage());
@@ -83,7 +84,7 @@ public class PackageManagerHook implements Hook {
         Log.i("PATCH", "PackageManagerHook: package_info: " + package_info + ", package_name: " + package_name + ", flags: " + flags);
         if (package_name.equals("com.whatsapp") && ((flags & 64) != 0 || (flags & 0x8000000) != 0) && package_info != null) {
             Log.i("PATCH", "PackageManagerHook: Replacing package info...");
-            package_info.signatures = new Signature[]{new Signature("{{PACKAGE_SIGNATURE}}")};
+            package_info.signatures = new Signature[]{new Signature(Artifacts.get("PACKAGE_SIGNATURE"))};
             package_info.signingInfo = null;
         }
         return package_info;
@@ -98,7 +99,7 @@ public class PackageManagerHook implements Hook {
         Log.e("PATCH", "PackageManagerHook: package_info: " + package_info + ", package_name: " + package_name + ", flags: " + flags);
         if (package_name.equals("com.whatsapp") && ((flags & 64) != 0 || (flags & 0x8000000) != 0) && package_info != null) {
             Log.i("PATCH", "PackageManagerHook: Replacing package info...");
-            package_info.signatures = new Signature[]{new Signature("{{PACKAGE_SIGNATURE}}")};
+            package_info.signatures = new Signature[]{new Signature(Artifacts.get("PACKAGE_SIGNATURE"))};
             try {
                 Class<?> SigningInfoClass = Class.forName("android.content.pm.SigningInfo");
                 // Is this field actually exist?
@@ -108,7 +109,7 @@ public class PackageManagerHook implements Hook {
                 assert signing_details != null;
                 Field signatures = signing_details.getClass().getDeclaredField("signatures");
                 signatures.setAccessible(true);
-                signatures.set(signing_details, new Signature[]{new Signature("{{PACKAGE_SIGNATURE}}")});
+                signatures.set(signing_details, new Signature[]{new Signature(Artifacts.get("PACKAGE_SIGNATURE"))});
             } catch (Exception e) {
                 Log.e("PATCH", "PackageManagerHook: Error: " + e.getMessage());
             }
@@ -126,10 +127,10 @@ public class PackageManagerHook implements Hook {
         Log.e("PATCH", "PackageManagerHook: package_info: " + package_info + ", package_name: " + package_name + ", flags: " + flags.getValue());
         if (package_name.equals("com.whatsapp") && ((flags.getValue() & 64) != 0 || (flags.getValue() & 0x8000000) != 0) && package_info != null) {
             Log.i("PATCH", "PackageManagerHook: Replacing package info...");
-            package_info.signatures = new Signature[]{new Signature("{{PACKAGE_SIGNATURE}}")};
+            package_info.signatures = new Signature[]{new Signature(Artifacts.get("PACKAGE_SIGNATURE"))};
             try {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
-                    package_info.signingInfo = new SigningInfo(2, Collections.singletonList(new Signature("{{PACKAGE_SIGNATURE}}")), null, null);
+                    package_info.signingInfo = new SigningInfo(2, Collections.singletonList(new Signature(Artifacts.get("PACKAGE_SIGNATURE"))), null, null);
                 } else {
                     Class<?> SigningInfoClass = Class.forName("android.content.pm.SigningInfo");
                     // Is this field actually exist?
@@ -139,7 +140,7 @@ public class PackageManagerHook implements Hook {
                     assert signing_details != null;
                     Field signatures = signing_details.getClass().getDeclaredField("signatures");
                     signatures.setAccessible(true);
-                    signatures.set(signing_details, new Signature[]{new Signature("{{PACKAGE_SIGNATURE}}")});
+                    signatures.set(signing_details, new Signature[]{new Signature(Artifacts.get("PACKAGE_SIGNATURE"))});
                 }
             } catch (Exception e) {
                 Log.e("PATCH", "PackageManagerHook: Error: " + e.getMessage());

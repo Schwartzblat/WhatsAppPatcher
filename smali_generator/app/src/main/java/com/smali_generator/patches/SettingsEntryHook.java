@@ -5,6 +5,7 @@ import android.util.Log;
 import android.view.View;
 
 import com.smali_generator.ActivityResume;
+import com.smali_generator.Artifacts;
 import com.smali_generator.Hook;
 import com.smali_generator.ui.SettingsEntryRow;
 
@@ -22,10 +23,12 @@ import com.smali_generator.ui.SettingsEntryRow;
 public class SettingsEntryHook implements Hook {
     private static final String TAG = "PATCH";
 
-    private static final String SETTINGS_ACTIVITY = "{{SETTINGS_ACTIVITY_CLASS_NAME}}";
+    private static String settingsActivity() {
+        return Artifacts.get("SETTINGS_ACTIVITY_CLASS_NAME");
+    }
 
     private static void onResumed(Activity activity) {
-        if (!SETTINGS_ACTIVITY.equals(activity.getClass().getName())) {
+        if (!settingsActivity().equals(activity.getClass().getName())) {
             return;
         }
         final View decor = activity.getWindow().getDecorView();
@@ -55,7 +58,7 @@ public class SettingsEntryHook implements Hook {
         try {
             if (ActivityResume.addListener(SettingsEntryHook::onResumed)) {
                 Log.i(TAG, "SettingsEntryHook: listening for resumes, settings screen is "
-                        + SETTINGS_ACTIVITY);
+                        + settingsActivity());
             } else {
                 // ActivityResume already logged why; this line is what makes the
                 // absence show up under this hook's own name in `logcat -s PATCH`.

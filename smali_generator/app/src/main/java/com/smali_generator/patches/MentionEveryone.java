@@ -5,6 +5,7 @@ import android.widget.TextView;
 
 import com.arthooks.ArtHooks;
 
+import com.smali_generator.Artifacts;
 import com.smali_generator.Hook;
 import com.smali_generator.HookCategory;
 
@@ -190,8 +191,8 @@ public class MentionEveryone implements Hook {
             // Resolved before anything is hooked: without the marker the hook
             // has nothing to add, and an accessor hooked to return its own
             // answer is pure overhead on the typing path.
-            Class<?> markerClass = Class.forName("{{MENTION_EVERYONE_CLASS_NAME}}");
-            Field marker = markerClass.getDeclaredField("{{MENTION_EVERYONE_FIELD_NAME}}");
+            Class<?> markerClass = Class.forName(Artifacts.get("MENTION_EVERYONE_CLASS_NAME"));
+            Field marker = markerClass.getDeclaredField(Artifacts.get("MENTION_EVERYONE_FIELD_NAME"));
             marker.setAccessible(true);
             everyone = marker.get(null);
             if (everyone == null) {
@@ -201,9 +202,9 @@ public class MentionEveryone implements Hook {
             }
             groupJid = Class.forName(GROUP_JID_CLASS);
 
-            Class<?> owner = Class.forName("{{MENTION_ENTRY_CLASS_NAME}}");
+            Class<?> owner = Class.forName(Artifacts.get("MENTION_ENTRY_CLASS_NAME"));
             Executable accessor = ArtHooks.find_function(owner,
-                    "{{MENTION_GET_METHOD_NAME}}", "{{MENTION_GET_METHOD_SIG}}");
+                    Artifacts.get("MENTION_GET_METHOD_NAME"), Artifacts.get("MENTION_GET_METHOD_SIG"));
             if (Modifier.isStatic(accessor.getModifiers())) {
                 // The replacement's leading parameter is the receiver, so a
                 // staticized accessor would be handed the composer in a slot
@@ -226,8 +227,8 @@ public class MentionEveryone implements Hook {
             }
 
             Log.i(TAG, "MentionEveryone: hooked on " + owner.getName()
-                    + ".{{MENTION_GET_METHOD_NAME}}, everyone marker "
-                    + markerClass.getName() + ".{{MENTION_EVERYONE_FIELD_NAME}}, hooked=" + hooked);
+                    + "." + Artifacts.get("MENTION_GET_METHOD_NAME") + ", everyone marker "
+                    + markerClass.getName() + "." + Artifacts.get("MENTION_EVERYONE_FIELD_NAME") + ", hooked=" + hooked);
         } catch (Throwable t) {
             everyone = null;
             Log.e(TAG, "MentionEveryone: groups are left untagged: " + t);

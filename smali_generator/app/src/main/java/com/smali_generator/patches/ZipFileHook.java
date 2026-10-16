@@ -3,7 +3,9 @@ package com.smali_generator.patches;
 import android.util.Log;
 
 import com.smali_generator.Hook;
+import com.smali_generator.utils.Utils;
 
+import java.io.InputStream;
 import java.lang.reflect.Method;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
@@ -13,11 +15,21 @@ import com.arthooks.ArtHooks;
 
 public class ZipFileHook implements Hook {
 
+    private static final String REAL_DEX = "smali_generator/classes.dex.bin";
+
+    private static boolean hasRealDex() {
+        try (InputStream in = Utils.getApplicationContext().getAssets().open(REAL_DEX)) {
+            return true;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
     static native ZipEntry get_entry_hook_backup(ZipFile obj, String entry);
 
     static ZipEntry get_entry_hook(ZipFile obj, String entry) {
         if (entry.equals("classes.dex")) {
-            return ZipFileHook.get_entry_hook_backup(obj, "assets/smali_generator/classes.dex.bin");
+            return ZipFileHook.get_entry_hook_backup(obj, "assets/" + REAL_DEX);
         }
         return ZipFileHook.get_entry_hook_backup(obj, entry);
     }
@@ -35,6 +47,10 @@ public class ZipFileHook implements Hook {
     }
 
     public void load() {
+        if (!hasRealDex()) {
+            Log.i("PATCH", "ZipFileHook: no " + REAL_DEX + " asset, nothing to redirect");
+            return;
+        }
         Log.i("PATCH", "ZipFileHook: Patch loaded");
         try {
             Method get_entry_hook_method = ZipFileHook.class.getDeclaredMethod("get_entry_hook", ZipFile.class, String.class);

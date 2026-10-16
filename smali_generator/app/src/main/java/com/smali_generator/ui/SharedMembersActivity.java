@@ -27,6 +27,7 @@ import android.widget.ListView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.smali_generator.Artifacts;
 import com.smali_generator.db.Avatars;
 import com.smali_generator.db.LidJids;
 import com.smali_generator.db.ParticipantNames;
@@ -84,8 +85,13 @@ public class SharedMembersActivity extends Activity {
      * should_show_chat_action defaults to true, which is what puts the
      * Message button on it, and circular_transition to false.
      */
-    private static final String CONTACT_INFO_ACTIVITY = "{{CONTACT_INFO_ACTIVITY_CLASS_NAME}}";
-    private static final String JID_EXTRA = "{{CONTACT_INFO_JID_EXTRA}}";
+    private static String contactInfoActivity() {
+        return Artifacts.get("CONTACT_INFO_ACTIVITY_CLASS_NAME");
+    }
+
+    private static String jidExtra() {
+        return Artifacts.get("CONTACT_INFO_JID_EXTRA");
+    }
 
     private static final int SIDE_PADDING_DP = 20;
     private static final int ROW_AVATAR_DP = 40;
@@ -525,16 +531,16 @@ public class SharedMembersActivity extends Activity {
      */
     private void openProfile(Person person) {
         try {
-            Intent intent = new Intent().setClassName(getPackageName(), CONTACT_INFO_ACTIVITY);
-            intent.putExtra(JID_EXTRA, person.jid);
+            Intent intent = new Intent().setClassName(getPackageName(), contactInfoActivity());
+            intent.putExtra(jidExtra(), person.jid);
             startActivity(intent);
             // The jid verbatim, because the two forms fail differently: a
             // phone jid that opens nothing is a moved screen, a LID that
             // opens nothing is a screen that will not take one.
-            Log.i(TAG, "SharedMembersActivity: opened " + CONTACT_INFO_ACTIVITY
+            Log.i(TAG, "SharedMembersActivity: opened " + contactInfoActivity()
                     + " for " + person.jid);
         } catch (Throwable t) {
-            Log.e(TAG, "SharedMembersActivity: could not open " + CONTACT_INFO_ACTIVITY
+            Log.e(TAG, "SharedMembersActivity: could not open " + contactInfoActivity()
                     + " for " + person.jid, t);
             Toast.makeText(this, "WhatsApp would not open that profile.",
                     Toast.LENGTH_SHORT).show();

@@ -8,6 +8,7 @@ import android.view.ViewGroup;
 import android.widget.BaseAdapter;
 
 import com.arthooks.ArtHooks;
+import com.smali_generator.Artifacts;
 import com.smali_generator.Hook;
 import com.smali_generator.HookCategory;
 import com.smali_generator.db.PatchDb;
@@ -168,9 +169,9 @@ public class DeletedMessageIndicator implements Hook {
 
     public void load() {
         try {
-            Class<?> adapter = Class.forName("{{ROW_BINDER_CLASS_NAME}}");
+            Class<?> adapter = Class.forName(Artifacts.get("ROW_BINDER_CLASS_NAME"));
 
-            Method item = adapter.getDeclaredMethod("{{ROW_ITEM_METHOD_NAME}}", int.class);
+            Method item = adapter.getDeclaredMethod(Artifacts.get("ROW_ITEM_METHOD_NAME"), int.class);
             item.setAccessible(true);
 
             // Loud sanity check on the finder's pick. The accessor must hand us
@@ -181,12 +182,12 @@ public class DeletedMessageIndicator implements Hook {
             // adapter's declared return type, and the design notes that one may
             // legitimately be a subtype of the other. An unrelated type is
             // still rejected, which is what this check exists to catch.
-            Class<?> fmessageClass = Class.forName("{{FMESSAGE_CLASS}}");
+            Class<?> fmessageClass = Class.forName(Artifacts.get("FMESSAGE_CLASS"));
             Class<?> returnType = item.getReturnType();
             if (!fmessageClass.isAssignableFrom(returnType)
                     && !returnType.isAssignableFrom(fmessageClass)) {
                 Log.e(TAG, "DeletedMessageIndicator: item accessor "
-                        + "{{ROW_ITEM_METHOD_NAME}}{{ROW_ITEM_METHOD_SIG}} returns "
+                        + Artifacts.get("ROW_ITEM_METHOD_NAME") + Artifacts.get("ROW_ITEM_METHOD_SIG") + " returns "
                         + returnType.getName() + ", unrelated to " + fmessageClass.getName()
                         + " -- not hooking");
                 return;
@@ -197,7 +198,7 @@ public class DeletedMessageIndicator implements Hook {
             Method backup = DeletedMessageIndicator.class.getDeclaredMethod(
                     "get_view_backup", Object.class, int.class, View.class, ViewGroup.class);
             Executable original = ArtHooks.find_function(
-                    adapter, "{{ROW_BINDER_METHOD_NAME}}", "{{ROW_BINDER_METHOD_SIG}}");
+                    adapter, Artifacts.get("ROW_BINDER_METHOD_NAME"), Artifacts.get("ROW_BINDER_METHOD_SIG"));
             if (original == null) {
                 Log.e(TAG, "DeletedMessageIndicator: row binder not found");
                 return;

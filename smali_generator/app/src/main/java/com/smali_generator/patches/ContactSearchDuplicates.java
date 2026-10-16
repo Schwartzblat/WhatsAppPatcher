@@ -4,6 +4,7 @@ import android.util.Log;
 
 import com.arthooks.ArtHooks;
 
+import com.smali_generator.Artifacts;
 import com.smali_generator.Hook;
 import com.smali_generator.HookCategory;
 
@@ -195,19 +196,19 @@ public class ContactSearchDuplicates implements Hook {
             // Unobfuscated, and the same class the finder's signature names, so
             // this literal cannot be wrong while that finder fires.
             anyJid = Class.forName("com.whatsapp.infra.core.jid.Jid");
-            Class<?> contact = Class.forName("{{CONTACT_JID_CLASS_NAME}}");
-            contactJid = contact.getMethod("{{CONTACT_JID_METHOD_NAME}}", Class.class);
+            Class<?> contact = Class.forName(Artifacts.get("CONTACT_JID_CLASS_NAME"));
+            contactJid = contact.getMethod(Artifacts.get("CONTACT_JID_METHOD_NAME"), Class.class);
             try {
-                contactRawId = contact.getMethod("{{CONTACT_RAW_ID_METHOD_NAME}}");
+                contactRawId = contact.getMethod(Artifacts.get("CONTACT_RAW_ID_METHOD_NAME"));
             } catch (Throwable t) {
                 // Only the preference is lost: without it the first row for a
                 // person is the one kept.
                 Log.e(TAG, "ContactSearchDuplicates: the address-book row cannot be told apart: " + t);
             }
 
-            Class<?> owner = Class.forName("{{CONTACT_SEARCH_CLASS_NAME}}");
+            Class<?> owner = Class.forName(Artifacts.get("CONTACT_SEARCH_CLASS_NAME"));
             Executable search = ArtHooks.find_function(owner,
-                    "{{CONTACT_SEARCH_METHOD_NAME}}", "{{CONTACT_SEARCH_METHOD_SIG}}");
+                    Artifacts.get("CONTACT_SEARCH_METHOD_NAME"), Artifacts.get("CONTACT_SEARCH_METHOD_SIG"));
             if (Modifier.isStatic(search.getModifiers())) {
                 // The replacement's leading parameter is the receiver, so a
                 // staticized method would read the query out of the slot the
@@ -232,8 +233,8 @@ public class ContactSearchDuplicates implements Hook {
             }
 
             Log.i(TAG, "ContactSearchDuplicates: hooked on " + owner.getName()
-                    + ".{{CONTACT_SEARCH_METHOD_NAME}}, jid from " + contact.getName()
-                    + ".{{CONTACT_JID_METHOD_NAME}}, hooked=" + hooked);
+                    + "." + Artifacts.get("CONTACT_SEARCH_METHOD_NAME") + ", jid from " + contact.getName()
+                    + "." + Artifacts.get("CONTACT_JID_METHOD_NAME") + ", hooked=" + hooked);
         } catch (Throwable t) {
             Log.e(TAG, "ContactSearchDuplicates: duplicates were left in place: " + t);
         }

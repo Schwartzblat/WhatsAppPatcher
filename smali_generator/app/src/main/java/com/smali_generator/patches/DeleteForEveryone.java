@@ -4,6 +4,7 @@ import android.util.Log;
 
 import com.arthooks.ArtHooks;
 
+import com.smali_generator.Artifacts;
 import com.smali_generator.Hook;
 import com.smali_generator.HookCategory;
 
@@ -157,19 +158,19 @@ public class DeleteForEveryone implements Hook {
             // Resolved before anything is hooked: without the field the
             // replacement has nothing to change, and a dialog builder hooked to
             // hand back its own answer is pure overhead on a user's tap.
-            Class<?> message = Class.forName("{{MESSAGE_TIMESTAMP_CLASS_NAME}}");
-            Field sentAt = message.getDeclaredField("{{MESSAGE_TIMESTAMP_FIELD_NAME}}");
+            Class<?> message = Class.forName(Artifacts.get("MESSAGE_TIMESTAMP_CLASS_NAME"));
+            Field sentAt = message.getDeclaredField(Artifacts.get("MESSAGE_TIMESTAMP_FIELD_NAME"));
             if (sentAt.getType() != long.class) {
                 Log.e(TAG, "DeleteForEveryone: " + message.getName()
-                        + ".{{MESSAGE_TIMESTAMP_FIELD_NAME}} is a " + sentAt.getType()
+                        + "." + Artifacts.get("MESSAGE_TIMESTAMP_FIELD_NAME") + " is a " + sentAt.getType()
                         + ", not a timestamp; old messages stay undeletable");
                 return;
             }
             sentAt.setAccessible(true);
 
-            Class<?> owner = Class.forName("{{REVOKE_DIALOG_CLASS_NAME}}");
+            Class<?> owner = Class.forName(Artifacts.get("REVOKE_DIALOG_CLASS_NAME"));
             Executable builder = ArtHooks.find_function(owner,
-                    "{{REVOKE_DIALOG_METHOD_NAME}}", "{{REVOKE_DIALOG_METHOD_SIG}}");
+                    Artifacts.get("REVOKE_DIALOG_METHOD_NAME"), Artifacts.get("REVOKE_DIALOG_METHOD_SIG"));
             if (builder == null) {
                 Log.e(TAG, "DeleteForEveryone: " + owner.getName()
                         + " has no dialog builder of the shape the finder saw");
@@ -202,8 +203,8 @@ public class DeleteForEveryone implements Hook {
             timestamp = sentAt;
 
             Log.i(TAG, "DeleteForEveryone: hooked on " + owner.getName()
-                    + ".{{REVOKE_DIALOG_METHOD_NAME}}, timestamp " + message.getName()
-                    + ".{{MESSAGE_TIMESTAMP_FIELD_NAME}}, hooked=" + hooked);
+                    + "." + Artifacts.get("REVOKE_DIALOG_METHOD_NAME") + ", timestamp " + message.getName()
+                    + "." + Artifacts.get("MESSAGE_TIMESTAMP_FIELD_NAME") + ", hooked=" + hooked);
         } catch (Throwable t) {
             timestamp = null;
             Log.e(TAG, "DeleteForEveryone: old messages stay undeletable: " + t);

@@ -13,6 +13,7 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import com.smali_generator.ActivityResume;
+import com.smali_generator.Artifacts;
 
 import java.lang.ref.WeakReference;
 import java.util.ArrayDeque;
@@ -63,7 +64,9 @@ public final class GroupInfoRows {
     private static final String TAG = "PATCH";
 
     /** Resolved by GroupInfoFinder; never written by hand. */
-    private static final String GROUP_INFO_ACTIVITY = "{{GROUP_INFO_ACTIVITY_CLASS_NAME}}";
+    private static String groupInfoActivity() {
+        return Artifacts.get("GROUP_INFO_ACTIVITY_CLASS_NAME");
+    }
 
     /** The key WhatsApp has used for the group's jid; the shape check is the fallback. */
     private static final String GID_EXTRA = "gid";
@@ -172,14 +175,14 @@ public final class GroupInfoRows {
             listening = ActivityResume.addListener(GroupInfoRows::onResumed);
             if (listening) {
                 Log.i(TAG, "GroupInfoRows: listening for resumes, group info screen is "
-                        + GROUP_INFO_ACTIVITY);
+                        + groupInfoActivity());
             }
         }
         return listening;
     }
 
     private static void onResumed(Activity activity) {
-        if (!GROUP_INFO_ACTIVITY.equals(activity.getClass().getName())) {
+        if (!groupInfoActivity().equals(activity.getClass().getName())) {
             return;
         }
         String gid = gidOf(activity);

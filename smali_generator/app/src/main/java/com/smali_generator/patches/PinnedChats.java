@@ -4,6 +4,7 @@ import android.util.Log;
 
 import com.arthooks.ArtHooks;
 
+import com.smali_generator.Artifacts;
 import com.smali_generator.Hook;
 import com.smali_generator.HookCategory;
 
@@ -162,27 +163,27 @@ public class PinnedChats implements Hook {
         final Method invoke;
 
         Gate(Class<?> owner) throws ReflectiveOperationException {
-            super(owner, "{{PIN_GATE_CASE_FIELD}}", "{{PIN_GATE_CASE}}");
-            helper = field(owner, "{{PIN_GATE_HELPER_FIELD}}");
-            selection = field(owner, "{{PIN_GATE_SELECTION_FIELD}}");
-            done = field(owner, "{{PIN_GATE_DONE_FIELD}}");
+            super(owner, Artifacts.get("PIN_GATE_CASE_FIELD"), Artifacts.get("PIN_GATE_CASE"));
+            helper = field(owner, Artifacts.get("PIN_GATE_HELPER_FIELD"));
+            selection = field(owner, Artifacts.get("PIN_GATE_SELECTION_FIELD"));
+            done = field(owner, Artifacts.get("PIN_GATE_DONE_FIELD"));
 
-            Class<?> helperClass = Class.forName("{{PIN_HELPER_CLASS_NAME}}");
-            storeHolder = field(helperClass, "{{PIN_HELPER_STORE_FIELD}}");
-            pinner = field(helperClass, "{{PIN_HELPER_PINNER_FIELD}}");
-            clock = field(helperClass, "{{PIN_HELPER_CLOCK_FIELD}}");
-            toaster = field(helperClass, "{{PIN_HELPER_TOAST_FIELD}}");
+            Class<?> helperClass = Class.forName(Artifacts.get("PIN_HELPER_CLASS_NAME"));
+            storeHolder = field(helperClass, Artifacts.get("PIN_HELPER_STORE_FIELD"));
+            pinner = field(helperClass, Artifacts.get("PIN_HELPER_PINNER_FIELD"));
+            clock = field(helperClass, Artifacts.get("PIN_HELPER_CLOCK_FIELD"));
+            toaster = field(helperClass, Artifacts.get("PIN_HELPER_TOAST_FIELD"));
 
-            storeGetter = method(Class.forName("{{PIN_STORE_GETTER_CLASS_NAME}}"),
-                    "{{PIN_STORE_GETTER_METHOD_NAME}}", "{{PIN_STORE_GETTER_METHOD_SIG}}", true);
+            storeGetter = method(Class.forName(Artifacts.get("PIN_STORE_GETTER_CLASS_NAME")),
+                    Artifacts.get("PIN_STORE_GETTER_METHOD_NAME"), Artifacts.get("PIN_STORE_GETTER_METHOD_SIG"), true);
             pinnedJids = method(storeGetter.getReturnType(),
-                    "{{PIN_PINNED_METHOD_NAME}}", "{{PIN_PINNED_METHOD_SIG}}", true);
+                    Artifacts.get("PIN_PINNED_METHOD_NAME"), Artifacts.get("PIN_PINNED_METHOD_SIG"), true);
             pinChat = method(pinner.getType(),
-                    "{{PIN_PINNER_METHOD_NAME}}", "{{PIN_PINNER_METHOD_SIG}}", false);
-            now = method(clock.getType(), "{{PIN_CLOCK_METHOD_NAME}}", "{{PIN_CLOCK_METHOD_SIG}}", true);
-            toast = method(toaster.getType(), "{{PIN_TOAST_METHOD_NAME}}", "(II)V", false);
-            pinnedOne = Integer.decode("{{PIN_TOAST_ONE}}");
-            pinnedMany = Integer.decode("{{PIN_TOAST_MANY}}");
+                    Artifacts.get("PIN_PINNER_METHOD_NAME"), Artifacts.get("PIN_PINNER_METHOD_SIG"), false);
+            now = method(clock.getType(), Artifacts.get("PIN_CLOCK_METHOD_NAME"), Artifacts.get("PIN_CLOCK_METHOD_SIG"), true);
+            toast = method(toaster.getType(), Artifacts.get("PIN_TOAST_METHOD_NAME"), "(II)V", false);
+            pinnedOne = Integer.decode(Artifacts.get("PIN_TOAST_ONE"));
+            pinnedMany = Integer.decode(Artifacts.get("PIN_TOAST_MANY"));
             invoke = Class.forName("kotlin.jvm.functions.Function0").getMethod("invoke");
         }
 
@@ -322,9 +323,9 @@ public class PinnedChats implements Hook {
 
     private void unlock_benefit() {
         try {
-            Class<?> owner = Class.forName("{{PIN_BENEFIT_CLASS_NAME}}");
+            Class<?> owner = Class.forName(Artifacts.get("PIN_BENEFIT_CLASS_NAME"));
             Executable check = ArtHooks.find_function(owner,
-                    "{{PIN_BENEFIT_METHOD_NAME}}", "{{PIN_BENEFIT_METHOD_SIG}}");
+                    Artifacts.get("PIN_BENEFIT_METHOD_NAME"), Artifacts.get("PIN_BENEFIT_METHOD_SIG"));
             if (check == null) {
                 Log.e(TAG, "PinnedChats: " + owner.getName() + " has no benefit check of the shape"
                         + " the finder saw; synced pins stay capped at 3");
@@ -356,7 +357,7 @@ public class PinnedChats implements Hook {
                 pinnedChats = null;
             }
             Log.i(TAG, "PinnedChats: PINNED_CHATS benefit on " + owner.getName()
-                    + ".{{PIN_BENEFIT_METHOD_NAME}}, hooked=" + hooked);
+                    + "." + Artifacts.get("PIN_BENEFIT_METHOD_NAME") + ", hooked=" + hooked);
         } catch (Throwable t) {
             pinnedChats = null;
             Log.e(TAG, "PinnedChats: synced pins stay capped at 3: " + t);
@@ -366,10 +367,10 @@ public class PinnedChats implements Hook {
     /** The trim's run(), or null when it is still in force. */
     private Executable skip_trim() {
         try {
-            Class<?> owner = Class.forName("{{PIN_TRIM_CLASS_NAME}}");
-            Lambda skip = new Lambda(owner, "{{PIN_TRIM_CASE_FIELD}}", "{{PIN_TRIM_CASE}}");
+            Class<?> owner = Class.forName(Artifacts.get("PIN_TRIM_CLASS_NAME"));
+            Lambda skip = new Lambda(owner, Artifacts.get("PIN_TRIM_CASE_FIELD"), Artifacts.get("PIN_TRIM_CASE"));
             Executable run = ArtHooks.find_function(owner,
-                    "{{PIN_TRIM_METHOD_NAME}}", "{{PIN_TRIM_METHOD_SIG}}");
+                    Artifacts.get("PIN_TRIM_METHOD_NAME"), Artifacts.get("PIN_TRIM_METHOD_SIG"));
             if (run == null || Modifier.isStatic(run.getModifiers())) {
                 Log.e(TAG, "PinnedChats: " + owner.getName() + " has no run() of the shape the finder saw;"
                         + " the cap stays");
@@ -385,7 +386,7 @@ public class PinnedChats implements Hook {
                 return null;
             }
             Log.i(TAG, "PinnedChats: trim is case " + skip.lambda + " of " + owner.getName()
-                    + ".{{PIN_TRIM_METHOD_NAME}}, hooked=" + hooked);
+                    + "." + Artifacts.get("PIN_TRIM_METHOD_NAME") + ", hooked=" + hooked);
             return run;
         } catch (Throwable t) {
             trim = null;
@@ -396,12 +397,12 @@ public class PinnedChats implements Hook {
 
     private void bypass_gate(Executable trimmed) {
         try {
-            Class<?> owner = Class.forName("{{PIN_GATE_CLASS_NAME}}");
+            Class<?> owner = Class.forName(Artifacts.get("PIN_GATE_CLASS_NAME"));
             // Resolved before anything is hooked: a gate hooked without the
             // names it needs would only ever hand the pin back to WhatsApp.
             Gate pin = new Gate(owner);
             Executable run = ArtHooks.find_function(owner,
-                    "{{PIN_GATE_METHOD_NAME}}", "{{PIN_GATE_METHOD_SIG}}");
+                    Artifacts.get("PIN_GATE_METHOD_NAME"), Artifacts.get("PIN_GATE_METHOD_SIG"));
             if (run == null || Modifier.isStatic(run.getModifiers())) {
                 Log.e(TAG, "PinnedChats: " + owner.getName() + " has no run() of the shape the finder saw;"
                         + " the cap stays");
@@ -411,7 +412,7 @@ public class PinnedChats implements Hook {
             if (run.equals(trimmed)) {
                 // Already redirected to trim_hook, which answers for the gate too.
                 Log.i(TAG, "PinnedChats: gate is case " + pin.lambda + " of " + owner.getName()
-                        + ".{{PIN_GATE_METHOD_NAME}}, sharing the trim's redirect");
+                        + "." + Artifacts.get("PIN_GATE_METHOD_NAME") + ", sharing the trim's redirect");
                 return;
             }
             Method replacement = PinnedChats.class.getDeclaredMethod("gate_hook", Object.class);
@@ -421,7 +422,7 @@ public class PinnedChats implements Hook {
                 gate = null;
             }
             Log.i(TAG, "PinnedChats: gate is case " + pin.lambda + " of " + owner.getName()
-                    + ".{{PIN_GATE_METHOD_NAME}}, hooked=" + hooked);
+                    + "." + Artifacts.get("PIN_GATE_METHOD_NAME") + ", hooked=" + hooked);
         } catch (Throwable t) {
             gate = null;
             Log.e(TAG, "PinnedChats: the cap stays: " + t);
