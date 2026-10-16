@@ -198,3 +198,6 @@ script.js
 /CLAUDE.md
 /artifactory.json
 /docs/
+
+.bundle-work/
+bundle-*.zip
