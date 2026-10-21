@@ -43,9 +43,9 @@ class PinnedChatsFinder(SimpleArtifactoryFinder):
        ``(Benefit)Z`` method that caches its answer in a ``ConcurrentHashMap``
        and defers to a sibling of the same shape when the cache has nothing.
        Since 2.26.37.74 it also reads ``retainedUntilAppRestart`` off the
-       benefit before the cache, which is what broke the regex
-       :class:`WhatsAppPlusFinder` matches this method with; this one does not
-       depend on the order. About 47 code units, past ART's 32-unit inline
+       benefit before the cache, which is what broke the regex the removed
+       Plus finder matched this method with; this one does not depend on the
+       order. About 47 code units, past ART's 32-unit inline
        budget.
 
     2. **The trim** that unpins everything past the cap. WhatsApp posts it

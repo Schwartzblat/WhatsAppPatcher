@@ -171,15 +171,6 @@
       ]
     },
     {
-      "id": "whatsapp_plus",
-      "title": "WhatsApp Premium",
-      "keys": [
-        "WHATSAPP_PLUS_CLASS_NAME",
-        "WHATSAPP_PLUS_METHOD_NAME",
-        "WHATSAPP_PLUS_METHOD_SIG"
-      ]
-    },
-    {
       "id": "ab_props",
       "title": "A/B property overrides",
       "keys": [

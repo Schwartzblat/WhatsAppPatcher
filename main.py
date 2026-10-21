@@ -13,7 +13,6 @@ from artifactory_generator.fmessage import FMessage
 from artifactory_generator.dex_copier import DexCopier
 from artifactory_generator.signature_finder import SignatureFinder
 from artifactory_generator.decrypt_protobuf_finder import DecryptProtobufFinder
-from artifactory_generator.whatsapp_plus import WhatsAppPlusFinder
 from artifactory_generator.row_binder import RowBinderFinder
 from artifactory_generator.settings_screen import SettingsScreenFinder
 from artifactory_generator.read_receipts import ReadReceiptsFinder
@@ -69,7 +68,6 @@ def build_finders(args, artifactory_only: bool) -> list:
         SignatureFinder(args),
         DecryptProtobufFinder(args),
         FirebaseParamsFinder(args),
-        WhatsAppPlusFinder(args),
         RowBinderFinder(args),
         SettingsScreenFinder(args),
         ReadReceiptsFinder(args),
