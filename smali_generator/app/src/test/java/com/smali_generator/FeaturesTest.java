@@ -29,6 +29,6 @@ public class FeaturesTest {
     @Test public void shippedFeaturesFileParses() throws Exception {
         Features.load(new String(Files.readAllBytes(Paths.get("src/main/assets/patcher/features.json")), UTF_8));
         assertEquals(Arrays.asList("PACKAGE_SIGNATURE", "FMESSAGE_CLASS", "SETTINGS_ACTIVITY_CLASS_NAME"), Features.requiredKeys());
-        assertFalse(Features.keysFor("unlimited_pinned_chats").isEmpty());
+        assertFalse(Features.keysFor("delete_for_everyone").isEmpty());
     }
 }

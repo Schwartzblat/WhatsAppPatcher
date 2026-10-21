@@ -22,7 +22,6 @@ WhatsApp patcher is a program that patches WhatsApp apk.
 |    Shared members between two or more groups    |      ✔      |
 |     Back up chats to your own Google Drive      |      ✔      |
 |      Restore a backup without reinstalling      |      ✔      |
-|             Unlimited pinned chats              |      ✔      |
 
 There is support for apks, apkm and xapk files.
 

@@ -24,7 +24,6 @@ import com.smali_generator.patches.GroupStats;
 import com.smali_generator.patches.MentionEveryone;
 import com.smali_generator.patches.MetaAiButton;
 import com.smali_generator.patches.PackageManagerHook;
-import com.smali_generator.patches.PinnedChats;
 import com.smali_generator.patches.ReadReceipts;
 import com.smali_generator.patches.SharedMembers;
 import com.smali_generator.patches.SenderSearch;
@@ -77,7 +76,6 @@ public class InitProvider extends ContentProvider {
             new ContactSearchDuplicates(),
             new MentionEveryone(),
             new DeleteForEveryone(),
-            new PinnedChats(),
             // After AbProps, which owns the funnel it asks to have hooked.
             new GroupHistorySharing(),
             new SettingsEntryHook(),

@@ -25,7 +25,6 @@ from artifactory_generator.mention_everyone import MentionEveryoneFinder
 from artifactory_generator.contact_info import ContactInfoFinder
 from artifactory_generator.group_info import GroupInfoFinder
 from artifactory_generator.delete_for_everyone import DeleteForEveryoneFinder
-from artifactory_generator.pinned_chats import PinnedChatsFinder
 from artifactory_generator.upgrade import UpgradeCheckFinder
 from constants import (ARTIFACTS_ASSET, FEATURES_PATH, MODULE_PROVIDER, PATCHER_VERSION,
                        PAYWALL_PROVIDER)
@@ -82,7 +81,6 @@ def build_finders(args, artifactory_only: bool) -> list:
         GroupInfoFinder(args),
         ContactInfoFinder(args),
         DeleteForEveryoneFinder(args),
-        PinnedChatsFinder(args),
         UpgradeCheckFinder(args)
     ]
     if artifactory_only:

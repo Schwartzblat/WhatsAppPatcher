@@ -52,7 +52,7 @@ def test_bundle_cli_builds_a_verifiable_bundle(tmp_path, monkeypatch):
     assert bundle.main(['--paywall', str(tmp_path / 'PatchPaywall'), '--signing-key', str(key_pem), '-o', str(out),
                         '--work', str(tmp_path / 'work')]) == 0
     meta = verify_bundle(out, pub_pem.read_bytes())
-    assert meta['package'] == 'com.whatsapp' and meta['patcher_version'] == '3.0.1' and meta['min_sdk'] == 33
+    assert meta['package'] == 'com.whatsapp' and meta['patcher_version'] == '3.0.2' and meta['min_sdk'] == 33
     assert meta['dex_order'] == ['module.apk', 'paywall.apk']
     assert seen == [('smali_generator', {}),
                     ('PatchPaywall', {'PAYWALL_PROVIDER_CLASS': 'InitProviderPaywallWhatsApp'})]
