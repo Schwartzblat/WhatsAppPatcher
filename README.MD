@@ -15,7 +15,6 @@ WhatsApp patcher is a program that patches WhatsApp apk.
 |       Remove Meta AI from the home screen       |      ✔      |
 |         Option to save view once media          |      ✔      |
 |           Profile Picture Screenshot            |      ✔      |
-|             Unlock premium features             |      ✔      |
 |           Tag a group with @everyone            |      ✔      |
 |  Settings screen to switch features on and off  |      ✔      |
 |     Statistics for a group and its members      |      ✔      |

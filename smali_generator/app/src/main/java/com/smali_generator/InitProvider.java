@@ -28,7 +28,6 @@ import com.smali_generator.patches.ReadReceipts;
 import com.smali_generator.patches.SharedMembers;
 import com.smali_generator.patches.SenderSearch;
 import com.smali_generator.patches.SettingsEntryHook;
-import com.smali_generator.patches.WhatsAppPlus;
 import com.smali_generator.patches.ZipFileHook;
 import com.smali_generator.utils.Utils;
 import com.smali_generator.wrappers.FMessageKey;
@@ -68,7 +67,6 @@ public class InitProvider extends ContentProvider {
             new ZipFileHook(),
             new ActivityHook(),
             new FirebaseParams(),
-            new WhatsAppPlus(),
             new DeletedMessageIndicator(),
             new ReadReceipts(),
             new MetaAiButton(),
