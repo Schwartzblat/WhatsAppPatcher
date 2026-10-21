@@ -117,3 +117,43 @@ def test_ignores_a_static_method_of_the_same_shape():
     artifacts = feed(found, entry(body=static))
     assert found.is_found is False
     assert artifacts == {}
+
+
+# From 2.26.39 the widget builds the list in a private helper that two accessors
+# share: getMentions(), and getMentionsInTextOrder(), which sorts the spans by
+# their position first. On 2.26.41.78 the marker is X.83i, read in A09.
+SHARED_HELPER = ('.method private A09(Ljava/util/Set;[LX/IFh;)Ljava/util/ArrayList;\n'
+                 '    .locals 6\n'
+                 '    sget-object v0, LX/02S;->A0C:Ljava/lang/Integer;\n'
+                 '    sget-object v1, LX/83i;->A00:LX/83i;\n'
+                 '    invoke-virtual {v5, v1}, Ljava/util/AbstractCollection;->add(Ljava/lang/Object;)Z\n'
+                 '    return-object v5\n'
+                 '.end method\n')
+
+
+def delegating_accessor(name, sorts):
+    sort = ('    new-instance v0, LX/KRK;\n'
+            '    invoke-direct {v0, v3, v1}, LX/KRK;-><init>(Ljava/lang/Object;I)V\n'
+            '    invoke-static {v2, v0}, Ljava/util/Arrays;->sort([Ljava/lang/Object;Ljava/util/Comparator;)V\n')
+    return ('.method public %s()Ljava/util/List;\n'
+            '    .locals 4\n'
+            '    invoke-virtual {p0}, Landroid/widget/EditText;->getText()Landroid/text/Editable;\n'
+            '    move-result-object v3\n' % name
+            + (sort if sorts else '')
+            + '    invoke-direct {p0, v0, v2}, Lcom/whatsapp/mentions/ui/MentionableEntry;->'
+            'A09(Ljava/util/Set;[LX/IFh;)Ljava/util/ArrayList;\n'
+            '    move-result-object v0\n'
+            '    return-object v0\n'
+            '.end method\n')
+
+
+def test_follows_the_shared_helper_and_takes_the_unsorted_accessor():
+    plain = delegating_accessor('getMentions', sorts=False)
+    in_order = delegating_accessor('getMentionsInTextOrder', sorts=True)
+    for body in (plain + in_order + SHARED_HELPER, SHARED_HELPER + in_order + plain):
+        found = finder()
+        artifacts = feed(found, entry(body=body))
+        assert found.is_found is True
+        assert artifacts['MENTION_GET_METHOD_NAME'] == 'getMentions'
+        assert artifacts['MENTION_EVERYONE_CLASS_NAME'] == 'X.83i'
+        assert artifacts['MENTION_EVERYONE_FIELD_NAME'] == 'A00'

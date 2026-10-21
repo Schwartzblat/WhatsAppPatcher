@@ -88,6 +88,12 @@ class AbPropsFinder(SimpleArtifactoryFinder):
     2.26.33.76, 2.26.36.71, 2.26.36.72, 2.26.36.74 and 2.26.37.74 -- four
     different names, and four reference parameters before the id in the oldest
     against five since.
+
+    From 2.26.39 it does not fire, deliberately. R8 made the funnel static (the
+    receiver is passed in as a parameter, and a boolean follows the id:
+    ``A07(00F, 00D, Integer, 0AG, 09x, 09y, I, Z)Object`` on 2.26.41.78), and a
+    static target cannot be hooked: the backup re-enters the replacement and the
+    app dies on the first read. The hook has to move before this may fire there.
     """
 
     def __init__(self, args):
@@ -113,8 +119,11 @@ class AbPropsFinder(SimpleArtifactoryFinder):
             if method.group('params') != 'I' or 'public' not in modifiers:
                 continue
             # An abstract declaration has no body to follow, and a static one
-            # is not what the app calls: every read site is invoke-virtual.
-            if 'abstract' in modifiers or 'static' in modifiers:
+            # is not what the app calls: every read site is invoke-virtual. Nor
+            # is an accessor final, since one subclass overrides all five; from
+            # 2.26.39 a final (I)String reading an "<id>_expo_key" preference
+            # sits beside them, and counting it made the string shape ambiguous.
+            if 'abstract' in modifiers or 'static' in modifiers or 'final' in modifiers:
                 continue
             prefix = GETTERS.get(method.group('ret'))
             if prefix is not None:

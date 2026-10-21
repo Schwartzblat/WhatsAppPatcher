@@ -20,4 +20,4 @@ def test_run_artifactory_only_writes_record_and_exit_code(tmp_path, monkeypatch)
     monkeypatch.setattr(main, 'build_record', lambda apk, arts, feats, ver: {'supported': False, 'dex_sha256': 'd', 'features_off': [], 'v': ver})
     out = tmp_path / 'r.json'
     assert main.run_artifactory_only(main.get_args_from(['-p', 'x.apk', '--artifactory-only', str(out)])) == 3
-    assert json.loads(out.read_text())['v'] == '3.0.2'
+    assert json.loads(out.read_text())['v'] == '3.0.3'

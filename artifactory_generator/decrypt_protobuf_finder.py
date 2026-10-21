@@ -37,7 +37,11 @@ class DecryptProtobufFinder(SimpleArtifactoryFinder):
         super().__init__(args)
         self.is_once = True
         self.is_found = False
-        self.message_class = None
+        #: Every class that keeps MESSAGE_FIELD. Since 2.26.40 there are two (X.6qB
+        #: and X.7uk on 2.26.41.78) and only the inbound message has a builder, so
+        #: all are kept and the builder decides: remembering only the last one seen
+        #: made the result depend on file order.
+        self.message_classes = set()
         #: class name -> (message descriptor, build method, build signature).
         #: Kept because files arrive in filesystem order: the builder is usually
         #: read before the message class that identifies which builder it is.
@@ -53,7 +57,7 @@ class DecryptProtobufFinder(SimpleArtifactoryFinder):
         name = name_match.groupdict().get('name')
 
         if self.MESSAGE_FIELD in class_data:
-            self.message_class = name
+            self.message_classes.add(name)
 
         ctor = self.BUILDER_CTOR_RE.search(class_data)
         if ctor is not None:
@@ -63,15 +67,13 @@ class DecryptProtobufFinder(SimpleArtifactoryFinder):
                                        builds[0].groupdict().get('method_name'),
                                        builds[0].groupdict().get('sig'))
 
-        if self.message_class is None:
-            return
-        descriptor = 'L%s;' % self.message_class
-        matches = [(name, build) for name, build in self.builders.items() if build[0] == descriptor]
+        descriptors = {'L%s;' % message for message in self.message_classes}
+        matches = [(name, build) for name, build in self.builders.items() if build[0] in descriptors]
         if len(matches) != 1:
             return
 
-        builder_name, (_, method_name, sig) = matches[0]
-        artifacts['DECRYPT_PROTOBUF_CLASS_NAME'] = self.message_class.replace('/', '.')
+        builder_name, (message, method_name, sig) = matches[0]
+        artifacts['DECRYPT_PROTOBUF_CLASS_NAME'] = message[1:-1].replace('/', '.')
         artifacts['PARSE_PARAMS_BUILDER_CLASS_NAME'] = builder_name.replace('/', '.')
         artifacts['PARSE_PARAMS_BUILDER_METHOD_NAME'] = method_name
         artifacts['PARSE_PARAMS_BUILDER_METHOD_SIG'] = sig

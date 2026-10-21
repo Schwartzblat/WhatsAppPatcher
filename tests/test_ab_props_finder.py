@@ -195,3 +195,23 @@ def test_ignores_a_static_accessor():
     finder, artifacts = find(PROPS.replace(bool_getter, static))
     assert not finder.is_found
     assert artifacts == {}
+
+
+# From 2.26.39 a final (I)String sits beside the accessors: it reads an
+# "<id>_expo_key" preference and never reaches the funnel. The accessors are
+# never final -- one subclass overrides all five -- so a final one is not one.
+EXPO_KEY = ('.method public final A0m(I)Ljava/lang/String;\n'
+            '    .locals 3\n'
+            '    const-string v0, "_expo_key"\n'
+            '    iget-object v1, p0, %s->A00:Landroid/content/SharedPreferences;\n'
+            '    invoke-interface {v1, v2, v0}, Landroid/content/SharedPreferences;->'
+            'getString(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;\n'
+            '    move-result-object v0\n'
+            '    return-object v0\n'
+            '.end method\n' % CLS)
+
+
+def test_a_final_lookalike_beside_the_accessors_is_not_one():
+    finder, artifacts = find(PROPS + EXPO_KEY)
+    assert finder.is_found
+    assert artifacts['AB_PROPS_FUNNEL_METHOD_NAME'] == 'A07'

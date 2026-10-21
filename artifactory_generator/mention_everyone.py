@@ -41,7 +41,8 @@ class MentionEveryoneFinder(SimpleArtifactoryFinder):
        fire.
 
     Verified to resolve both, and nothing else, on 2.26.29.74, 2.26.33.76,
-    2.26.36.71 and 2.26.36.72.
+    2.26.36.71, 2.26.36.72, 2.26.36.74, 2.26.37.74, 2.26.39.79, 2.26.40.72,
+    2.26.41.71 and 2.26.41.78.
     """
 
     ENTRY_CLASS_RE = re.compile(r'^com/whatsapp/mentions/(?:[\w/]+/)?MentionableEntry$')
@@ -54,6 +55,11 @@ class MentionEveryoneFinder(SimpleArtifactoryFinder):
     # A static field whose type is the class declaring it: a singleton, which is
     # how the app itself reaches the everyone marker.
     SINGLETON_RE = re.compile(r'sget-object [vp]\d+, (?P<owner>L[\w/$]+;)->(?P<field>[\w$]+):(?P=owner)')
+    # From 2.26.39 the widget has a second public ()List, the mentions in text
+    # order, which sorts the spans by position before handing them over. The
+    # send path calls the plain one (a dozen callers against one on 2.26.41.78),
+    # and sorting is what the variant is for, so it is told apart by that.
+    SORT_RE = re.compile(r'invoke-static(?:/range)? \{[^}]*\}, Ljava/util/(?:Arrays|Collections);->sort\(')
 
     def __init__(self, args):
         super().__init__(args)
@@ -67,15 +73,32 @@ class MentionEveryoneFinder(SimpleArtifactoryFinder):
                 and self.MENTIONS_SIG in class_data)
 
     def extract_artifacts(self, artifacts: dict, class_data: str) -> None:
-        accessors = [method for method in self.METHOD_RE.finditer(class_data)
+        methods = list(self.METHOD_RE.finditer(class_data))
+        accessors = [method for method in methods
                      if method.group('sig') == self.MENTIONS_SIG
                      and 'public' in method.group('modifiers')
                      and 'static' not in method.group('modifiers')]
+        if len(accessors) > 1:
+            accessors = [method for method in accessors if not self.SORT_RE.search(method.group('body'))]
         if len(accessors) != 1:
             return
         accessor = accessors[0]
 
         markers = set(self.SINGLETON_RE.findall(accessor.group('body')))
+        if not markers:
+            # From 2.26.39 the list is built in a private helper the accessors
+            # share, and the marker is read there: follow this class's private
+            # methods the accessor calls, one hop.
+            descriptor = 'L%s;' % CLASS_RE.search(class_data).groupdict().get('name')
+            privates = {(method.group('name'), method.group('sig')): method for method in methods
+                        if 'private' in method.group('modifiers')}
+            calls = re.finditer(r'invoke-direct(?:/range)? \{[^}]*\}, %s->(?P<name>[\w$]+)'
+                                r'(?P<sig>\([^)\n]*\)[\w/$;\[]+)' % re.escape(descriptor),
+                                accessor.group('body'))
+            for call in calls:
+                helper = privates.get((call.group('name'), call.group('sig')))
+                if helper is not None:
+                    markers |= set(self.SINGLETON_RE.findall(helper.group('body')))
         if len(markers) != 1:
             return
         owner, field = markers.pop()

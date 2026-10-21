@@ -130,3 +130,20 @@ def test_reads_a_class_name_that_contains_an_l():
     assert found.is_found is True
     assert artifacts['DECRYPT_PROTOBUF_CLASS_NAME'] == 'X.BLz'
     assert artifacts['PARSE_PARAMS_BUILDER_CLASS_NAME'] == 'X.CLd'
+
+
+def test_a_second_class_keeping_the_field_does_not_hide_the_message():
+    """Since 2.26.40 a second protobuf keeps the field too (X.7uk beside X.6qB on
+    2.26.41.78), and only the inbound message has a builder. Whichever of the two
+    is scanned last, the builder decides; the crawler host's file order once left
+    the finder unfired on 2.26.41.78 while this machine's order fired it."""
+    other = message_class('LX/Zq1;')
+    for order in ((message_class(), other, builder()),
+                  (other, message_class(), builder()),
+                  (builder(), other, message_class()),
+                  (message_class(), builder(), other)):
+        found = finder()
+        artifacts = feed(found, *order)
+        assert found.is_found is True
+        assert artifacts['DECRYPT_PROTOBUF_CLASS_NAME'] == 'X.Bfr'
+        assert artifacts['PARSE_PARAMS_BUILDER_CLASS_NAME'] == 'X.CZ8'
