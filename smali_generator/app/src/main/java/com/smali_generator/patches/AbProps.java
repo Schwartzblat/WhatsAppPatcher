@@ -31,8 +31,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * answering one of those questions differently is how you find out what it
  * does.
  *
- * The hook is not on those accessors but on the one private method all five
- * end in, which takes the id and returns the value boxed. The accessors are 8
+ * The hook is not on those accessors but on the one method all five end in,
+ * which takes the id and returns the value boxed: a private instance method up
+ * to 2.26.37, and from 2.26.39 a static one that R8 hands the receiver as a
+ * parameter, which is where this reads it from. The accessors are 8
  * dex code units each: a warm profile's inline caches let dex2oat copy one into
  * a hot call site behind a class check, and the override then silently stopped
  * applying there -- a read of property 16520 on 2.26.37.74 under the phone's
@@ -85,6 +87,15 @@ public class AbProps implements Hook {
      *  still not be in force. */
     private static volatile boolean funnelHooked;
 
+    /**
+     * Which of a static funnel's parameters is the receiver: R8 passes it in
+     * rather than as {@code this}, after the context on 2.26.39 through
+     * 2.26.41. Read off the funnel's own parameter types at load, never
+     * assumed, and unused for an instance funnel, whose receiver is thiz.
+     * Volatile so that a thread reaching the replacement sees it set.
+     */
+    private static volatile int receiverIndex = -1;
+
     /** The receiver class every ordinary read comes from, checked before the map. */
     private static volatile Class<?> lastCovered;
 
@@ -129,6 +140,62 @@ public class AbProps implements Hook {
     static Object funnel6_hook(Object thiz, Object a, Object b, Object c, Object d, Object e, Object f,
                                int id) {
         return answer(thiz, id, funnel6_backup(thiz, a, b, c, d, e, f, id));
+    }
+
+    // The static funnel, from 2.26.39: the receiver is one of the references,
+    // six of them on every release seen, and from 2.26.40 a boolean follows the
+    // id. A static target's replacement takes its parameters unchanged.
+
+    /** native on purpose: a body here would be inlined into the hook and the backup would
+     *  silently answer for the original. ArtHooks rewrites its entry point. */
+    static native Object static6_backup(Object a, Object b, Object c, Object d, Object e, Object f, int id);
+
+    static Object static6_hook(Object a, Object b, Object c, Object d, Object e, Object f, int id) {
+        return answer(receiver(a, b, c, d, e, f, null), id, static6_backup(a, b, c, d, e, f, id));
+    }
+
+    /** native on purpose: a body here would be inlined into the hook and the backup would
+     *  silently answer for the original. ArtHooks rewrites its entry point. */
+    static native Object static6z_backup(Object a, Object b, Object c, Object d, Object e, Object f, int id,
+                                         boolean z);
+
+    static Object static6z_hook(Object a, Object b, Object c, Object d, Object e, Object f, int id,
+                                boolean z) {
+        return answer(receiver(a, b, c, d, e, f, null), id, static6z_backup(a, b, c, d, e, f, id, z));
+    }
+
+    /** native on purpose: a body here would be inlined into the hook and the backup would
+     *  silently answer for the original. ArtHooks rewrites its entry point. */
+    static native Object static7_backup(Object a, Object b, Object c, Object d, Object e, Object f, Object g,
+                                        int id);
+
+    static Object static7_hook(Object a, Object b, Object c, Object d, Object e, Object f, Object g, int id) {
+        return answer(receiver(a, b, c, d, e, f, g), id, static7_backup(a, b, c, d, e, f, g, id));
+    }
+
+    /** native on purpose: a body here would be inlined into the hook and the backup would
+     *  silently answer for the original. ArtHooks rewrites its entry point. */
+    static native Object static7z_backup(Object a, Object b, Object c, Object d, Object e, Object f, Object g,
+                                         int id, boolean z);
+
+    static Object static7z_hook(Object a, Object b, Object c, Object d, Object e, Object f, Object g, int id,
+                                boolean z) {
+        return answer(receiver(a, b, c, d, e, f, g), id, static7z_backup(a, b, c, d, e, f, g, id, z));
+    }
+
+    /** The static funnel's receiver, by position; a switch, not an array, since
+     *  this runs on every read. Null, and so left alone, if it was never set. */
+    private static Object receiver(Object a, Object b, Object c, Object d, Object e, Object f, Object g) {
+        switch (receiverIndex) {
+            case 0: return a;
+            case 1: return b;
+            case 2: return c;
+            case 3: return d;
+            case 4: return e;
+            case 5: return f;
+            case 6: return g;
+            default: return null;
+        }
     }
 
     /**
@@ -325,45 +392,84 @@ public class AbProps implements Hook {
                 Log.e(TAG, "AbProps: " + owner.getName() + " has no funnel of the shape the finder saw");
                 return;
             }
-            // R8 makes an instance method static when its receiver goes unused,
-            // without touching the descriptor the finder matched. Hooking a
-            // static one installs cleanly and then dies on the first call, when
-            // the backup re-enters the replacement -- outside every try/catch,
-            // with the app already running.
-            if (Modifier.isStatic(funnel.getModifiers())) {
-                Log.e(TAG, "AbProps: the funnel is static in this build, nothing is hooked");
+            Method method = (Method) funnel;
+            boolean isStatic = Modifier.isStatic(method.getModifiers());
+            Class<?>[] params = method.getParameterTypes();
+            if (method.getReturnType() != Object.class) {
+                Log.e(TAG, "AbProps: the funnel does not return Object: " + funnel);
                 return;
             }
-            Class<?>[] params = ((Method) funnel).getParameterTypes();
-            int references = params.length - 1;
-            if (references < 0 || params[references] != int.class
-                    || ((Method) funnel).getReturnType() != Object.class) {
-                Log.e(TAG, "AbProps: the funnel does not take the id last and return Object: " + funnel);
-                return;
-            }
-            for (int i = 0; i < references; i++) {
-                if (params[i].isPrimitive()) {
-                    Log.e(TAG, "AbProps: the funnel takes a primitive before the id: " + funnel);
+            // The id is the funnel's only int. Every parameter ahead of it is a
+            // reference, and the most that has ever followed it is a boolean.
+            int id = -1;
+            for (int i = 0; i < params.length; i++) {
+                if (params[i] == int.class) {
+                    if (id >= 0) {
+                        Log.e(TAG, "AbProps: the funnel takes two ints, and which is the id is a guess: " + funnel);
+                        return;
+                    }
+                    id = i;
+                } else if (params[i].isPrimitive() && (id < 0 || params[i] != boolean.class)) {
+                    Log.e(TAG, "AbProps: the funnel takes a " + params[i] + " this has no replacement for: " + funnel);
                     return;
                 }
             }
-            Class<?>[] shape = new Class<?>[references + 2];
+            if (id < 0) {
+                Log.e(TAG, "AbProps: the funnel takes no int id: " + funnel);
+                return;
+            }
+            String trailing = id == params.length - 1 ? "" : id == params.length - 2 ? "z" : null;
+            if (trailing == null) {
+                Log.e(TAG, "AbProps: the funnel takes more after the id than this has a replacement for: " + funnel);
+                return;
+            }
+            // A static funnel is handed its receiver: the one parameter of the
+            // properties class's own type. Without it there is nothing to tell
+            // the registration object apart by, so nothing is hooked.
+            int receiver = -1;
+            if (isStatic) {
+                for (int i = 0; i < id; i++) {
+                    if (params[i] == owner) {
+                        if (receiver >= 0) {
+                            Log.e(TAG, "AbProps: the static funnel takes two receivers: " + funnel);
+                            return;
+                        }
+                        receiver = i;
+                    }
+                }
+                if (receiver < 0) {
+                    Log.e(TAG, "AbProps: the static funnel is not handed a receiver: " + funnel);
+                    return;
+                }
+            }
+            // The replacement's layout has to match the target's exactly, the
+            // receiver leading for an instance one, and Object stands in for
+            // every obfuscated type.
+            int lead = isStatic ? 0 : 1;
+            Class<?>[] shape = new Class<?>[lead + params.length];
             Arrays.fill(shape, Object.class);
-            shape[references + 1] = int.class;
+            for (int i = id; i < params.length; i++) {
+                shape[lead + i] = params[i];
+            }
+            String family = (isStatic ? "static" : "funnel") + id + trailing;
             Method replacement;
             Method original;
             try {
-                replacement = AbProps.class.getDeclaredMethod("funnel" + references + "_hook", shape);
-                original = AbProps.class.getDeclaredMethod("funnel" + references + "_backup", shape);
+                replacement = AbProps.class.getDeclaredMethod(family + "_hook", shape);
+                original = AbProps.class.getDeclaredMethod(family + "_backup", shape);
             } catch (NoSuchMethodException e) {
-                Log.e(TAG, "AbProps: the funnel takes " + references
-                        + " references before the id, and no replacement has that shape");
+                Log.e(TAG, "AbProps: the funnel takes " + id + " references before the id"
+                        + (isStatic ? ", static" : "") + (trailing.isEmpty() ? "" : " and a boolean after it")
+                        + ", and no replacement has that shape");
                 return;
             }
+            // Before the redirect: the first read through it needs it.
+            receiverIndex = receiver;
             boolean hooked = ArtHooks.hook_function(funnel, replacement, original);
             funnelHooked = hooked;
             Log.i(TAG, "AbProps: hooked the funnel " + owner.getName() + "."
-                    + ((Method) funnel).getName() + Artifacts.get("AB_PROPS_FUNNEL_METHOD_SIG") + ", hooked=" + hooked);
+                    + method.getName() + Artifacts.get("AB_PROPS_FUNNEL_METHOD_SIG")
+                    + (isStatic ? ", static, receiver at parameter " + receiver : "") + ", hooked=" + hooked);
         } catch (Throwable t) {
             Log.e(TAG, "AbProps: the properties class was not reached, nothing is hooked: " + t);
         }

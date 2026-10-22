@@ -180,9 +180,45 @@ def test_does_not_fire_on_a_funnel_small_enough_to_inline():
     assert artifacts == {}
 
 
-def test_does_not_fire_on_a_static_funnel():
-    # ArtHooks cannot hook a static target: its backup re-enters the replacement.
-    finder, artifacts = find(PROPS.replace(funnel(), funnel(modifiers='private static final ')))
+# From 2.26.39 the funnel is static and is handed its receiver after the context;
+# from 2.26.40 a boolean follows the id.
+STATIC_PARAMS = 'LX/00G;LX/00E;Ljava/lang/Integer;LX/09o;LX/09V;LX/09W;IZ'
+
+
+def static_props(params):
+    return (PROPS.replace('invoke-direct/range {v1 .. v7}, LX/00E;->A07(%s)' % FUNNEL_PARAMS,
+                          'invoke-static/range {v0 .. v7}, LX/00E;->A07(%s)' % params)
+            .replace(funnel(), funnel(params=params, modifiers='public static final ')))
+
+
+def test_resolves_a_static_funnel_handed_its_receiver():
+    finder, artifacts = find(static_props(STATIC_PARAMS))
+    assert finder.is_found
+    assert artifacts['AB_PROPS_FUNNEL_METHOD_NAME'] == 'A07'
+    assert artifacts['AB_PROPS_FUNNEL_METHOD_SIG'] == '(%s)Ljava/lang/Object;' % STATIC_PARAMS
+
+
+def test_resolves_a_static_funnel_with_the_id_last():
+    # 2.26.39.79: static already, the boolean not yet added.
+    params = STATIC_PARAMS[:-1]
+    finder, artifacts = find(static_props(params))
+    assert finder.is_found
+    assert artifacts['AB_PROPS_FUNNEL_METHOD_SIG'] == '(%s)Ljava/lang/Object;' % params
+
+
+def test_a_static_method_not_handed_the_receiver_is_not_the_funnel():
+    # Without the class among its parameters there is no receiver to tell the
+    # registration object apart by, and nothing says it reads this class at all.
+    params = STATIC_PARAMS.replace('LX/00E;', 'LX/00Q;')
+    finder, artifacts = find(static_props(params))
+    assert not finder.is_found
+    assert artifacts == {}
+
+
+def test_a_static_funnel_taking_two_ints_is_not_one():
+    # Which int is the id is the one thing the hook has to know.
+    params = STATIC_PARAMS.replace('IZ', 'II')
+    finder, artifacts = find(static_props(params))
     assert not finder.is_found
     assert artifacts == {}
 

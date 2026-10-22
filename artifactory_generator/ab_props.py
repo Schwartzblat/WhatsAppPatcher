@@ -42,6 +42,9 @@ INLINE_BUDGET = 32
 
 DIRECTIVE_RE = re.compile(r'^\s*(?:$|[.:#])')
 
+# One parameter descriptor: a primitive, a class, or an array of either.
+PARAM_RE = re.compile(r'\[*(?:[ZBSCIFJD]|L[^;]+;)')
+
 
 def _instructions(body: str) -> int:
     count, in_annotation = 0, False
@@ -89,11 +92,14 @@ class AbPropsFinder(SimpleArtifactoryFinder):
     different names, and four reference parameters before the id in the oldest
     against five since.
 
-    From 2.26.39 it does not fire, deliberately. R8 made the funnel static (the
-    receiver is passed in as a parameter, and a boolean follows the id:
-    ``A07(00F, 00D, Integer, 0AG, 09x, 09y, I, Z)Object`` on 2.26.41.78), and a
-    static target cannot be hooked: the backup re-enters the replacement and the
-    app dies on the first read. The hook has to move before this may fire there.
+    From 2.26.39 R8 made the funnel static, passing the receiver in as a
+    parameter -- ``A07(00F, 00D, Integer, 09c, 09J, 09K, I)Object`` on
+    2.26.39.79 -- and from 2.26.40 a boolean follows the id:
+    ``A07(00F, 00D, Integer, 0AG, 09x, 09y, I, Z)Object`` on 2.26.41.78. So the
+    funnel is recognised by what it takes rather than where: the id as its only
+    int, and, when static, this class once among its parameters, which is the
+    receiver the hook reads. Verified on 2.26.39.79, 2.26.40.72, 2.26.41.71 and
+    2.26.41.78.
     """
 
     def __init__(self, args):
@@ -140,7 +146,7 @@ class AbPropsFinder(SimpleArtifactoryFinder):
         if len(funnels) != 1 or None in funnels:
             return
         funnel = methods.get(funnels.pop())
-        if funnel is None or 'static' in funnel.group('modifiers'):
+        if funnel is None:
             return
         if _instructions(funnel.group('body')) <= INLINE_BUDGET:
             return
@@ -157,10 +163,12 @@ class AbPropsFinder(SimpleArtifactoryFinder):
         reach exactly one.
 
         The funnel is recognised by the call rather than by a list of
-        parameter types, which moved between releases: an invoke-direct into
-        this class, of a method returning Object whose last parameter is the
-        int id. Anything else the class calls on the way -- the typed static
-        helpers, an instance hop -- is followed, up to MAX_HOPS deep.
+        parameter types, which moved between releases: a call into this class,
+        of a method returning Object that takes the id as its only int -- an
+        invoke-direct, or from 2.26.39 an invoke-static that also takes this
+        class, once, as the receiver it was handed. Anything else the class
+        calls on the way -- the typed static helpers, an instance hop -- is
+        followed, up to MAX_HOPS deep.
         """
         call_re = re.compile(
             r'invoke-(?P<kind>static|direct)(?:/range)? \{[^}]*\}, %s->'
@@ -172,8 +180,9 @@ class AbPropsFinder(SimpleArtifactoryFinder):
             for method in frontier:
                 for call in call_re.finditer(method.group('body')):
                     key = (call.group('name'), call.group('params'), call.group('ret'))
-                    if (call.group('kind') == 'direct' and key[2] == 'Ljava/lang/Object;'
-                            and key[1].endswith('I') and not key[1].endswith('[I')):
+                    params = PARAM_RE.findall(key[1])
+                    receiver = call.group('kind') == 'direct' or params.count(descriptor) == 1
+                    if key[2] == 'Ljava/lang/Object;' and params.count('I') == 1 and receiver:
                         reached.add(key)
                     elif key in methods and key[0] != '<init>':
                         following.append(methods[key])
