@@ -16,7 +16,7 @@ from artifactory_generator.decrypt_protobuf_finder import DecryptProtobufFinder
 from artifactory_generator.row_binder import RowBinderFinder
 from artifactory_generator.settings_screen import SettingsScreenFinder
 from artifactory_generator.read_receipts import ReadReceiptsFinder
-from artifactory_generator.meta_ai_button import MetaAiButtonFinder, MetaAiCallsButtonFinder
+from artifactory_generator.meta_ai_button import MetaAiButtonFinder
 from artifactory_generator.meta_ai_tab import MetaAiTabFinder
 from artifactory_generator.message_search import MessageSearchFinder
 from artifactory_generator.contact_search import ContactSearchFinder, ContactAccessorsFinder
@@ -71,7 +71,6 @@ def build_finders(args, artifactory_only: bool) -> list:
         SettingsScreenFinder(args),
         ReadReceiptsFinder(args),
         MetaAiButtonFinder(args),
-        MetaAiCallsButtonFinder(args),
         MetaAiTabFinder(args),
         MessageSearchFinder(args),
         ContactSearchFinder(args),

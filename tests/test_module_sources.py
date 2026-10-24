@@ -28,12 +28,33 @@ def test_no_static_field_reads_artifacts():
     assert [p.name for p, s in sources().items() if STATIC_READ_RE.search(s)] == []
 
 
-def test_feature_ids_are_hook_ids():
+# Hidden features that are a part of a hook rather than a hook of their own
+# (feature id -> the hook that reads them). A part has keys of its own so that a
+# build lacking that one entry point does not take the whole hook's feature
+# off: WhatsApp 2.26.42 dropped the Meta AI tab, while its buttons remain.
+PARTS = {
+    'meta_ai_tab': 'meta_ai_button',
+}
+
+
+def _hook_ids():
     hook_ids = set()
     for p in (SRC / 'patches').glob('*.java'):
         m = ID_RE.search(p.read_text())
         hook_ids.add(m.group(1) if m else p.stem)
-    assert {f['id'] for f in FEATURES['features']} - hook_ids == set()
+    return hook_ids
+
+
+def test_feature_ids_are_hook_ids():
+    assert {f['id'] for f in FEATURES['features']} - set(PARTS) - _hook_ids() == set()
+
+
+def test_parts_belong_to_a_hook_and_are_hidden():
+    by_id = {f['id']: f for f in FEATURES['features']}
+    for part, owner in PARTS.items():
+        assert owner in _hook_ids() and owner in by_id
+        assert by_id[part].get('visible', True) is False
+        assert set(by_id[part]['keys']).isdisjoint(by_id[owner]['keys'])
 
 
 # Keys read by helper classes on behalf of a hook's features (file path under SRC -> feature ids).
@@ -59,6 +80,7 @@ def test_each_file_reads_only_keys_of_its_features():
         allowed = set(FEATURES['required_keys'])
         for fid in feature_ids:
             allowed |= _feature_keys(fid)
+            allowed |= {k for part, owner in PARTS.items() if owner == fid for k in _feature_keys(part)}
         if used - allowed:
             problems.append((path.name, sorted(used - allowed)))
     assert problems == []

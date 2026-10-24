@@ -1,6 +1,6 @@
 from pathlib import Path
 
-PATCHER_VERSION = "3.0.4"
+PATCHER_VERSION = "3.0.5"
 PACKAGE = "com.whatsapp"
 MODULE_PROVIDER = "com.smali_generator.InitProvider"
 # Stitch writes this into the target's manifest as the provider's android:name,

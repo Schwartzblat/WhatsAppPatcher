@@ -5,12 +5,14 @@ import android.util.Log;
 import com.arthooks.ArtHooks;
 
 import com.smali_generator.Artifacts;
+import com.smali_generator.Features;
 import com.smali_generator.Hook;
 import com.smali_generator.HookCategory;
 
 import java.lang.reflect.Executable;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.List;
 
 
 /**
@@ -25,14 +27,16 @@ import java.util.ArrayList;
  *     whose id is not in the list does not exist. Entries already come and go
  *     there per account -- Updates drops out under a privacy setting, the first
  *     slot is Meta AI or one of two other tabs depending on gating -- so taking
- *     one out is a shape the screen is built to take;</li>
+ *     one out is a shape the screen is built to take. WhatsApp 2.26.42 dropped
+ *     the tab itself, so its keys are a hidden feature of their own
+ *     ({@code meta_ai_tab}): a build without the tab still loses its buttons;</li>
  * <li>the <b>button</b> above the new-chat FAB, which appears as a round fab
  *     carrying the Meta AI ring or as an extended pill with text beside it. The
  *     screen asks one question before it draws either, and before it acts on a
- *     tap: is the Meta AI button on? That is a setting WhatsApp keeps in its own
- *     preferences, so answering no is a state it already has a name for. The
- *     calls tab shows the same button from the same setting but asks the
- *     question itself, with its own copy of the check, so it is answered
+ *     tap: is the Meta AI button on? Answering no is a state the app already has
+ *     a name for -- up to 2.26.41 it was a Settings > Chats switch, from 2.26.42
+ *     availability and an A/B flag. The calls tab shows the same button but asks
+ *     the question itself, with its own copy of the check, so it is answered
  *     separately.</li>
  * </ul>
  *
@@ -121,9 +125,9 @@ public class MetaAiButton implements Hook {
      * It is the difference between "the button was taken away" and "this
      * account was never offered one", which is otherwise indistinguishable from
      * outside -- and telling those apart is the whole reason this hook was wrong
-     * the first time. Safe to ask: both originals only read a setting and a
-     * gating flag. Guarded anyway, since a throw here would land in a call
-     * WhatsApp makes while building the screen.
+     * the first time. Safe to ask: both originals only read settings,
+     * availability and gating flags. Guarded anyway, since a throw here would
+     * land in a call WhatsApp makes while building the screen.
      */
     private static String wanted(Object thiz, boolean chats) {
         try {
@@ -156,6 +160,14 @@ public class MetaAiButton implements Hook {
     }
 
     private void remove_tab() {
+        // Asked rather than left to fail below: from 2.26.42 there is no tab, and
+        // saying so is not an error. An empty list means features.json was not
+        // read, which is no evidence either way, so the parse below decides.
+        List<String> tabKeys = Features.keysFor("meta_ai_tab");
+        if (!tabKeys.isEmpty() && !Artifacts.hasAll(tabKeys)) {
+            Log.i(TAG, "MetaAiButton: no Meta AI tab on this version, nothing to remove");
+            return;
+        }
         try {
             // Parsed rather than inlined as a literal: an unsubstituted
             // placeholder then fails here, before anything is hooked, instead of

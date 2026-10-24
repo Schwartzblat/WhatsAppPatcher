@@ -113,7 +113,14 @@
         "META_AI_BUTTON_GATE_METHOD_SIG",
         "META_AI_CALLS_GATE_CLASS_NAME",
         "META_AI_CALLS_GATE_METHOD_NAME",
-        "META_AI_CALLS_GATE_METHOD_SIG",
+        "META_AI_CALLS_GATE_METHOD_SIG"
+      ]
+    },
+    {
+      "id": "meta_ai_tab",
+      "title": "Remove the Meta AI tab",
+      "visible": false,
+      "keys": [
         "META_AI_TABS_CLASS_NAME",
         "META_AI_TABS_METHOD_NAME",
         "META_AI_TABS_METHOD_SIG",

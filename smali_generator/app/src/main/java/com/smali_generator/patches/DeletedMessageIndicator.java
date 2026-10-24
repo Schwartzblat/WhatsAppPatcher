@@ -22,7 +22,8 @@ import java.lang.reflect.Method;
 /**
  * Marks messages whose "delete for everyone" DecryptProtobuf suppressed.
  *
- * The conversation list is a CursorAdapter, so there is no row builder that
+ * The conversation list is a framework list adapter (a CursorAdapter until
+ * 2.26.42, a plain BaseAdapter since), so there is no row builder that
  * receives the FMessage as a parameter -- rows are bound through the framework
  * getView(int, View, ViewGroup). We hook that and annotate its result, so this
  * uses the three-argument hook_function with a backup.
@@ -121,11 +122,10 @@ public class DeletedMessageIndicator implements Hook {
      * has no reason to re-bind that row, so the icon would not appear until the
      * next bind -- a scroll away and back, or reopening the chat.
      *
-     * Safe to call out of band. The adapter extends CursorAdapter, hence
-     * BaseAdapter, and overrides neither notifyDataSetChanged nor
-     * registerDataSetObserver; WhatsApp itself never calls notifyDataSetChanged,
-     * refreshing through changeCursor/onContentChanged instead. So this cannot
-     * contend with the app's own refresh path.
+     * Safe to call out of band. The adapter is a BaseAdapter (through
+     * CursorAdapter before 2.26.42), and notifyDataSetChanged is the framework's
+     * own way to ask it to re-bind -- the adapter overrides it, and its override
+     * is what runs.
      *
      * Runs on the decrypt thread, so the actual notify is posted to the main
      * looper. A no-op when nothing has rendered yet, or when the conversation

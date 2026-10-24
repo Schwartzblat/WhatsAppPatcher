@@ -10,11 +10,20 @@ GET_VIEW = ('.method public getView(ILandroid/view/View;'
             '    return-object p2\n'
             '.end method\n')
 
+# The adapter's own log prefix, which WhatsApp kept when the adapter stopped
+# being cursor-backed in 2.26.42; real builds carry it in the accessor itself.
 ITEM = ('.method public A0B(I)LX/1If;\n'
         '    .registers 4\n'
+        '    const-string v1, "ConversationCursorAdapter/getItem out-of-bounds "\n'
         '    iget-object v0, p0, LX/7uD;->A03:Landroid/database/Cursor;\n'
         '    return-object v0\n'
         '.end method\n')
+
+LOG_ONLY = ('.method private A0D()V\n'
+            '    .registers 2\n'
+            '    const-string v0, "ConversationCursorAdapter/isSameSender: null senderJid in group chat, msg1="\n'
+            '    return-void\n'
+            '.end method\n')
 
 # Adapter.getItem is generified, so the adapter always carries a bridge of the
 # accessor's exact shape. Counting it would make the accessor look ambiguous.
@@ -28,6 +37,11 @@ GET_ITEM_BRIDGE = ('.method public bridge synthetic getItem(I)Ljava/lang/Object;
 # The conversation adapter: cursor-backed, binds through the framework getView.
 ADAPTER = ('.class public final LX/7uD;\n.super Landroid/widget/CursorAdapter;\n\n'
            + ITEM + GET_ITEM_BRIDGE + GET_VIEW)
+
+# 2.26.42.71's X/DS2: the same adapter, the same accessor and getView, now a
+# plain BaseAdapter -- which is all the old anchor looked for.
+BASE_ADAPTER = ADAPTER.replace('7uD', 'DS2').replace('A0B', 'A0H').replace('1If', '16o').replace(
+    'Landroid/widget/CursorAdapter;', 'Landroid/widget/BaseAdapter;')
 
 # The Starred/Kept messages adapter: a BaseAdapter whose row builder takes the
 # FMessage directly. This is the shape the old finder hunted for, and it
@@ -138,7 +152,7 @@ def test_does_not_fire_when_the_item_accessor_is_ambiguous():
 
 def test_does_not_fire_without_an_item_accessor():
     plain = ('.class public final LX/7uD;\n.super Landroid/widget/CursorAdapter;\n\n'
-             + GET_ITEM_BRIDGE + GET_VIEW)
+             + LOG_ONLY + GET_ITEM_BRIDGE + GET_VIEW)
     artifacts = {}
     found = finder()
     assert found.class_filter(plain) is True
@@ -171,3 +185,37 @@ def test_tolerates_extra_method_modifiers():
     assert found.is_found is True
     assert artifacts['ROW_BINDER_METHOD_NAME'] == 'getView'
     assert artifacts['ROW_ITEM_METHOD_NAME'] == 'A0B'
+
+
+def test_fires_on_the_conversation_adapter_once_it_is_a_base_adapter():
+    artifacts = {}
+    found = finder()
+    assert found.class_filter(BASE_ADAPTER) is True
+    found.extract_artifacts(artifacts, BASE_ADAPTER)
+    assert found.is_found is True
+    assert artifacts['ROW_BINDER_CLASS_NAME'] == 'X.DS2'
+    assert artifacts['ROW_BINDER_METHOD_NAME'] == 'getView'
+    assert artifacts['ROW_ITEM_METHOD_NAME'] == 'A0H'
+    assert artifacts['ROW_ITEM_METHOD_SIG'] == '(I)LX/16o;'
+
+
+def test_the_log_prefix_may_sit_anywhere_in_the_class():
+    elsewhere = BASE_ADAPTER.replace('    const-string v1, "ConversationCursorAdapter/getItem out-of-bounds "\n', '') + LOG_ONLY
+    artifacts = {}
+    found = finder()
+    assert found.class_filter(elsewhere) is True
+    found.extract_artifacts(artifacts, elsewhere)
+    assert found.is_found is True
+
+
+def test_an_adapter_without_the_conversation_log_prefix_does_not_fire():
+    """Many of WhatsApp's BaseAdapters declare getView and one (I) accessor; the
+    conversation's own log prefix is what picks the right one out of them. It is
+    required of a CursorAdapter too, so one rule decides on every build."""
+    anonymous = ADAPTER.replace('ConversationCursorAdapter', 'StickerPickerAdapter')
+    artifacts = {}
+    found = finder()
+    assert found.class_filter(anonymous) is False
+    found.extract_artifacts(artifacts, anonymous)
+    assert found.is_found is False
+    assert artifacts == {}
