@@ -33,6 +33,14 @@
       "visible": false
     },
     {
+      "id": "maps_token",
+      "title": "Google Maps",
+      "keys": [
+        "PACKAGE_SIGNATURE",
+        "ORIGINAL_API_KEY"
+      ]
+    },
+    {
       "id": "decrypt_protobuf",
       "title": "Keep deleted and view-once messages",
       "keys": [

@@ -22,6 +22,7 @@ WhatsApp patcher is a program that patches WhatsApp apk.
 |    Shared members between two or more groups    |      ✔      |
 |     Back up chats to your own Google Drive      |      ✔      |
 |      Restore a backup without reinstalling      |      ✔      |
+|    Google Maps working in the re-signed app     |      ✔      |
 
 There is support for apks, apkm and xapk files.
 
@@ -49,12 +50,16 @@ pip install -r requirements.txt
 ## Usage
 
 ```bash
-python main.py -p ./WhatsApp.apk -o PatchedWhatsApp.apk -g YOUR_GOOGLE_API_KEY
+python main.py -p ./WhatsApp.apk -o PatchedWhatsApp.apk
 ```
 
-You don't have to provide a Google API key, only if you want to patch the OAuth bypass feature.
+Maps work without a Google API key of your own. Play services vouches for the app with its certificate,
+which is the re-signed one, so Google refuses WhatsApp's own Maps key. The patch answers the Maps SDK's
+token request in-process instead and asks Google with WhatsApp's original certificate (the one
+`PACKAGE_SIGNATURE` holds). "Google Maps" on the settings screen switches it off.
 
-This will determinate if you could use the Google Maps features inside WhatsApp.
+`-g YOUR_GOOGLE_API_KEY` is still accepted: the build then carries your key, restricted to the patched
+certificate (see "Google API Key" below), and the patch leaves the token to Play services.
 
 ## Patch bundle (on-device patching)
 
@@ -77,7 +82,7 @@ server's `latest` ignores records of a patcher version that has no bundle.
 
 ## Google API Key
 
-To get a Google API key, follow these steps:
+Optional (see Usage). To get a Google API key, follow these steps:
 
 1. Go to the [Google Cloud Console](https://console.cloud.google.com/).
 2. Create a new project or select an existing one.
@@ -86,7 +91,7 @@ To get a Google API key, follow these steps:
 5. Enable the API for your project.
 6. Go to the "Credentials" tab and click on "Create Credentials".
 7. Select "API Key" from the dropdown menu.
-8. Copy the generated API key and use it in the Moovit Patcher.
+8. Copy the generated API key and pass it with `-g`.
 9. Make sure to restrict the API key to your app's package name and SHA-1 certificate fingerprint for security.
 
 ## Contributing

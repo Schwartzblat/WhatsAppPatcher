@@ -19,6 +19,7 @@ import com.smali_generator.patches.DeleteForEveryone;
 import com.smali_generator.patches.DeletedMessageIndicator;
 import com.smali_generator.patches.DriveBackup;
 import com.smali_generator.patches.FirebaseParams;
+import com.smali_generator.patches.MapsTokenHook;
 import com.smali_generator.patches.GroupHistorySharing;
 import com.smali_generator.patches.GroupStats;
 import com.smali_generator.patches.MentionEveryone;
@@ -31,6 +32,7 @@ import com.smali_generator.patches.SettingsEntryHook;
 import com.smali_generator.patches.StoreUpdateLinks;
 import com.smali_generator.patches.StoreUpdates;
 import com.smali_generator.patches.ZipFileHook;
+import com.smali_generator.utils.AppCert;
 import com.smali_generator.utils.Utils;
 import com.smali_generator.wrappers.FMessageKey;
 
@@ -69,6 +71,7 @@ public class InitProvider extends ContentProvider {
             new ZipFileHook(),
             new ActivityHook(),
             new FirebaseParams(),
+            new MapsTokenHook(),
             new DeletedMessageIndicator(),
             new ReadReceipts(),
             new MetaAiButton(),
@@ -99,6 +102,14 @@ public class InitProvider extends ContentProvider {
         PatchDb.init(Utils.getApplicationContext());
         Artifacts.init(Utils.getApplicationContext());
         Features.init(Utils.getApplicationContext());
+        // Before any hook: once PackageManagerHook is in, getPackageInfo reports
+        // the original certificate as the installed one, and the Maps fix would
+        // read the two as equal and stay off.
+        try {
+            AppCert.init(Utils.getApplicationContext());
+        } catch (Throwable t) {
+            Log.e("PATCH", "AppCert init failed: Google API fix off", t);
+        }
 
         // Before the wrappers and before any hook: this counts the launch as
         // failed until it proves otherwise, so a start that dies inside one of
